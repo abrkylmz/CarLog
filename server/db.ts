@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { FuelEntry, FuelType, Role, User, Vehicle } from "../src/types.ts";
+import type { Expense, ExpenseCategory, FuelEntry, FuelType, Role, User, Vehicle } from "../src/types.ts";
 
 export type Row = Record<string, unknown>;
 export interface Statement {
@@ -91,6 +91,17 @@ const SCHEMA: string[] = [
      created_at      TEXT NOT NULL
    )`,
   `CREATE INDEX IF NOT EXISTS entries_vehicle ON entries (vehicle_id)`,
+  `CREATE TABLE IF NOT EXISTS expenses (
+     id         TEXT PRIMARY KEY,
+     vehicle_id TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+     date       TEXT NOT NULL,
+     category   TEXT NOT NULL,
+     amount     DOUBLE PRECISION NOT NULL,
+     note       TEXT,
+     created_by TEXT,
+     created_at TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS expenses_vehicle ON expenses (vehicle_id)`,
   // Failed logins live in the database because serverless instances don't share memory.
   `CREATE TABLE IF NOT EXISTS login_attempts (
      ip       TEXT PRIMARY KEY,
@@ -162,6 +173,24 @@ export function toEntry(row: Row): FuelEntry {
     createdAt: row.created_at as string,
   };
 }
+
+export function toExpense(row: Row): Expense {
+  return {
+    id: row.id as string,
+    vehicleId: row.vehicle_id as string,
+    date: row.date as string,
+    category: row.category as ExpenseCategory,
+    amount: Number(row.amount),
+    note: (row.note as string | null) ?? undefined,
+    createdBy: (row.created_by_name as string | null) ?? null,
+    createdAt: row.created_at as string,
+  };
+}
+
+export const EXPENSE_SELECT = `
+  SELECT x.*, u.username AS created_by_name
+  FROM expenses x LEFT JOIN users u ON u.id = x.created_by
+`;
 
 export const ENTRY_SELECT = `
   SELECT e.*, u.username AS created_by_name

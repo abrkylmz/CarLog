@@ -42,6 +42,35 @@ export interface FuelEntry {
 /** Fields the client sends when adding a fill-up; the server owns id, createdBy and createdAt. */
 export type FuelEntryInput = Omit<FuelEntry, "id" | "createdBy" | "createdAt">;
 
+export type ExpenseCategory =
+  | "bakim"
+  | "lastik"
+  | "sigorta"
+  | "vergi"
+  | "muayene"
+  | "otopark"
+  | "otoyol"
+  | "yikama"
+  | "ceza"
+  | "diger";
+
+/** A non-fuel cost for a vehicle (service, insurance, tolls, ...). */
+export interface Expense {
+  id: string;
+  vehicleId: string;
+  /** ISO date string, e.g. "2026-03-14" */
+  date: string;
+  category: ExpenseCategory;
+  amount: number;
+  note?: string;
+  /** Username of whoever entered the expense; null if that user was deleted. */
+  createdBy: string | null;
+  createdAt: string;
+}
+
+/** Fields the client sends when adding an expense; the server owns id, createdBy and createdAt. */
+export type ExpenseInput = Omit<Expense, "id" | "createdBy" | "createdAt">;
+
 export interface DerivedEntry extends FuelEntry {
   /** km driven since the previous fill-up, by odometer order. Null for the first entry. */
   kmSinceLast: number | null;
@@ -52,7 +81,12 @@ export interface DerivedEntry extends FuelEntry {
 export interface MonthlySummary {
   /** "YYYY-MM" */
   month: string;
+  /** Fuel spend. */
   totalCost: number;
+  /** Non-fuel expenses. */
+  otherCost: number;
+  /** Fuel + other expenses. */
+  grandTotal: number;
   totalLiters: number;
   fillCount: number;
   avgPricePerLiter: number;
@@ -62,11 +96,15 @@ export interface MonthlySummary {
 
 export interface VehicleStats {
   fillCount: number;
+  /** Fuel spend; other expenses are the *OtherCost fields. */
   totalCost: number;
   totalLiters: number;
   avgPricePerLiter: number;
   thisMonthCost: number;
   thisMonthFillCount: number;
+  otherCostTotal: number;
+  thisMonthOtherCost: number;
+  expenseCount: number;
   /** Overall L/100km across all fill-ups with a known distance. */
   avgConsumptionPer100km: number | null;
   kmTracked: number;

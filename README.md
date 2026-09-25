@@ -8,6 +8,12 @@ Her dolumda kaydedilenler: tarih, kilometre, litre fiyatı (TL), toplam tutar (T
 ve litre (tutar ÷ fiyat olarak otomatik hesaplanır). Uygulama bunlardan
 dolumlar arası tüketimi (L/100km) ve aylık toplam gider/litre özetini hesaplar.
 
+Yakıt dışındaki masraflar (bakım, lastik, sigorta/kasko, MTV, muayene, otopark,
+köprü/otoyol, yıkama, ceza, diğer) aracın **Masraflar** sekmesinde ayrı tutulur:
+aylara göre gruplanmış liste, ay ara toplamları ve türlere göre dağılım. Özet,
+Aylık Rapor, grafik ve ana ekrandaki toplamlar yakıt + diğer masrafları birlikte
+(**Genel Toplam**) ve ayrı ayrı gösterir.
+
 ## Kullanıcılar ve yetkiler
 
 - **Kullanıcı paneli** (ana sayfa): *Giriş Yap* ve *Hesap Oluştur* sekmeleri.
@@ -16,10 +22,10 @@ dolumlar arası tüketimi (L/100km) ve aylık toplam gider/litre özetini hesapl
   yalnızca ana sayfadan giriş yapar. Giriş sonrası üst menüdeki **Yönetici
   Paneli**'nden kullanıcı eklenir (yönetici dahil), şifre değiştirilir, kullanıcı
   silinir.
-- **Kullanıcı**: araç ve dolum ekleyebilir, araç bilgilerini düzenleyebilir.
-- **Yönetici**: bunlara ek olarak dolum/araç silebilir ve kullanıcıları yönetir.
+- **Kullanıcı**: araç, dolum ve masraf ekleyebilir, araç bilgilerini düzenleyebilir.
+- **Yönetici**: bunlara ek olarak dolum/masraf/araç silebilir ve kullanıcıları yönetir.
   Silme yetkisi sunucuda da kontrol edilir.
-- Her dolumun altında onu **kimin eklediği** küçük yazıyla görünür.
+- Her dolum ve masrafın altında onu **kimin eklediği** küçük yazıyla görünür.
 
 ### İlk yönetici
 
@@ -101,16 +107,17 @@ api/
 server/
   app.ts            /api Express uygulaması (Vercel ve yerel sunucu ortak)
   index.ts          Yerel sunucu; geliştirmede Vite'ı ara katman olarak çalıştırır
-  api.ts            Uç noktalar (auth, vehicles, entries, users, import)
+  api.ts            Uç noktalar (auth, vehicles, entries, expenses, users, import)
   auth.ts           Şifre hash'leme, oturumlar, yetki ve giriş denemesi kontrolü
   db.ts             Postgres bağlantısı (Neon / PGlite), şema ve satır dönüşümleri
   validate.ts       Gelen verinin doğrulanması
   migrate-sqlite.ts Eski data/carlog.db verisini Postgres'e taşır
 src/
   pages/            AuthPage, HomePage (Garajım), NewVehiclePage, VehiclePage, UsersPage
-  components/       VehicleCard, VehicleForm, EntryForm, EntryTable, MonthlySummaryTable,
-                    SpendChart, StatCard, BackLink, LegacyImportBanner
-  lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, legacy.ts,
+  components/       VehicleCard, VehicleForm, EntryForm, EntryTable, ExpenseForm, ExpenseList,
+                    CategoryBreakdown, MonthlySummaryTable, SpendChart, StatCard, BackLink,
+                    LegacyImportBanner
+  lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, legacy.ts,
                     router.ts (hash tabanlı yönlendirme)
   types.ts          Sunucu ve arayüzün ortak tipleri
   App.tsx           Oturum durumu, veri yükleme ve sayfa seçimi

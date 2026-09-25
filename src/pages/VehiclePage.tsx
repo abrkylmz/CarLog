@@ -1,8 +1,11 @@
 import { useMemo, useState } from "react";
 import { Car, Pencil, Trash2 } from "lucide-react";
 import BackLink from "../components/BackLink";
+import CategoryBreakdown from "../components/CategoryBreakdown";
 import EntryForm from "../components/EntryForm";
 import EntryTable from "../components/EntryTable";
+import ExpenseForm from "../components/ExpenseForm";
+import ExpenseList from "../components/ExpenseList";
 import MonthlySummaryTable from "../components/MonthlySummaryTable";
 import SpendChart from "../components/SpendChart";
 import StatCard from "../components/StatCard";
@@ -10,31 +13,40 @@ import VehicleForm from "../components/VehicleForm";
 import { groupByMonth, vehicleStats, withDerived } from "../lib/calc";
 import { FUEL_TYPE_LABELS, formatDate, formatNumber, formatTL, vehicleSubtitle } from "../lib/format";
 import { paths, VEHICLE_TAB_LABELS, VEHICLE_TABS, type VehicleTab } from "../lib/router";
-import type { FuelEntry, FuelEntryInput, Vehicle, VehicleInput } from "../types";
+import type { Expense, ExpenseInput, FuelEntry, FuelEntryInput, Vehicle, VehicleInput } from "../types";
 
 interface Props {
   vehicle: Vehicle;
   entries: FuelEntry[];
+  expenses: Expense[];
   tab: VehicleTab;
   onAddEntry: (entry: FuelEntryInput) => Promise<void>;
+  onAddExpense: (expense: ExpenseInput) => Promise<void>;
   onUpdateVehicle: (id: string, input: VehicleInput) => Promise<void>;
   /** Delete handlers are only passed for admins. */
   onDeleteEntry?: (id: string) => void;
+  onDeleteExpense?: (id: string) => void;
   onDeleteVehicle?: (id: string) => void;
 }
 
 export default function VehiclePage({
   vehicle,
   entries,
+  expenses,
   tab,
   onAddEntry,
+  onAddExpense,
   onDeleteEntry,
+  onDeleteExpense,
   onUpdateVehicle,
   onDeleteVehicle,
 }: Props) {
   const derived = useMemo(() => withDerived(entries), [entries]);
-  const summaries = useMemo(() => groupByMonth(entries), [entries]);
-  const stats = useMemo(() => vehicleStats(entries), [entries]);
+  const summaries = useMemo(() => groupByMonth(entries, expenses), [entries, expenses]);
+  const stats = useMemo(() => vehicleStats(entries, expenses), [entries, expenses]);
+  const thisMonthTotal = stats.thisMonthCost + stats.thisMonthOtherCost;
+  const grandTotal = stats.totalCost + stats.otherCostTotal;
+  const split = (fuel: number, other: number) => `Yakıt ${formatTL(fuel)} · Diğer ${formatTL(other)}`;
   const subtitle = vehicleSubtitle(vehicle);
 
   return (
@@ -82,10 +94,10 @@ export default function VehiclePage({
           <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatCard
               label="Bu Ay Toplam"
-              value={formatTL(stats.thisMonthCost)}
-              hint={stats.thisMonthFillCount > 0 ? `${stats.thisMonthFillCount} dolum` : "Henüz dolum yok"}
+              value={formatTL(thisMonthTotal)}
+              hint={split(stats.thisMonthCost, stats.thisMonthOtherCost)}
             />
-            <StatCard label="Toplam Gider" value={formatTL(stats.totalCost)} hint={`${stats.fillCount} kayıt`} />
+            <StatCard label="Genel Toplam" value={formatTL(grandTotal)} hint={split(stats.totalCost, stats.otherCostTotal)} />
             <StatCard
               label="Ort. Tüketim"
               value={
@@ -102,7 +114,7 @@ export default function VehiclePage({
             />
           </section>
 
-          <section className="mb-6 grid grid-cols-2 gap-3">
+          <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <StatCard
               label="Son Kilometre"
               value={stats.latestOdometerKm != null ? `${formatNumber(stats.latestOdometerKm, 0)} km` : "—"}
@@ -110,6 +122,11 @@ export default function VehiclePage({
             <StatCard
               label="Son Dolum"
               value={stats.lastFillDate ? formatDate(stats.lastFillDate) : "—"}
+            />
+            <StatCard
+              label="Diğer Masraflar"
+              value={formatTL(stats.otherCostTotal)}
+              hint={stats.expenseCount > 0 ? `${stats.expenseCount} kayıt` : "Henüz masraf yok"}
             />
           </section>
 
@@ -133,6 +150,43 @@ export default function VehiclePage({
         </>
       )}
 
+      {tab === "masraflar" && (
+        <>
+          <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard label="Bu Ay Masraf" value={formatTL(stats.thisMonthOtherCost)} hint="Yakıt hariç" />
+            <StatCard
+              label="Bu Ay Toplam"
+              value={formatTL(thisMonthTotal)}
+              hint={split(stats.thisMonthCost, stats.thisMonthOtherCost)}
+            />
+            <StatCard
+              label="Toplam Masraf"
+              value={formatTL(stats.otherCostTotal)}
+              hint={`${stats.expenseCount} kayıt · yakıt hariç`}
+            />
+            <StatCard label="Genel Toplam" value={formatTL(grandTotal)} hint="Yakıt + diğer masraflar" />
+          </section>
+
+          <section className="mb-8">
+            <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Yeni Masraf Ekle</h3>
+            <ExpenseForm vehicleId={vehicle.id} onAdd={onAddExpense} />
+          </section>
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            <section className="lg:col-span-2">
+              <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Masraflar</h3>
+              <ExpenseList expenses={expenses} onDelete={onDeleteExpense} />
+            </section>
+            {expenses.length > 0 ? (
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Türlere Göre</h3>
+                <CategoryBreakdown expenses={expenses} />
+              </section>
+            ) : null}
+          </div>
+        </>
+      )}
+
       {tab === "aylik" && (
         <section>
           <div className="mb-4">
@@ -145,7 +199,7 @@ export default function VehiclePage({
       {tab === "bilgiler" && (
         <VehicleSettings
           vehicle={vehicle}
-          fillCount={entries.length}
+          recordCount={entries.length + expenses.length}
           onUpdate={onUpdateVehicle}
           onDelete={onDeleteVehicle}
         />
@@ -156,12 +210,12 @@ export default function VehiclePage({
 
 function VehicleSettings({
   vehicle,
-  fillCount,
+  recordCount,
   onUpdate,
   onDelete,
 }: {
   vehicle: Vehicle;
-  fillCount: number;
+  recordCount: number;
   onUpdate: (id: string, input: VehicleInput) => Promise<void>;
   onDelete?: (id: string) => void;
 }) {
@@ -169,8 +223,8 @@ function VehicleSettings({
 
   function handleDelete() {
     const message =
-      fillCount > 0
-        ? `"${vehicle.name}" ve ona ait ${fillCount} dolum kaydı silinecek. Emin misiniz?`
+      recordCount > 0
+        ? `"${vehicle.name}" ve ona ait ${recordCount} dolum/masraf kaydı silinecek. Emin misiniz?`
         : `"${vehicle.name}" silinecek. Emin misiniz?`;
     if (window.confirm(message)) onDelete?.(vehicle.id);
   }
@@ -199,7 +253,7 @@ function VehicleSettings({
         <section className="rounded-xl border border-red-200 p-4 dark:border-red-900/60">
           <h3 className="text-sm font-semibold text-red-700 dark:text-red-400">Aracı Sil</h3>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Araç ve tüm dolum kayıtları kalıcı olarak silinir.
+            Araç ve tüm dolum/masraf kayıtları kalıcı olarak silinir.
           </p>
           <button
             type="button"

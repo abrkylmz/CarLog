@@ -1,6 +1,19 @@
-import type { FuelEntryInput, FuelType, VehicleInput } from "../src/types.ts";
+import type { ExpenseCategory, ExpenseInput, FuelEntryInput, FuelType, VehicleInput } from "../src/types.ts";
 
 const FUEL_TYPES: FuelType[] = ["benzin", "dizel", "lpg", "benzin-lpg", "hibrit"];
+
+const EXPENSE_CATEGORIES: ExpenseCategory[] = [
+  "bakim",
+  "lastik",
+  "sigorta",
+  "vergi",
+  "muayene",
+  "otopark",
+  "otoyol",
+  "yikama",
+  "ceza",
+  "diger",
+];
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -68,6 +81,23 @@ export function parseEntryInput(body: unknown): Result<FuelEntryInput> {
       totalCost,
       note: optionalString(b.note, 200),
     },
+  };
+}
+
+export function parseExpenseInput(body: unknown): Result<ExpenseInput> {
+  const b = (body ?? {}) as Record<string, unknown>;
+  if (typeof b.vehicleId !== "string" || !b.vehicleId) return { ok: false, error: "Araç seçilmedi." };
+  if (typeof b.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) {
+    return { ok: false, error: "Geçerli bir tarih girin." };
+  }
+  const category = EXPENSE_CATEGORIES.find((c) => c === b.category);
+  if (!category) return { ok: false, error: "Geçersiz masraf türü." };
+  const amount = positiveNumber(b.amount);
+  if (amount == null) return { ok: false, error: "Tutar değeri girin." };
+
+  return {
+    ok: true,
+    value: { vehicleId: b.vehicleId, date: b.date, category, amount, note: optionalString(b.note, 200) },
   };
 }
 

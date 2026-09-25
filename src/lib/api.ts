@@ -1,4 +1,4 @@
-import type { FuelEntry, FuelEntryInput, Role, User, Vehicle, VehicleInput } from "../types";
+import type { Expense, ExpenseInput, FuelEntry, FuelEntryInput, Role, User, Vehicle, VehicleInput } from "../types";
 
 export class ApiError extends Error {
   constructor(
@@ -59,6 +59,10 @@ export const api = {
   listEntries: () => request<FuelEntry[]>("GET", "/entries"),
   createEntry: (input: FuelEntryInput) => request<FuelEntry>("POST", "/entries", input),
   deleteEntry: (id: string) => request<void>("DELETE", `/entries/${encodeURIComponent(id)}`),
+
+  listExpenses: () => request<Expense[]>("GET", "/expenses"),
+  createExpense: (input: ExpenseInput) => request<Expense>("POST", "/expenses", input),
+  deleteExpense: (id: string) => request<void>("DELETE", `/expenses/${encodeURIComponent(id)}`),
 
   listUsers: () => request<User[]>("GET", "/users"),
   createUser: (username: string, password: string, role: Role) =>

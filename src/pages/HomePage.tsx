@@ -6,21 +6,32 @@ import VehicleCard from "../components/VehicleCard";
 import { vehicleStats } from "../lib/calc";
 import { formatTL } from "../lib/format";
 import { paths } from "../lib/router";
-import type { FuelEntry, Vehicle } from "../types";
+import type { Expense, FuelEntry, Vehicle } from "../types";
 
 interface Props {
   vehicles: Vehicle[];
   entries: FuelEntry[];
+  expenses: Expense[];
   isAdmin: boolean;
   onReload: () => void;
 }
 
-export default function HomePage({ vehicles, entries, isAdmin, onReload }: Props) {
+export default function HomePage({ vehicles, entries, expenses, isAdmin, onReload }: Props) {
   const statsByVehicle = useMemo(
-    () => new Map(vehicles.map((v) => [v.id, vehicleStats(entries.filter((e) => e.vehicleId === v.id))])),
-    [vehicles, entries],
+    () =>
+      new Map(
+        vehicles.map((v) => [
+          v.id,
+          vehicleStats(
+            entries.filter((e) => e.vehicleId === v.id),
+            expenses.filter((e) => e.vehicleId === v.id),
+          ),
+        ]),
+      ),
+    [vehicles, entries, expenses],
   );
-  const overall = useMemo(() => vehicleStats(entries), [entries]);
+  const overall = useMemo(() => vehicleStats(entries, expenses), [entries, expenses]);
+  const split = (fuel: number, other: number) => `Yakıt ${formatTL(fuel)} · Diğer ${formatTL(other)}`;
   const banner = isAdmin ? <LegacyImportBanner onImported={onReload} /> : null;
 
   if (vehicles.length === 0) {
@@ -53,12 +64,20 @@ export default function HomePage({ vehicles, entries, isAdmin, onReload }: Props
       <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
           label="Bu Ay Toplam"
-          value={formatTL(overall.thisMonthCost)}
-          hint={overall.thisMonthFillCount > 0 ? `${overall.thisMonthFillCount} dolum` : "Henüz dolum yok"}
+          value={formatTL(overall.thisMonthCost + overall.thisMonthOtherCost)}
+          hint={split(overall.thisMonthCost, overall.thisMonthOtherCost)}
         />
-        <StatCard label="Toplam Gider" value={formatTL(overall.totalCost)} hint="Tüm araçlar" />
-        <StatCard label="Araç Sayısı" value={String(vehicles.length)} />
-        <StatCard label="Toplam Dolum" value={String(overall.fillCount)} />
+        <StatCard
+          label="Genel Toplam"
+          value={formatTL(overall.totalCost + overall.otherCostTotal)}
+          hint={split(overall.totalCost, overall.otherCostTotal)}
+        />
+        <StatCard
+          label="Diğer Masraflar"
+          value={formatTL(overall.otherCostTotal)}
+          hint={`${overall.expenseCount} kayıt · yakıt hariç`}
+        />
+        <StatCard label="Araç Sayısı" value={String(vehicles.length)} hint={`${overall.fillCount} dolum`} />
       </section>
 
       <section>

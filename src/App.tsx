@@ -8,7 +8,7 @@ import HomePage from "./pages/HomePage";
 import NewVehiclePage from "./pages/NewVehiclePage";
 import UsersPage from "./pages/UsersPage";
 import VehiclePage from "./pages/VehiclePage";
-import type { FuelEntry, FuelEntryInput, User, Vehicle, VehicleInput } from "./types";
+import type { Expense, ExpenseInput, FuelEntry, FuelEntryInput, User, Vehicle, VehicleInput } from "./types";
 
 type AuthState =
   | { status: "loading" }
@@ -71,14 +71,16 @@ export default function App() {
 function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLogout: () => void }) {
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
   const [entries, setEntries] = useState<FuelEntry[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const isAdmin = user.role === "admin";
 
   const reload = useCallback(async () => {
     try {
-      const [v, e] = await Promise.all([api.listVehicles(), api.listEntries()]);
+      const [v, e, x] = await Promise.all([api.listVehicles(), api.listEntries(), api.listExpenses()]);
       setVehicles(v);
       setEntries(e);
+      setExpenses(x);
       setLoadError(null);
     } catch (err) {
       setLoadError(errorMessage(err));
@@ -109,6 +111,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       await api.deleteVehicle(id);
       setVehicles((prev) => prev?.filter((v) => v.id !== id) ?? null);
       setEntries((prev) => prev.filter((e) => e.vehicleId !== id));
+      setExpenses((prev) => prev.filter((e) => e.vehicleId !== id));
       navigate(paths.home);
     } catch (err) {
       window.alert(errorMessage(err));
@@ -125,6 +128,21 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     try {
       await api.deleteEntry(id);
       setEntries((prev) => prev.filter((e) => e.id !== id));
+    } catch (err) {
+      window.alert(errorMessage(err));
+    }
+  }
+
+  async function addExpense(input: ExpenseInput) {
+    const expense = await api.createExpense(input);
+    setExpenses((prev) => [...prev, expense]);
+  }
+
+  async function deleteExpense(id: string) {
+    if (!window.confirm("Bu masraf kaydı silinecek. Emin misiniz?")) return;
+    try {
+      await api.deleteExpense(id);
+      setExpenses((prev) => prev.filter((e) => e.id !== id));
     } catch (err) {
       window.alert(errorMessage(err));
     }
@@ -147,10 +165,13 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       <VehiclePage
         vehicle={vehicle}
         entries={entries.filter((e) => e.vehicleId === vehicle.id)}
+        expenses={expenses.filter((e) => e.vehicleId === vehicle.id)}
         tab={route.tab}
         onAddEntry={addEntry}
+        onAddExpense={addExpense}
         onUpdateVehicle={updateVehicle}
         onDeleteEntry={isAdmin ? deleteEntry : undefined}
+        onDeleteExpense={isAdmin ? deleteExpense : undefined}
         onDeleteVehicle={isAdmin ? deleteVehicle : undefined}
       />
     ) : (
@@ -162,7 +183,9 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       </>
     );
   } else {
-    page = <HomePage vehicles={vehicles} entries={entries} isAdmin={isAdmin} onReload={reload} />;
+    page = (
+      <HomePage vehicles={vehicles} entries={entries} expenses={expenses} isAdmin={isAdmin} onReload={reload} />
+    );
   }
 
   return (

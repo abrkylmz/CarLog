@@ -8,7 +8,7 @@ interface Props {
   stats: VehicleStats;
 }
 
-const QUICK_TABS: VehicleTab[] = ["dolumlar", "aylik", "bilgiler"];
+const QUICK_TABS: VehicleTab[] = ["dolumlar", "masraflar", "aylik"];
 
 export default function VehicleCard({ vehicle, stats }: Props) {
   const subtitle = vehicleSubtitle(vehicle);
@@ -36,7 +36,7 @@ export default function VehicleCard({ vehicle, stats }: Props) {
         </div>
 
         <dl className="mt-4 grid grid-cols-3 gap-2">
-          <Metric label="Bu ay" value={formatTL(stats.thisMonthCost)} />
+          <Metric label="Bu ay" value={formatTL(stats.thisMonthCost + stats.thisMonthOtherCost)} />
           <Metric
             label="Ort. tüketim"
             value={

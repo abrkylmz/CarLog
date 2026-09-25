@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router, type Request } from "express";
-import type { FuelEntryInput, VehicleInput } from "../src/types.ts";
+import type { ExpenseInput, FuelEntryInput, VehicleInput } from "../src/types.ts";
 import {
   clearAttempts,
   createSession,
@@ -16,18 +16,26 @@ import {
 } from "./auth.ts";
 import {
   ENTRY_SELECT,
+  EXPENSE_SELECT,
   insertEntryStatement,
   insertVehicleStatement,
   query,
   queryOne,
   toEntry,
+  toExpense,
   toUser,
   toVehicle,
   transaction,
   type Row,
   type Statement,
 } from "./db.ts";
-import { checkPassword, parseCredentials, parseEntryInput, parseVehicleInput } from "./validate.ts";
+import {
+  checkPassword,
+  parseCredentials,
+  parseEntryInput,
+  parseExpenseInput,
+  parseVehicleInput,
+} from "./validate.ts";
 
 export const api = Router();
 
@@ -206,6 +214,35 @@ api.post("/entries", requireUser, async (req, res) => {
 api.delete("/entries/:id", requireAdmin, async (req, res) => {
   const row = await queryOne("DELETE FROM entries WHERE id = $1 RETURNING id", [paramId(req)]);
   if (!row) return void res.status(404).json({ error: "Kayıt bulunamadı." });
+  res.status(204).end();
+});
+
+// ---- Other expenses (service, insurance, tolls, ...) --------------------------
+
+api.get("/expenses", requireUser, async (_req, res) => {
+  res.json((await query(`${EXPENSE_SELECT} ORDER BY x.date`)).map(toExpense));
+});
+
+api.post("/expenses", requireUser, async (req, res) => {
+  const parsed = parseExpenseInput(req.body);
+  if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
+
+  const input: ExpenseInput = parsed.value;
+  const id = randomUUID();
+  const rows = await query(
+    `INSERT INTO expenses (id, vehicle_id, date, category, amount, note, created_by, created_at)
+     SELECT $1::text, $2::text, $3::text, $4::text, $5::float8, $6::text, $7::text, $8::text
+     WHERE EXISTS (SELECT 1 FROM vehicles WHERE id = $2::text)
+     RETURNING id`,
+    [id, input.vehicleId, input.date, input.category, input.amount, input.note ?? null, req.user!.id, new Date().toISOString()],
+  );
+  if (rows.length === 0) return void res.status(404).json({ error: "Araç bulunamadı." });
+  res.status(201).json(toExpense((await queryOne(`${EXPENSE_SELECT} WHERE x.id = $1`, [id]))!));
+});
+
+api.delete("/expenses/:id", requireAdmin, async (req, res) => {
+  const row = await queryOne("DELETE FROM expenses WHERE id = $1 RETURNING id", [paramId(req)]);
+  if (!row) return void res.status(404).json({ error: "Masraf bulunamadı." });
   res.status(204).end();
 });
 

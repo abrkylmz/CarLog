@@ -1,4 +1,4 @@
-import type { FuelType, Vehicle } from "../types";
+import type { ExpenseCategory, FuelType, Vehicle } from "../types";
 
 const currency = new Intl.NumberFormat("tr-TR", {
   style: "currency",
@@ -33,6 +33,20 @@ export const FUEL_TYPE_LABELS: Record<FuelType, string> = {
   lpg: "LPG",
   "benzin-lpg": "Benzin + LPG",
   hibrit: "Hibrit",
+};
+
+/** Order here is the order in the category picker. */
+export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  bakim: "Bakım / Servis",
+  lastik: "Lastik",
+  sigorta: "Sigorta / Kasko",
+  vergi: "Vergi (MTV)",
+  muayene: "Muayene",
+  otopark: "Otopark",
+  otoyol: "Köprü / Otoyol",
+  yikama: "Yıkama",
+  ceza: "Trafik Cezası",
+  diger: "Diğer",
 };
 
 /** "Toyota Corolla · 2019", or null when no details were entered. */
