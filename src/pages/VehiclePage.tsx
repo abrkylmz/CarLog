@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Car, Download, Pencil, Trash2 } from "lucide-react";
 import BackLink from "../components/BackLink";
 import CategoryBreakdown from "../components/CategoryBreakdown";
@@ -79,6 +79,19 @@ export default function VehiclePage({
   const [editingEntry, setEditingEntry] = useState<FuelEntry | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+  const tabsRef = useRef<HTMLElement>(null);
+
+  // On narrow screens the active tab can sit off-screen (e.g. opened via a card shortcut);
+  // scroll only the strip, never the page.
+  useEffect(() => {
+    const nav = tabsRef.current;
+    const active = nav?.querySelector<HTMLElement>("[data-active]");
+    if (!nav || !active) return;
+    const left = active.offsetLeft - nav.offsetLeft;
+    if (left < nav.scrollLeft || left + active.offsetWidth > nav.scrollLeft + nav.clientWidth) {
+      nav.scrollLeft = left - 16;
+    }
+  }, [tab]);
   const derived = useMemo(() => withDerived(entries), [entries]);
   const summaries = useMemo(() => groupByMonth(entries, expenses), [entries, expenses]);
   const stats = useMemo(() => vehicleStats(entries, expenses), [entries, expenses]);
@@ -119,13 +132,20 @@ export default function VehiclePage({
         </button>
       </div>
 
-      <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-800">
+      {/* Horizontal-only scroller. The baseline is an inset shadow rather than a border so the active
+          tab's underline can cover it without overflowing — any vertical overflow here lets iOS drag
+          the strip up and down. */}
+      <nav
+        ref={tabsRef}
+        className="mb-6 flex gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain shadow-[inset_0_-1px_0_theme(colors.slate.200)] [scrollbar-width:none] dark:shadow-[inset_0_-1px_0_theme(colors.slate.800)] [&::-webkit-scrollbar]:hidden"
+      >
         {VEHICLE_TABS.map((t) => (
           <a
             key={t}
             href={paths.vehicle(vehicle.id, t)}
+            data-active={t === tab || undefined}
             aria-current={t === tab ? "page" : undefined}
-            className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition ${
+            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition ${
               t === tab
                 ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-300"
                 : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
