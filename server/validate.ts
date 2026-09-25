@@ -1,4 +1,12 @@
-import type { ExpenseCategory, ExpenseInput, FuelEntryInput, FuelType, VehicleInput } from "../src/types.ts";
+import type {
+  ExpenseCategory,
+  ExpenseInput,
+  FuelEntryInput,
+  FuelType,
+  ReminderInput,
+  ReminderKind,
+  VehicleInput,
+} from "../src/types.ts";
 
 const FUEL_TYPES: FuelType[] = ["benzin", "dizel", "lpg", "benzin-lpg", "hibrit"];
 
@@ -14,6 +22,10 @@ const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "ceza",
   "diger",
 ];
+
+const REMINDER_KINDS: ReminderKind[] = ["muayene", "sigorta", "kasko", "bakim", "vergi", "lastik", "egzoz", "diger"];
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -98,6 +110,46 @@ export function parseExpenseInput(body: unknown): Result<ExpenseInput> {
   return {
     ok: true,
     value: { vehicleId: b.vehicleId, date: b.date, category, amount, note: optionalString(b.note, 200) },
+  };
+}
+
+export function parseReminderInput(body: unknown): Result<ReminderInput> {
+  const b = (body ?? {}) as Record<string, unknown>;
+  if (typeof b.vehicleId !== "string" || !b.vehicleId) return { ok: false, error: "Araç seçilmedi." };
+  const kind = REMINDER_KINDS.find((k) => k === b.kind);
+  if (!kind) return { ok: false, error: "Geçersiz hatırlatma türü." };
+
+  let dueDate: string | undefined;
+  if (b.dueDate != null && b.dueDate !== "") {
+    if (typeof b.dueDate !== "string" || !ISO_DATE.test(b.dueDate)) return { ok: false, error: "Geçerli bir tarih girin." };
+    dueDate = b.dueDate;
+  }
+  const dueKm = b.dueKm == null ? undefined : positiveNumber(b.dueKm);
+  if (dueKm === null) return { ok: false, error: "Geçerli bir kilometre girin." };
+  if (!dueDate && dueKm == null) return { ok: false, error: "Bir tarih veya kilometre girin." };
+
+  let repeatMonths: number | undefined;
+  if (b.repeatMonths != null) {
+    if (typeof b.repeatMonths !== "number" || !Number.isInteger(b.repeatMonths) || b.repeatMonths < 1 || b.repeatMonths > 120) {
+      return { ok: false, error: "Tekrar aralığı 1-120 ay olmalı." };
+    }
+    repeatMonths = b.repeatMonths;
+  }
+  const repeatKm = b.repeatKm == null ? undefined : positiveNumber(b.repeatKm);
+  if (repeatKm === null) return { ok: false, error: "Geçerli bir tekrar kilometresi girin." };
+
+  return {
+    ok: true,
+    value: {
+      vehicleId: b.vehicleId,
+      kind,
+      title: optionalString(b.title, 60),
+      dueDate,
+      dueKm,
+      repeatMonths,
+      repeatKm,
+      note: optionalString(b.note, 200),
+    },
   };
 }
 

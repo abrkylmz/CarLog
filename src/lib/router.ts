@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 
-export const VEHICLE_TABS = ["ozet", "dolumlar", "masraflar", "aylik", "bilgiler"] as const;
+export const VEHICLE_TABS = ["ozet", "dolumlar", "masraflar", "hatirlatmalar", "aylik", "bilgiler"] as const;
 export type VehicleTab = (typeof VEHICLE_TABS)[number];
 
 export const VEHICLE_TAB_LABELS: Record<VehicleTab, string> = {
   ozet: "Özet",
   dolumlar: "Dolumlar",
   masraflar: "Masraflar",
+  hatirlatmalar: "Hatırlatmalar",
   aylik: "Aylık Rapor",
   bilgiler: "Araç Bilgileri",
 };

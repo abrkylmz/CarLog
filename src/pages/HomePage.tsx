@@ -1,22 +1,26 @@
 import { useMemo } from "react";
-import { Car, Plus } from "lucide-react";
+import { Car, Download, Plus } from "lucide-react";
 import LegacyImportBanner from "../components/LegacyImportBanner";
 import StatCard from "../components/StatCard";
+import UpcomingReminders from "../components/UpcomingReminders";
 import VehicleCard from "../components/VehicleCard";
 import { vehicleStats } from "../lib/calc";
 import { formatTL } from "../lib/format";
 import { paths } from "../lib/router";
-import type { Expense, FuelEntry, Vehicle } from "../types";
+import { reminderStatus } from "../lib/reminders";
+import type { Expense, FuelEntry, Reminder, Vehicle } from "../types";
 
 interface Props {
   vehicles: Vehicle[];
   entries: FuelEntry[];
   expenses: Expense[];
+  reminders: Reminder[];
   isAdmin: boolean;
   onReload: () => void;
+  onExport: () => void;
 }
 
-export default function HomePage({ vehicles, entries, expenses, isAdmin, onReload }: Props) {
+export default function HomePage({ vehicles, entries, expenses, reminders, isAdmin, onReload, onExport }: Props) {
   const statsByVehicle = useMemo(
     () =>
       new Map(
@@ -31,6 +35,21 @@ export default function HomePage({ vehicles, entries, expenses, isAdmin, onReloa
     [vehicles, entries, expenses],
   );
   const overall = useMemo(() => vehicleStats(entries, expenses), [entries, expenses]);
+  const latestKmByVehicle = useMemo(
+    () => new Map([...statsByVehicle].map(([id, s]) => [id, s.latestOdometerKm])),
+    [statsByVehicle],
+  );
+  const alertsByVehicle = useMemo(() => {
+    const counts = new Map<string, { overdue: number; soon: number }>();
+    for (const r of reminders) {
+      const level = reminderStatus(r, latestKmByVehicle.get(r.vehicleId) ?? null).level;
+      if (level !== "overdue" && level !== "soon") continue;
+      const c = counts.get(r.vehicleId) ?? { overdue: 0, soon: 0 };
+      c[level] += 1;
+      counts.set(r.vehicleId, c);
+    }
+    return counts;
+  }, [reminders, latestKmByVehicle]);
   const split = (fuel: number, other: number) => `Yakıt ${formatTL(fuel)} · Diğer ${formatTL(other)}`;
   const banner = isAdmin ? <LegacyImportBanner onImported={onReload} /> : null;
 
@@ -61,6 +80,7 @@ export default function HomePage({ vehicles, entries, expenses, isAdmin, onReloa
   return (
     <>
       {banner}
+      <UpcomingReminders reminders={reminders} vehicles={vehicles} latestKmByVehicle={latestKmByVehicle} />
       <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
           label="Bu Ay Toplam"
@@ -83,18 +103,33 @@ export default function HomePage({ vehicles, entries, expenses, isAdmin, onReloa
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300">Araçlarım</h2>
-          <a
-            href={paths.newVehicle}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/30"
-          >
-            <Plus size={16} />
-            Araç Ekle
-          </a>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onExport}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <Download size={16} />
+              Dışa Aktar
+            </button>
+            <a
+              href={paths.newVehicle}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/30"
+            >
+              <Plus size={16} />
+              Araç Ekle
+            </a>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {vehicles.map((vehicle) => (
-            <VehicleCard key={vehicle.id} vehicle={vehicle} stats={statsByVehicle.get(vehicle.id)!} />
+            <VehicleCard
+              key={vehicle.id}
+              vehicle={vehicle}
+              stats={statsByVehicle.get(vehicle.id)!}
+              alerts={alertsByVehicle.get(vehicle.id)}
+            />
           ))}
           <a
             href={paths.newVehicle}

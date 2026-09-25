@@ -14,6 +14,17 @@ aylara göre gruplanmış liste, ay ara toplamları ve türlere göre dağılım
 Aylık Rapor, grafik ve ana ekrandaki toplamlar yakıt + diğer masrafları birlikte
 (**Genel Toplam**) ve ayrı ayrı gösterir.
 
+**Hatırlatmalar** sekmesinde muayene, sigorta, kasko, bakım, MTV, lastik, egzoz
+gibi işler tarih ve/veya kilometreye göre planlanır; isteğe bağlı olarak her N
+ayda / N km'de tekrarlanır. "Tamamlandı" denince sıradaki hatırlatma otomatik
+kurulur, girilen tutar masraf olarak eklenir. Gecikmiş ve yaklaşan (30 gün /
+1.000 km) hatırlatmalar ana ekranda ve araç kutularında görünür.
+
+Dolum, masraf ve hatırlatmalar sonradan **düzenlenebilir**; düzenlenen kayıtta
+"düzenlendi" notu ve düzenleyen kişi görünür. **Dışa Aktar** (ana ekran ve araç
+sayfası) seçilen araç, içerik ve dönem için Excel'de doğrudan açılan bir CSV
+indirir (UTF-8 BOM, `;` ayırıcı, virgüllü ondalık).
+
 ## Kullanıcılar ve yetkiler
 
 - **Kullanıcı paneli** (ana sayfa): *Giriş Yap* ve *Hesap Oluştur* sekmeleri.
@@ -22,8 +33,10 @@ Aylık Rapor, grafik ve ana ekrandaki toplamlar yakıt + diğer masrafları birl
   yalnızca ana sayfadan giriş yapar. Giriş sonrası üst menüdeki **Yönetici
   Paneli**'nden kullanıcı eklenir (yönetici dahil), şifre değiştirilir, kullanıcı
   silinir.
-- **Kullanıcı**: araç, dolum ve masraf ekleyebilir, araç bilgilerini düzenleyebilir.
-- **Yönetici**: bunlara ek olarak dolum/masraf/araç silebilir ve kullanıcıları yönetir.
+- **Kullanıcı**: araç, dolum, masraf ve hatırlatma ekleyebilir; araç bilgilerini ve
+  **kendi eklediği** kayıtları düzenleyebilir, hatırlatmaları tamamlayabilir.
+- **Yönetici**: bunlara ek olarak her kaydı düzenleyebilir, dolum/masraf/hatırlatma/araç
+  silebilir ve kullanıcıları yönetir.
   Silme yetkisi sunucuda da kontrol edilir.
 - Her dolum ve masrafın altında onu **kimin eklediği** küçük yazıyla görünür.
 
@@ -107,7 +120,7 @@ api/
 server/
   app.ts            /api Express uygulaması (Vercel ve yerel sunucu ortak)
   index.ts          Yerel sunucu; geliştirmede Vite'ı ara katman olarak çalıştırır
-  api.ts            Uç noktalar (auth, vehicles, entries, expenses, users, import)
+  api.ts            Uç noktalar (auth, vehicles, entries, expenses, reminders, users, import)
   auth.ts           Şifre hash'leme, oturumlar, yetki ve giriş denemesi kontrolü
   db.ts             Postgres bağlantısı (Neon / PGlite), şema ve satır dönüşümleri
   validate.ts       Gelen verinin doğrulanması
@@ -116,8 +129,10 @@ src/
   pages/            AuthPage, HomePage (Garajım), NewVehiclePage, VehiclePage, UsersPage
   components/       VehicleCard, VehicleForm, EntryForm, EntryTable, ExpenseForm, ExpenseList,
                     CategoryBreakdown, MonthlySummaryTable, SpendChart, StatCard, BackLink,
+                    Reminders, UpcomingReminders, ExportDialog, Modal, DialogProvider,
                     LegacyImportBanner
-  lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, legacy.ts,
+  lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, reminders.ts,
+                    export.ts (CSV), legacy.ts,
                     router.ts (hash tabanlı yönlendirme)
   types.ts          Sunucu ve arayüzün ortak tipleri
   App.tsx           Oturum durumu, veri yükleme ve sayfa seçimi

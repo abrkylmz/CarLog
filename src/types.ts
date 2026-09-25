@@ -34,13 +34,18 @@ export interface FuelEntry {
   pricePerLiter: number;
   totalCost: number;
   note?: string;
-  /** Username of whoever entered the fill-up; null if that user was deleted. */
+  /** Username of whoever entered it; null if that user was deleted. */
   createdBy: string | null;
+  /** Id of whoever entered it; decides who may edit (the author or an admin). */
+  createdById: string | null;
   createdAt: string;
+  /** Set once the record has been edited. */
+  updatedAt?: string;
+  updatedBy?: string | null;
 }
 
 /** Fields the client sends when adding a fill-up; the server owns id, createdBy and createdAt. */
-export type FuelEntryInput = Omit<FuelEntry, "id" | "createdBy" | "createdAt">;
+export type FuelEntryInput = Omit<FuelEntry, "id" | AuditField>;
 
 export type ExpenseCategory =
   | "bakim"
@@ -63,13 +68,47 @@ export interface Expense {
   category: ExpenseCategory;
   amount: number;
   note?: string;
-  /** Username of whoever entered the expense; null if that user was deleted. */
+  /** Username of whoever entered it; null if that user was deleted. */
   createdBy: string | null;
+  /** Id of whoever entered it; decides who may edit (the author or an admin). */
+  createdById: string | null;
   createdAt: string;
+  /** Set once the record has been edited. */
+  updatedAt?: string;
+  updatedBy?: string | null;
 }
 
 /** Fields the client sends when adding an expense; the server owns id, createdBy and createdAt. */
-export type ExpenseInput = Omit<Expense, "id" | "createdBy" | "createdAt">;
+export type ExpenseInput = Omit<Expense, "id" | AuditField>;
+
+/** Server-owned bookkeeping fields on records. */
+type AuditField = "createdBy" | "createdById" | "createdAt" | "updatedAt" | "updatedBy";
+
+export type ReminderKind = "muayene" | "sigorta" | "kasko" | "bakim" | "vergi" | "lastik" | "egzoz" | "diger";
+
+/** Something due for a vehicle by a date and/or an odometer reading, optionally repeating. */
+export interface Reminder {
+  id: string;
+  vehicleId: string;
+  kind: ReminderKind;
+  /** Optional custom label; the kind's name is shown otherwise. */
+  title?: string;
+  /** ISO date, e.g. "2027-03-15" */
+  dueDate?: string;
+  dueKm?: number;
+  /** When completed, the next reminder is due this many months / km later. */
+  repeatMonths?: number;
+  repeatKm?: number;
+  note?: string;
+  /** Set when completed; completed reminders stay for history. */
+  doneAt?: string;
+  doneBy?: string | null;
+  createdBy: string | null;
+  createdById: string | null;
+  createdAt: string;
+}
+
+export type ReminderInput = Omit<Reminder, "id" | "doneAt" | "doneBy" | "createdBy" | "createdById" | "createdAt">;
 
 export interface DerivedEntry extends FuelEntry {
   /** km driven since the previous fill-up, by odometer order. Null for the first entry. */

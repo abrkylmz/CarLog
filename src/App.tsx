@@ -2,15 +2,27 @@ import { useCallback, useEffect, useState } from "react";
 import { Fuel, LayoutDashboard, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import BackLink from "./components/BackLink";
 import { useDialog } from "./components/DialogProvider";
+import ExportDialog from "./components/ExportDialog";
+import { nextReminderPreview, reminderTitle } from "./components/Reminders";
 import { api, errorMessage, UNAUTHORIZED_EVENT, type AdminSetupState } from "./lib/api";
-import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL } from "./lib/format";
+import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL, parseAmount } from "./lib/format";
 import { navigate, paths, useHashRoute, type Route } from "./lib/router";
 import { AdminAuthPage, UserAuthPage } from "./pages/AuthPage";
 import HomePage from "./pages/HomePage";
 import NewVehiclePage from "./pages/NewVehiclePage";
 import UsersPage from "./pages/UsersPage";
 import VehiclePage from "./pages/VehiclePage";
-import type { Expense, ExpenseInput, FuelEntry, FuelEntryInput, User, Vehicle, VehicleInput } from "./types";
+import type {
+  Expense,
+  ExpenseInput,
+  FuelEntry,
+  FuelEntryInput,
+  Reminder,
+  ReminderInput,
+  User,
+  Vehicle,
+  VehicleInput,
+} from "./types";
 
 type AuthState =
   | { status: "loading" }
@@ -74,6 +86,9 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
   const [entries, setEntries] = useState<FuelEntry[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  /** undefined = closed, "" = all vehicles, otherwise the pre-selected vehicle id. */
+  const [exportFor, setExportFor] = useState<string | undefined>(undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
   const isAdmin = user.role === "admin";
   const dialog = useDialog();
@@ -82,10 +97,16 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
 
   const reload = useCallback(async () => {
     try {
-      const [v, e, x] = await Promise.all([api.listVehicles(), api.listEntries(), api.listExpenses()]);
+      const [v, e, x, r] = await Promise.all([
+        api.listVehicles(),
+        api.listEntries(),
+        api.listExpenses(),
+        api.listReminders(),
+      ]);
       setVehicles(v);
       setEntries(e);
       setExpenses(x);
+      setReminders(r);
       setLoadError(null);
     } catch (err) {
       setLoadError(errorMessage(err));
@@ -117,6 +138,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       setVehicles((prev) => prev?.filter((v) => v.id !== id) ?? null);
       setEntries((prev) => prev.filter((e) => e.vehicleId !== id));
       setExpenses((prev) => prev.filter((e) => e.vehicleId !== id));
+      setReminders((prev) => prev.filter((r) => r.vehicleId !== id));
       navigate(paths.home);
     } catch (err) {
       await showError(err);
@@ -142,6 +164,78 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     try {
       await api.deleteEntry(id);
       setEntries((prev) => prev.filter((e) => e.id !== id));
+    } catch (err) {
+      await showError(err);
+    }
+  }
+
+  const canEdit = (record: { createdById: string | null }) => isAdmin || record.createdById === user.id;
+
+  async function updateEntry(id: string, input: FuelEntryInput) {
+    const entry = await api.updateEntry(id, input);
+    setEntries((prev) => prev.map((e) => (e.id === id ? entry : e)));
+  }
+
+  async function updateExpense(id: string, input: ExpenseInput) {
+    const expense = await api.updateExpense(id, input);
+    setExpenses((prev) => prev.map((e) => (e.id === id ? expense : e)));
+  }
+
+  async function addReminder(input: ReminderInput) {
+    const reminder = await api.createReminder(input);
+    setReminders((prev) => [...prev, reminder]);
+  }
+
+  async function updateReminder(id: string, input: ReminderInput) {
+    const reminder = await api.updateReminder(id, input);
+    setReminders((prev) => prev.map((r) => (r.id === id ? reminder : r)));
+  }
+
+  async function completeReminder(reminder: Reminder, latestKm: number | null) {
+    const next = nextReminderPreview(reminder, latestKm);
+    const amountText = await dialog.prompt({
+      title: `"${reminderTitle(reminder)}" tamamlandı mı?`,
+      message: next
+        ? `Bir sonraki hatırlatma otomatik kurulacak: ${next}.`
+        : "Hatırlatma tamamlananlar listesine taşınacak.",
+      tone: "success",
+      confirmLabel: "Tamamlandı",
+      input: {
+        label: "Ödenen tutar (opsiyonel, masraf olarak eklenir)",
+        inputMode: "decimal",
+        placeholder: "Boş bırakabilirsiniz",
+        validate: (value) => {
+          if (!value.trim()) return null;
+          const n = parseAmount(value);
+          return Number.isFinite(n) && n > 0 ? null : "Geçerli bir tutar girin veya boş bırakın.";
+        },
+      },
+    });
+    if (amountText == null) return;
+    const amount = amountText.trim() ? parseAmount(amountText) : undefined;
+    try {
+      const result = await api.completeReminder(reminder.id, amount);
+      setReminders((prev) => [
+        ...prev.map((r) => (r.id === reminder.id ? result.completed : r)),
+        ...(result.next ? [result.next] : []),
+      ]);
+      if (result.expense) setExpenses((prev) => [...prev, result.expense!]);
+    } catch (err) {
+      await showError(err);
+    }
+  }
+
+  async function deleteReminder(reminder: Reminder) {
+    const confirmed = await dialog.confirm({
+      title: "Hatırlatma silinsin mi?",
+      message: `"${reminderTitle(reminder)}" hatırlatması kalıcı olarak silinecek.`,
+      tone: "danger",
+      confirmLabel: "Sil",
+    });
+    if (!confirmed) return;
+    try {
+      await api.deleteReminder(reminder.id);
+      setReminders((prev) => prev.filter((r) => r.id !== reminder.id));
     } catch (err) {
       await showError(err);
     }
@@ -189,12 +283,21 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
         vehicle={vehicle}
         entries={entries.filter((e) => e.vehicleId === vehicle.id)}
         expenses={expenses.filter((e) => e.vehicleId === vehicle.id)}
+        reminders={reminders.filter((r) => r.vehicleId === vehicle.id)}
         tab={route.tab}
         onAddEntry={addEntry}
+        onUpdateEntry={updateEntry}
         onAddExpense={addExpense}
+        onUpdateExpense={updateExpense}
+        onAddReminder={addReminder}
+        onUpdateReminder={updateReminder}
+        onCompleteReminder={completeReminder}
         onUpdateVehicle={updateVehicle}
+        onExport={() => setExportFor(vehicle.id)}
+        canEdit={canEdit}
         onDeleteEntry={isAdmin ? deleteEntry : undefined}
         onDeleteExpense={isAdmin ? deleteExpense : undefined}
+        onDeleteReminder={isAdmin ? deleteReminder : undefined}
         onDeleteVehicle={isAdmin ? deleteVehicle : undefined}
       />
     ) : (
@@ -207,7 +310,15 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     );
   } else {
     page = (
-      <HomePage vehicles={vehicles} entries={entries} expenses={expenses} isAdmin={isAdmin} onReload={reload} />
+      <HomePage
+        vehicles={vehicles}
+        entries={entries}
+        expenses={expenses}
+        reminders={reminders}
+        isAdmin={isAdmin}
+        onReload={reload}
+        onExport={() => setExportFor("")}
+      />
     );
   }
 
@@ -251,6 +362,17 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       </header>
 
       {page}
+
+      {exportFor !== undefined && vehicles ? (
+        <ExportDialog
+          vehicles={vehicles}
+          entries={entries}
+          expenses={expenses}
+          reminders={reminders}
+          defaultVehicleId={exportFor || undefined}
+          onClose={() => setExportFor(undefined)}
+        />
+      ) : null}
     </div>
   );
 }

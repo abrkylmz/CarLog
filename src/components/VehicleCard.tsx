@@ -1,4 +1,4 @@
-import { Car, ChevronRight } from "lucide-react";
+import { AlertTriangle, Car, ChevronRight, Clock } from "lucide-react";
 import { FUEL_TYPE_LABELS, formatDate, formatNumber, formatTL, vehicleSubtitle } from "../lib/format";
 import { paths, VEHICLE_TAB_LABELS, type VehicleTab } from "../lib/router";
 import type { Vehicle, VehicleStats } from "../types";
@@ -6,11 +6,13 @@ import type { Vehicle, VehicleStats } from "../types";
 interface Props {
   vehicle: Vehicle;
   stats: VehicleStats;
+  /** Counts of overdue / due-soon reminders, if any. */
+  alerts?: { overdue: number; soon: number };
 }
 
-const QUICK_TABS: VehicleTab[] = ["dolumlar", "masraflar", "aylik"];
+const QUICK_TABS: VehicleTab[] = ["dolumlar", "masraflar", "hatirlatmalar"];
 
-export default function VehicleCard({ vehicle, stats }: Props) {
+export default function VehicleCard({ vehicle, stats, alerts }: Props) {
   const subtitle = vehicleSubtitle(vehicle);
 
   return (
@@ -50,6 +52,23 @@ export default function VehicleCard({ vehicle, stats }: Props) {
             value={stats.latestOdometerKm != null ? formatNumber(stats.latestOdometerKm, 0) : "—"}
           />
         </dl>
+
+        {alerts ? (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {alerts.overdue > 0 ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
+                <AlertTriangle size={12} />
+                {alerts.overdue} gecikmiş hatırlatma
+              </span>
+            ) : null}
+            {alerts.soon > 0 ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                <Clock size={12} />
+                {alerts.soon} yaklaşan hatırlatma
+              </span>
+            ) : null}
+          </div>
+        ) : null}
 
         <p className="mt-3 flex items-center justify-between text-xs text-slate-400 dark:text-slate-500">
           <span>

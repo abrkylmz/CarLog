@@ -1,4 +1,4 @@
-import { Trash2, UserRound } from "lucide-react";
+import { Pencil, Trash2, UserRound } from "lucide-react";
 import type { DerivedEntry } from "../types";
 import { formatDate, formatNumber, formatTL } from "../lib/format";
 
@@ -6,9 +6,13 @@ interface Props {
   entries: DerivedEntry[];
   /** Omitted for users without delete permission; the delete column is hidden then. */
   onDelete?: (id: string) => void;
+  /** Shown only on rows canEdit allows (the author's own rows, or all rows for admins). */
+  onEdit?: (entry: DerivedEntry) => void;
+  canEdit?: (entry: DerivedEntry) => boolean;
 }
 
-export default function EntryTable({ entries, onDelete }: Props) {
+export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props) {
+  const hasActions = Boolean(onDelete || onEdit);
   const byDateDesc = [...entries].sort((a, b) => (a.date < b.date ? 1 : -1));
 
   if (byDateDesc.length === 0) {
@@ -31,7 +35,7 @@ export default function EntryTable({ entries, onDelete }: Props) {
             <th className="px-3 py-2 font-medium">Tutar</th>
             <th className="px-3 py-2 font-medium">L/100km</th>
             <th className="px-3 py-2 font-medium">Not</th>
-            {onDelete ? <th className="px-3 py-2" /> : null}
+            {hasActions ? <th className="px-3 py-2" /> : null}
           </tr>
         </thead>
         <tbody>
@@ -48,6 +52,9 @@ export default function EntryTable({ entries, onDelete }: Props) {
                 >
                   <UserRound size={11} />
                   {entry.createdBy ?? "silinmiş kullanıcı"}
+                  {entry.updatedAt ? (
+                    <span title={`${entry.updatedBy ?? "silinmiş kullanıcı"} düzenledi`}>· düzenlendi</span>
+                  ) : null}
                 </span>
               </td>
               <td className="px-3 py-2 whitespace-nowrap">{formatNumber(entry.odometerKm, 0)}</td>
@@ -60,16 +67,28 @@ export default function EntryTable({ entries, onDelete }: Props) {
               <td className="max-w-[12rem] truncate px-3 py-2 text-slate-500 dark:text-slate-400">
                 {entry.note ?? ""}
               </td>
-              {onDelete ? (
-                <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => onDelete(entry.id)}
-                    aria-label="Kaydı sil"
-                    className="rounded p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+              {hasActions ? (
+                <td className="px-3 py-2 text-right whitespace-nowrap">
+                  {onEdit && (canEdit?.(entry) ?? true) ? (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(entry)}
+                      aria-label="Kaydı düzenle"
+                      className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                  ) : null}
+                  {onDelete ? (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(entry.id)}
+                      aria-label="Kaydı sil"
+                      className="rounded p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  ) : null}
                 </td>
               ) : null}
             </tr>

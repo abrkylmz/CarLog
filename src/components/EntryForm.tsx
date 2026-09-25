@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { errorMessage } from "../lib/api";
-import type { FuelEntryInput } from "../types";
+import type { FuelEntry, FuelEntryInput } from "../types";
 
 interface Props {
   vehicleId: string;
   onAdd: (entry: FuelEntryInput) => Promise<void>;
+  /** Edit mode: fields start from this record and aren't cleared after saving. */
+  initial?: FuelEntry;
+  submitLabel?: string;
+  onCancel?: () => void;
 }
 
 function todayIso(): string {
@@ -16,13 +20,13 @@ function parse(value: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export default function EntryForm({ vehicleId, onAdd }: Props) {
-  const [date, setDate] = useState(todayIso());
-  const [odometerKm, setOdometerKm] = useState("");
-  const [liters, setLiters] = useState("");
-  const [pricePerLiter, setPricePerLiter] = useState("");
-  const [totalCost, setTotalCost] = useState("");
-  const [note, setNote] = useState("");
+export default function EntryForm({ vehicleId, onAdd, initial, submitLabel = "Kaydı Ekle", onCancel }: Props) {
+  const [date, setDate] = useState(initial?.date ?? todayIso());
+  const [odometerKm, setOdometerKm] = useState(initial ? String(initial.odometerKm) : "");
+  const [liters, setLiters] = useState(initial ? String(initial.liters) : "");
+  const [pricePerLiter, setPricePerLiter] = useState(initial ? String(Number(initial.pricePerLiter.toFixed(3))) : "");
+  const [totalCost, setTotalCost] = useState(initial ? String(initial.totalCost) : "");
+  const [note, setNote] = useState(initial?.note ?? "");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -87,7 +91,7 @@ export default function EntryForm({ vehicleId, onAdd }: Props) {
         totalCost: t,
         note: note.trim() || undefined,
       });
-      reset();
+      if (!initial) reset();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -172,13 +176,16 @@ export default function EntryForm({ vehicleId, onAdd }: Props) {
 
       <div className="col-span-full flex items-center justify-between gap-3">
         {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : <span />}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
-        >
-          {submitting ? "Kaydediliyor…" : "Kaydı Ekle"}
-        </button>
+        <div className="flex gap-2">
+          {onCancel ? <CancelButton onClick={onCancel} /> : null}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
+          >
+            {submitting ? "Kaydediliyor…" : submitLabel}
+          </button>
+        </div>
       </div>
     </form>
   );
@@ -190,5 +197,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="font-medium text-slate-600 dark:text-slate-300">{label}</span>
       {children}
     </label>
+  );
+}
+
+export function CancelButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+    >
+      Vazgeç
+    </button>
   );
 }

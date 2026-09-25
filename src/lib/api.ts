@@ -1,4 +1,15 @@
-import type { Expense, ExpenseInput, FuelEntry, FuelEntryInput, Role, User, Vehicle, VehicleInput } from "../types";
+import type {
+  Expense,
+  ExpenseInput,
+  FuelEntry,
+  FuelEntryInput,
+  Reminder,
+  ReminderInput,
+  Role,
+  User,
+  Vehicle,
+  VehicleInput,
+} from "../types";
 
 export class ApiError extends Error {
   constructor(
@@ -58,11 +69,28 @@ export const api = {
 
   listEntries: () => request<FuelEntry[]>("GET", "/entries"),
   createEntry: (input: FuelEntryInput) => request<FuelEntry>("POST", "/entries", input),
+  updateEntry: (id: string, input: FuelEntryInput) =>
+    request<FuelEntry>("PUT", `/entries/${encodeURIComponent(id)}`, input),
   deleteEntry: (id: string) => request<void>("DELETE", `/entries/${encodeURIComponent(id)}`),
 
   listExpenses: () => request<Expense[]>("GET", "/expenses"),
   createExpense: (input: ExpenseInput) => request<Expense>("POST", "/expenses", input),
+  updateExpense: (id: string, input: ExpenseInput) =>
+    request<Expense>("PUT", `/expenses/${encodeURIComponent(id)}`, input),
   deleteExpense: (id: string) => request<void>("DELETE", `/expenses/${encodeURIComponent(id)}`),
+
+  listReminders: () => request<Reminder[]>("GET", "/reminders"),
+  createReminder: (input: ReminderInput) => request<Reminder>("POST", "/reminders", input),
+  updateReminder: (id: string, input: ReminderInput) =>
+    request<Reminder>("PUT", `/reminders/${encodeURIComponent(id)}`, input),
+  /** amount (optional) is also recorded as an expense. */
+  completeReminder: (id: string, amount?: number) =>
+    request<{ completed: Reminder; next: Reminder | null; expense: Expense | null }>(
+      "POST",
+      `/reminders/${encodeURIComponent(id)}/complete`,
+      { amount },
+    ),
+  deleteReminder: (id: string) => request<void>("DELETE", `/reminders/${encodeURIComponent(id)}`),
 
   listUsers: () => request<User[]>("GET", "/users"),
   createUser: (username: string, password: string, role: Role) =>

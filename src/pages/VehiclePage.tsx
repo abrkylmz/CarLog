@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Car, Pencil, Trash2 } from "lucide-react";
+import { Car, Download, Pencil, Trash2 } from "lucide-react";
 import BackLink from "../components/BackLink";
 import CategoryBreakdown from "../components/CategoryBreakdown";
 import { useDialog } from "../components/DialogProvider";
@@ -7,26 +7,51 @@ import EntryForm from "../components/EntryForm";
 import EntryTable from "../components/EntryTable";
 import ExpenseForm from "../components/ExpenseForm";
 import ExpenseList from "../components/ExpenseList";
+import Modal from "../components/Modal";
 import MonthlySummaryTable from "../components/MonthlySummaryTable";
+import { ReminderForm, ReminderList } from "../components/Reminders";
 import SpendChart from "../components/SpendChart";
 import StatCard from "../components/StatCard";
+import UpcomingReminders from "../components/UpcomingReminders";
 import VehicleForm from "../components/VehicleForm";
 import { groupByMonth, vehicleStats, withDerived } from "../lib/calc";
 import { FUEL_TYPE_LABELS, formatDate, formatNumber, formatTL, vehicleSubtitle } from "../lib/format";
 import { paths, VEHICLE_TAB_LABELS, VEHICLE_TABS, type VehicleTab } from "../lib/router";
-import type { Expense, ExpenseInput, FuelEntry, FuelEntryInput, Vehicle, VehicleInput } from "../types";
+import type {
+  Expense,
+  ExpenseInput,
+  FuelEntry,
+  FuelEntryInput,
+  Reminder,
+  ReminderInput,
+  Vehicle,
+  VehicleInput,
+} from "../types";
+
+/** Anything with an author; decides whether the edit button shows. */
+type Authored = { createdById: string | null };
 
 interface Props {
   vehicle: Vehicle;
   entries: FuelEntry[];
   expenses: Expense[];
+  reminders: Reminder[];
   tab: VehicleTab;
   onAddEntry: (entry: FuelEntryInput) => Promise<void>;
+  onUpdateEntry: (id: string, entry: FuelEntryInput) => Promise<void>;
   onAddExpense: (expense: ExpenseInput) => Promise<void>;
+  onUpdateExpense: (id: string, expense: ExpenseInput) => Promise<void>;
+  onAddReminder: (reminder: ReminderInput) => Promise<void>;
+  onUpdateReminder: (id: string, reminder: ReminderInput) => Promise<void>;
+  onCompleteReminder: (reminder: Reminder, latestKm: number | null) => void;
   onUpdateVehicle: (id: string, input: VehicleInput) => Promise<void>;
+  onExport: () => void;
+  /** Admins may edit everything, users only their own records. */
+  canEdit: (record: Authored) => boolean;
   /** Delete handlers are only passed for admins. */
   onDeleteEntry?: (id: string) => void;
   onDeleteExpense?: (id: string) => void;
+  onDeleteReminder?: (reminder: Reminder) => void;
   onDeleteVehicle?: (id: string) => void;
 }
 
@@ -34,14 +59,26 @@ export default function VehiclePage({
   vehicle,
   entries,
   expenses,
+  reminders,
   tab,
   onAddEntry,
+  onUpdateEntry,
   onAddExpense,
+  onUpdateExpense,
+  onAddReminder,
+  onUpdateReminder,
+  onCompleteReminder,
+  onExport,
+  canEdit,
   onDeleteEntry,
   onDeleteExpense,
+  onDeleteReminder,
   onUpdateVehicle,
   onDeleteVehicle,
 }: Props) {
+  const [editingEntry, setEditingEntry] = useState<FuelEntry | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
   const derived = useMemo(() => withDerived(entries), [entries]);
   const summaries = useMemo(() => groupByMonth(entries, expenses), [entries, expenses]);
   const stats = useMemo(() => vehicleStats(entries, expenses), [entries, expenses]);
@@ -49,6 +86,7 @@ export default function VehiclePage({
   const grandTotal = stats.totalCost + stats.otherCostTotal;
   const split = (fuel: number, other: number) => `Yakıt ${formatTL(fuel)} · Diğer ${formatTL(other)}`;
   const subtitle = vehicleSubtitle(vehicle);
+  const latestKm = stats.latestOdometerKm;
 
   return (
     <>
@@ -58,7 +96,7 @@ export default function VehiclePage({
         <div className="rounded-lg bg-brand-50 p-2.5 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300">
           <Car size={26} />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="truncate text-lg font-semibold">{vehicle.name}</h2>
             {vehicle.plate ? (
@@ -71,6 +109,14 @@ export default function VehiclePage({
             {[subtitle, FUEL_TYPE_LABELS[vehicle.fuelType]].filter(Boolean).join(" · ")}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={onExport}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          <Download size={16} />
+          <span className="hidden sm:inline">Dışa Aktar</span>
+        </button>
       </div>
 
       <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-800">
@@ -92,6 +138,12 @@ export default function VehiclePage({
 
       {tab === "ozet" && (
         <>
+          <UpcomingReminders
+            reminders={reminders}
+            vehicles={[vehicle]}
+            latestKmByVehicle={new Map([[vehicle.id, latestKm]])}
+            showVehicle={false}
+          />
           <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatCard
               label="Bu Ay Toplam"
@@ -146,7 +198,7 @@ export default function VehiclePage({
           </section>
           <section>
             <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Kayıtlar</h3>
-            <EntryTable entries={derived} onDelete={onDeleteEntry} />
+            <EntryTable entries={derived} onDelete={onDeleteEntry} onEdit={setEditingEntry} canEdit={canEdit} />
           </section>
         </>
       )}
@@ -176,7 +228,12 @@ export default function VehiclePage({
           <div className="grid gap-6 lg:grid-cols-3">
             <section className="lg:col-span-2">
               <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Masraflar</h3>
-              <ExpenseList expenses={expenses} onDelete={onDeleteExpense} />
+              <ExpenseList
+                expenses={expenses}
+                onDelete={onDeleteExpense}
+                onEdit={setEditingExpense}
+                canEdit={canEdit}
+              />
             </section>
             {expenses.length > 0 ? (
               <section>
@@ -185,6 +242,26 @@ export default function VehiclePage({
               </section>
             ) : null}
           </div>
+        </>
+      )}
+
+      {tab === "hatirlatmalar" && (
+        <>
+          <section className="mb-8">
+            <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Yeni Hatırlatma</h3>
+            <ReminderForm vehicleId={vehicle.id} latestKm={latestKm} onSubmit={onAddReminder} />
+          </section>
+          <section>
+            <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Hatırlatmalar</h3>
+            <ReminderList
+              reminders={reminders}
+              latestKm={latestKm}
+              onComplete={(r) => onCompleteReminder(r, latestKm)}
+              onEdit={setEditingReminder}
+              canEdit={canEdit}
+              onDelete={onDeleteReminder}
+            />
+          </section>
         </>
       )}
 
@@ -200,11 +277,57 @@ export default function VehiclePage({
       {tab === "bilgiler" && (
         <VehicleSettings
           vehicle={vehicle}
-          recordCount={entries.length + expenses.length}
+          recordCount={entries.length + expenses.length + reminders.length}
           onUpdate={onUpdateVehicle}
           onDelete={onDeleteVehicle}
         />
       )}
+
+      {editingEntry ? (
+        <Modal title="Dolumu Düzenle" onClose={() => setEditingEntry(null)} width="max-w-2xl">
+          <EntryForm
+            vehicleId={vehicle.id}
+            initial={editingEntry}
+            submitLabel="Kaydet"
+            onCancel={() => setEditingEntry(null)}
+            onAdd={async (input) => {
+              await onUpdateEntry(editingEntry.id, input);
+              setEditingEntry(null);
+            }}
+          />
+        </Modal>
+      ) : null}
+
+      {editingExpense ? (
+        <Modal title="Masrafı Düzenle" onClose={() => setEditingExpense(null)} width="max-w-2xl">
+          <ExpenseForm
+            vehicleId={vehicle.id}
+            initial={editingExpense}
+            submitLabel="Kaydet"
+            onCancel={() => setEditingExpense(null)}
+            onAdd={async (input) => {
+              await onUpdateExpense(editingExpense.id, input);
+              setEditingExpense(null);
+            }}
+          />
+        </Modal>
+      ) : null}
+
+      {editingReminder ? (
+        <Modal title="Hatırlatmayı Düzenle" onClose={() => setEditingReminder(null)} width="max-w-2xl">
+          <ReminderForm
+            vehicleId={vehicle.id}
+            latestKm={latestKm}
+            initial={editingReminder}
+            submitLabel="Kaydet"
+            onCancel={() => setEditingReminder(null)}
+            onSubmit={async (input) => {
+              await onUpdateReminder(editingReminder.id, input);
+              setEditingReminder(null);
+            }}
+          />
+        </Modal>
+      ) : null}
     </>
   );
 }
@@ -228,7 +351,7 @@ function VehicleSettings({
       title: `"${vehicle.name}" silinsin mi?`,
       message:
         recordCount > 0
-          ? `Araç ve ona ait ${recordCount} dolum/masraf kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.`
+          ? `Araç ve ona ait ${recordCount} dolum/masraf/hatırlatma kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.`
           : "Araç kalıcı olarak silinecek. Bu işlem geri alınamaz.",
       tone: "danger",
       confirmLabel: "Aracı Sil",

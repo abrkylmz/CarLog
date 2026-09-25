@@ -14,6 +14,8 @@ interface DialogOptions {
   input?: {
     label: string;
     type?: "text" | "password";
+    /** Mobile keyboard, e.g. "decimal" for amounts. */
+    inputMode?: "text" | "decimal" | "numeric";
     placeholder?: string;
     /** Returns an error message to keep the dialog open, or null to accept. */
     validate?: (value: string) => string | null;
@@ -186,6 +188,7 @@ function Dialog({ options, onClose }: { options: DialogOptions; onClose: (result
               <input
                 ref={inputRef}
                 type={input.type ?? "text"}
+                inputMode={input.inputMode}
                 autoComplete={input.type === "password" ? "new-password" : "off"}
                 placeholder={input.placeholder}
                 value={value}

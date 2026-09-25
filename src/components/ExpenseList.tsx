@@ -1,4 +1,4 @@
-import { Trash2, UserRound } from "lucide-react";
+import { Pencil, Trash2, UserRound } from "lucide-react";
 import { monthKey } from "../lib/calc";
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatMonth, formatTL } from "../lib/format";
 import type { Expense } from "../types";
@@ -7,10 +7,13 @@ interface Props {
   expenses: Expense[];
   /** Omitted for users without delete permission; the delete buttons are hidden then. */
   onDelete?: (id: string) => void;
+  /** Shown only on rows canEdit allows (the author's own rows, or all rows for admins). */
+  onEdit?: (expense: Expense) => void;
+  canEdit?: (expense: Expense) => boolean;
 }
 
 /** Expenses grouped by month (newest first), each month with its subtotal. */
-export default function ExpenseList({ expenses, onDelete }: Props) {
+export default function ExpenseList({ expenses, onDelete, onEdit, canEdit }: Props) {
   if (expenses.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
@@ -47,10 +50,23 @@ export default function ExpenseList({ expenses, onDelete }: Props) {
                     >
                       <UserRound size={11} />
                       {expense.createdBy ?? "silinmiş kullanıcı"}
+                      {expense.updatedAt ? (
+                        <span title={`${expense.updatedBy ?? "silinmiş kullanıcı"} düzenledi`}>· düzenlendi</span>
+                      ) : null}
                     </span>
                   </p>
                 </div>
                 <span className="whitespace-nowrap font-medium">{formatTL(expense.amount)}</span>
+                {onEdit && (canEdit?.(expense) ?? true) ? (
+                  <button
+                    type="button"
+                    onClick={() => onEdit(expense)}
+                    aria-label="Masrafı düzenle"
+                    className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                ) : null}
                 {onDelete ? (
                   <button
                     type="button"

@@ -1,11 +1,16 @@
 import { useState } from "react";
 import { errorMessage } from "../lib/api";
 import { EXPENSE_CATEGORY_LABELS } from "../lib/format";
-import type { ExpenseCategory, ExpenseInput } from "../types";
+import type { Expense, ExpenseCategory, ExpenseInput } from "../types";
+import { CancelButton } from "./EntryForm";
 
 interface Props {
   vehicleId: string;
   onAdd: (expense: ExpenseInput) => Promise<void>;
+  /** Edit mode: fields start from this record and aren't cleared after saving. */
+  initial?: Expense;
+  submitLabel?: string;
+  onCancel?: () => void;
 }
 
 function todayIso(): string {
@@ -17,11 +22,11 @@ function parse(value: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export default function ExpenseForm({ vehicleId, onAdd }: Props) {
-  const [date, setDate] = useState(todayIso());
-  const [category, setCategory] = useState<ExpenseCategory>("bakim");
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
+export default function ExpenseForm({ vehicleId, onAdd, initial, submitLabel = "Masrafı Ekle", onCancel }: Props) {
+  const [date, setDate] = useState(initial?.date ?? todayIso());
+  const [category, setCategory] = useState<ExpenseCategory>(initial?.category ?? "bakim");
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
+  const [note, setNote] = useState(initial?.note ?? "");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -34,9 +39,11 @@ export default function ExpenseForm({ vehicleId, onAdd }: Props) {
     setSubmitting(true);
     try {
       await onAdd({ vehicleId, date, category, amount: value, note: note.trim() || undefined });
-      // Keep date and category: several costs from the same visit are often entered in a row.
-      setAmount("");
-      setNote("");
+      if (!initial) {
+        // Keep date and category: several costs from the same visit are often entered in a row.
+        setAmount("");
+        setNote("");
+      }
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -88,13 +95,16 @@ export default function ExpenseForm({ vehicleId, onAdd }: Props) {
 
       <div className="col-span-full flex items-center justify-between gap-3">
         {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : <span />}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
-        >
-          {submitting ? "Kaydediliyor…" : "Masrafı Ekle"}
-        </button>
+        <div className="flex gap-2">
+          {onCancel ? <CancelButton onClick={onCancel} /> : null}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
+          >
+            {submitting ? "Kaydediliyor…" : submitLabel}
+          </button>
+        </div>
       </div>
     </form>
   );

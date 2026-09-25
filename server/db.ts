@@ -1,5 +1,16 @@
 import { join } from "node:path";
-import type { Expense, ExpenseCategory, FuelEntry, FuelType, Role, User, Vehicle } from "../src/types.ts";
+import type {
+  Expense,
+  ExpenseCategory,
+  FuelEntry,
+  FuelEntryInput,
+  FuelType,
+  Reminder,
+  ReminderKind,
+  Role,
+  User,
+  Vehicle,
+} from "../src/types.ts";
 
 export type Row = Record<string, unknown>;
 export interface Statement {
@@ -102,6 +113,27 @@ const SCHEMA: string[] = [
      created_at TEXT NOT NULL
    )`,
   `CREATE INDEX IF NOT EXISTS expenses_vehicle ON expenses (vehicle_id)`,
+  // Edit tracking, added after the first release; IF NOT EXISTS keeps existing databases working.
+  `ALTER TABLE entries ADD COLUMN IF NOT EXISTS updated_at TEXT`,
+  `ALTER TABLE entries ADD COLUMN IF NOT EXISTS updated_by TEXT`,
+  `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS updated_at TEXT`,
+  `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS updated_by TEXT`,
+  `CREATE TABLE IF NOT EXISTS reminders (
+     id            TEXT PRIMARY KEY,
+     vehicle_id    TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+     kind          TEXT NOT NULL,
+     title         TEXT,
+     due_date      TEXT,
+     due_km        DOUBLE PRECISION,
+     repeat_months INTEGER,
+     repeat_km     DOUBLE PRECISION,
+     note          TEXT,
+     done_at       TEXT,
+     done_by       TEXT,
+     created_by    TEXT,
+     created_at    TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS reminders_vehicle ON reminders (vehicle_id)`,
   // Failed logins live in the database because serverless instances don't share memory.
   `CREATE TABLE IF NOT EXISTS login_attempts (
      ip       TEXT PRIMARY KEY,
@@ -169,8 +201,18 @@ export function toEntry(row: Row): FuelEntry {
     pricePerLiter: Number(row.price_per_liter),
     totalCost: Number(row.total_cost),
     note: (row.note as string | null) ?? undefined,
+    ...audit(row),
+  };
+}
+
+/** created/updated bookkeeping shared by fill-ups and expenses. */
+function audit(row: Row) {
+  return {
     createdBy: (row.created_by_name as string | null) ?? null,
+    createdById: (row.created_by as string | null) ?? null,
     createdAt: row.created_at as string,
+    updatedAt: (row.updated_at as string | null) ?? undefined,
+    updatedBy: row.updated_at ? ((row.updated_by_name as string | null) ?? null) : undefined,
   };
 }
 
@@ -182,19 +224,49 @@ export function toExpense(row: Row): Expense {
     category: row.category as ExpenseCategory,
     amount: Number(row.amount),
     note: (row.note as string | null) ?? undefined,
+    ...audit(row),
+  };
+}
+
+export function toReminder(row: Row): Reminder {
+  const num = (v: unknown) => (v == null ? undefined : Number(v));
+  return {
+    id: row.id as string,
+    vehicleId: row.vehicle_id as string,
+    kind: row.kind as ReminderKind,
+    title: (row.title as string | null) ?? undefined,
+    dueDate: (row.due_date as string | null) ?? undefined,
+    dueKm: num(row.due_km),
+    repeatMonths: num(row.repeat_months),
+    repeatKm: num(row.repeat_km),
+    note: (row.note as string | null) ?? undefined,
+    doneAt: (row.done_at as string | null) ?? undefined,
+    doneBy: row.done_at ? ((row.done_by_name as string | null) ?? null) : undefined,
     createdBy: (row.created_by_name as string | null) ?? null,
+    createdById: (row.created_by as string | null) ?? null,
     createdAt: row.created_at as string,
   };
 }
 
+export const REMINDER_SELECT = `
+  SELECT r.*, cu.username AS created_by_name, du.username AS done_by_name
+  FROM reminders r
+  LEFT JOIN users cu ON cu.id = r.created_by
+  LEFT JOIN users du ON du.id = r.done_by
+`;
+
 export const EXPENSE_SELECT = `
-  SELECT x.*, u.username AS created_by_name
-  FROM expenses x LEFT JOIN users u ON u.id = x.created_by
+  SELECT x.*, u.username AS created_by_name, uu.username AS updated_by_name
+  FROM expenses x
+  LEFT JOIN users u ON u.id = x.created_by
+  LEFT JOIN users uu ON uu.id = x.updated_by
 `;
 
 export const ENTRY_SELECT = `
-  SELECT e.*, u.username AS created_by_name
-  FROM entries e LEFT JOIN users u ON u.id = e.created_by
+  SELECT e.*, u.username AS created_by_name, uu.username AS updated_by_name
+  FROM entries e
+  LEFT JOIN users u ON u.id = e.created_by
+  LEFT JOIN users uu ON uu.id = e.updated_by
 `;
 
 export function insertVehicleStatement(v: Vehicle, { ignoreExisting = false } = {}): Statement {
@@ -209,7 +281,7 @@ export function insertVehicleStatement(v: Vehicle, { ignoreExisting = false } = 
 
 /** Inserts only if the vehicle exists; with ignoreExisting, a duplicate id is skipped instead of failing. */
 export function insertEntryStatement(
-  e: Omit<FuelEntry, "createdBy">,
+  e: FuelEntryInput & { id: string; createdAt: string },
   createdByUserId: string,
   { ignoreExisting = false } = {},
 ): Statement {

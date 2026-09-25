@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router, type Request } from "express";
-import type { ExpenseInput, FuelEntryInput, VehicleInput } from "../src/types.ts";
+import type { ExpenseCategory, ExpenseInput, FuelEntryInput, ReminderKind, VehicleInput } from "../src/types.ts";
 import {
   clearAttempts,
   createSession,
@@ -21,8 +21,10 @@ import {
   insertVehicleStatement,
   query,
   queryOne,
+  REMINDER_SELECT,
   toEntry,
   toExpense,
+  toReminder,
   toUser,
   toVehicle,
   transaction,
@@ -34,6 +36,7 @@ import {
   parseCredentials,
   parseEntryInput,
   parseExpenseInput,
+  parseReminderInput,
   parseVehicleInput,
 } from "./validate.ts";
 
@@ -42,6 +45,47 @@ export const api = Router();
 function paramId(req: Request): string {
   return String(req.params.id);
 }
+
+/**
+ * Editing rule: admins may edit any record, users only what they entered themselves.
+ * Returns an error response tuple, or null when the edit is allowed.
+ */
+async function checkEditable(
+  req: Request,
+  table: "entries" | "expenses" | "reminders",
+): Promise<[number, string] | null> {
+  const row = await queryOne(`SELECT created_by FROM ${table} WHERE id = $1`, [paramId(req)]);
+  if (!row) return [404, "Kayıt bulunamadı."];
+  if (req.user!.role !== "admin" && row.created_by !== req.user!.id) {
+    return [403, "Yalnızca kendi eklediğiniz kayıtları düzenleyebilirsiniz."];
+  }
+  return null;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Adds months to an ISO date, clamping to the month's last day (31 Jan + 1 month = 28/29 Feb). */
+function addMonths(isoDate: string, months: number): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, lastDay));
+  return target.toISOString().slice(0, 10);
+}
+
+/** Where a completed reminder's cost is filed when the user enters one. */
+const REMINDER_EXPENSE_CATEGORY: Record<ReminderKind, ExpenseCategory> = {
+  muayene: "muayene",
+  egzoz: "muayene",
+  sigorta: "sigorta",
+  kasko: "sigorta",
+  bakim: "bakim",
+  vergi: "vergi",
+  lastik: "lastik",
+  diger: "diger",
+};
 
 // ---- Auth ------------------------------------------------------------------
 
@@ -211,6 +255,35 @@ api.post("/entries", requireUser, async (req, res) => {
   res.status(201).json(toEntry((await queryOne(`${ENTRY_SELECT} WHERE e.id = $1`, [id]))!));
 });
 
+api.put("/entries/:id", requireUser, async (req, res) => {
+  const denied = await checkEditable(req, "entries");
+  if (denied) return void res.status(denied[0]).json({ error: denied[1] });
+  const parsed = parseEntryInput(req.body);
+  if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
+
+  const e: FuelEntryInput = parsed.value;
+  const row = await queryOne(
+    `UPDATE entries SET vehicle_id = $1, date = $2, odometer_km = $3, liters = $4, price_per_liter = $5,
+       total_cost = $6, note = $7, updated_at = $8, updated_by = $9
+     WHERE id = $10 AND EXISTS (SELECT 1 FROM vehicles WHERE id = $1)
+     RETURNING id`,
+    [
+      e.vehicleId,
+      e.date,
+      e.odometerKm,
+      e.liters,
+      e.pricePerLiter,
+      e.totalCost,
+      e.note ?? null,
+      new Date().toISOString(),
+      req.user!.id,
+      paramId(req),
+    ],
+  );
+  if (!row) return void res.status(404).json({ error: "Araç bulunamadı." });
+  res.json(toEntry((await queryOne(`${ENTRY_SELECT} WHERE e.id = $1`, [paramId(req)]))!));
+});
+
 api.delete("/entries/:id", requireAdmin, async (req, res) => {
   const row = await queryOne("DELETE FROM entries WHERE id = $1 RETURNING id", [paramId(req)]);
   if (!row) return void res.status(404).json({ error: "Kayıt bulunamadı." });
@@ -240,9 +313,178 @@ api.post("/expenses", requireUser, async (req, res) => {
   res.status(201).json(toExpense((await queryOne(`${EXPENSE_SELECT} WHERE x.id = $1`, [id]))!));
 });
 
+api.put("/expenses/:id", requireUser, async (req, res) => {
+  const denied = await checkEditable(req, "expenses");
+  if (denied) return void res.status(denied[0]).json({ error: denied[1] });
+  const parsed = parseExpenseInput(req.body);
+  if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
+
+  const x: ExpenseInput = parsed.value;
+  const row = await queryOne(
+    `UPDATE expenses SET vehicle_id = $1, date = $2, category = $3, amount = $4, note = $5,
+       updated_at = $6, updated_by = $7
+     WHERE id = $8 AND EXISTS (SELECT 1 FROM vehicles WHERE id = $1)
+     RETURNING id`,
+    [x.vehicleId, x.date, x.category, x.amount, x.note ?? null, new Date().toISOString(), req.user!.id, paramId(req)],
+  );
+  if (!row) return void res.status(404).json({ error: "Araç bulunamadı." });
+  res.json(toExpense((await queryOne(`${EXPENSE_SELECT} WHERE x.id = $1`, [paramId(req)]))!));
+});
+
 api.delete("/expenses/:id", requireAdmin, async (req, res) => {
   const row = await queryOne("DELETE FROM expenses WHERE id = $1 RETURNING id", [paramId(req)]);
   if (!row) return void res.status(404).json({ error: "Masraf bulunamadı." });
+  res.status(204).end();
+});
+
+// ---- Reminders (inspection, insurance, service, ...) ---------------------------
+
+api.get("/reminders", requireUser, async (_req, res) => {
+  res.json((await query(`${REMINDER_SELECT} ORDER BY r.due_date NULLS LAST, r.due_km NULLS LAST`)).map(toReminder));
+});
+
+async function reminderResponse(id: string) {
+  return toReminder((await queryOne(`${REMINDER_SELECT} WHERE r.id = $1`, [id]))!);
+}
+
+api.post("/reminders", requireUser, async (req, res) => {
+  const parsed = parseReminderInput(req.body);
+  if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
+
+  const r = parsed.value;
+  const id = randomUUID();
+  const rows = await query(
+    `INSERT INTO reminders (id, vehicle_id, kind, title, due_date, due_km, repeat_months, repeat_km, note, created_by, created_at)
+     SELECT $1::text, $2::text, $3::text, $4::text, $5::text, $6::float8, $7::int, $8::float8, $9::text, $10::text, $11::text
+     WHERE EXISTS (SELECT 1 FROM vehicles WHERE id = $2::text)
+     RETURNING id`,
+    [
+      id,
+      r.vehicleId,
+      r.kind,
+      r.title ?? null,
+      r.dueDate ?? null,
+      r.dueKm ?? null,
+      r.repeatMonths ?? null,
+      r.repeatKm ?? null,
+      r.note ?? null,
+      req.user!.id,
+      new Date().toISOString(),
+    ],
+  );
+  if (rows.length === 0) return void res.status(404).json({ error: "Araç bulunamadı." });
+  res.status(201).json(await reminderResponse(id));
+});
+
+api.put("/reminders/:id", requireUser, async (req, res) => {
+  const denied = await checkEditable(req, "reminders");
+  if (denied) return void res.status(denied[0]).json({ error: denied[1] });
+  const parsed = parseReminderInput(req.body);
+  if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
+
+  const r = parsed.value;
+  await query(
+    `UPDATE reminders SET kind = $1, title = $2, due_date = $3, due_km = $4, repeat_months = $5, repeat_km = $6, note = $7
+     WHERE id = $8`,
+    [r.kind, r.title ?? null, r.dueDate ?? null, r.dueKm ?? null, r.repeatMonths ?? null, r.repeatKm ?? null, r.note ?? null, paramId(req)],
+  );
+  res.json(await reminderResponse(paramId(req)));
+});
+
+/**
+ * Marks a reminder done. If it repeats, the next one is created; if an amount is
+ * given, it's also recorded as an expense. All in one transaction.
+ */
+api.post("/reminders/:id/complete", requireUser, async (req, res) => {
+  const reminder = await queryOne("SELECT * FROM reminders WHERE id = $1", [paramId(req)]);
+  if (!reminder) return void res.status(404).json({ error: "Hatırlatma bulunamadı." });
+  if (reminder.done_at) return void res.status(409).json({ error: "Bu hatırlatma zaten tamamlanmış." });
+
+  let amount: number | null = null;
+  if (req.body?.amount != null && req.body.amount !== "") {
+    amount = typeof req.body.amount === "number" && Number.isFinite(req.body.amount) && req.body.amount > 0 ? req.body.amount : NaN;
+    if (Number.isNaN(amount)) return void res.status(400).json({ error: "Geçerli bir tutar girin." });
+  }
+
+  const now = new Date().toISOString();
+  const today = todayIso();
+  const statements: Statement[] = [
+    {
+      text: "UPDATE reminders SET done_at = $1, done_by = $2 WHERE id = $3 AND done_at IS NULL RETURNING id",
+      params: [now, req.user!.id, paramId(req)],
+    },
+  ];
+
+  const repeatMonths = reminder.repeat_months == null ? null : Number(reminder.repeat_months);
+  const repeatKm = reminder.repeat_km == null ? null : Number(reminder.repeat_km);
+  let nextId: string | null = null;
+  if (repeatMonths || repeatKm) {
+    // Date schedules keep their rhythm (insurance renews on the same day); km schedules count from
+    // the old target, or from the latest odometer reading when there wasn't one.
+    const nextDate = repeatMonths ? addMonths((reminder.due_date as string | null) ?? today, repeatMonths) : null;
+    let nextKm: number | null = null;
+    if (repeatKm) {
+      const base =
+        reminder.due_km != null
+          ? Number(reminder.due_km)
+          : Number(
+              (await queryOne("SELECT MAX(odometer_km) AS km FROM entries WHERE vehicle_id = $1", [reminder.vehicle_id]))
+                ?.km ?? 0,
+            );
+      nextKm = base + repeatKm;
+    }
+    nextId = randomUUID();
+    statements.push({
+      text: `INSERT INTO reminders (id, vehicle_id, kind, title, due_date, due_km, repeat_months, repeat_km, note, created_by, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      params: [
+        nextId,
+        reminder.vehicle_id,
+        reminder.kind,
+        reminder.title,
+        nextDate,
+        nextKm,
+        repeatMonths,
+        repeatKm,
+        reminder.note,
+        reminder.created_by,
+        now,
+      ],
+    });
+  }
+
+  let expenseId: string | null = null;
+  if (amount != null) {
+    expenseId = randomUUID();
+    statements.push({
+      text: `INSERT INTO expenses (id, vehicle_id, date, category, amount, note, created_by, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      params: [
+        expenseId,
+        reminder.vehicle_id,
+        today,
+        REMINDER_EXPENSE_CATEGORY[reminder.kind as ReminderKind] ?? "diger",
+        amount,
+        (reminder.title as string | null) ?? null,
+        req.user!.id,
+        now,
+      ],
+    });
+  }
+
+  const [updated] = await transaction(statements);
+  if (updated.length === 0) return void res.status(409).json({ error: "Bu hatırlatma zaten tamamlanmış." });
+
+  res.json({
+    completed: await reminderResponse(paramId(req)),
+    next: nextId ? await reminderResponse(nextId) : null,
+    expense: expenseId ? toExpense((await queryOne(`${EXPENSE_SELECT} WHERE x.id = $1`, [expenseId]))!) : null,
+  });
+});
+
+api.delete("/reminders/:id", requireAdmin, async (req, res) => {
+  const row = await queryOne("DELETE FROM reminders WHERE id = $1 RETURNING id", [paramId(req)]);
+  if (!row) return void res.status(404).json({ error: "Hatırlatma bulunamadı." });
   res.status(204).end();
 });
 
