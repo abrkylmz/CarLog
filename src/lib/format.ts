@@ -1,3 +1,5 @@
+import type { FuelType, Vehicle } from "../types";
+
 const currency = new Intl.NumberFormat("tr-TR", {
   style: "currency",
   currency: "TRY",
@@ -23,4 +25,19 @@ export function formatMonth(monthKey: string): string {
 export function formatDate(iso: string): string {
   const date = new Date(iso);
   return date.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+export const FUEL_TYPE_LABELS: Record<FuelType, string> = {
+  benzin: "Benzin",
+  dizel: "Dizel",
+  lpg: "LPG",
+  "benzin-lpg": "Benzin + LPG",
+  hibrit: "Hibrit",
+};
+
+/** "Toyota Corolla · 2019", or null when no details were entered. */
+export function vehicleSubtitle(vehicle: Vehicle): string | null {
+  const makeModel = [vehicle.brand, vehicle.model].filter(Boolean).join(" ");
+  const parts = [makeModel, vehicle.year ? String(vehicle.year) : ""].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
 }

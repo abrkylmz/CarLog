@@ -1,8 +1,10 @@
 import { useState } from "react";
-import type { FuelEntry } from "../types";
+import { errorMessage } from "../lib/api";
+import type { FuelEntryInput } from "../types";
 
 interface Props {
-  onAdd: (entry: FuelEntry) => void;
+  vehicleId: string;
+  onAdd: (entry: FuelEntryInput) => Promise<void>;
 }
 
 function todayIso(): string {
@@ -14,7 +16,7 @@ function parse(value: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export default function EntryForm({ onAdd }: Props) {
+export default function EntryForm({ vehicleId, onAdd }: Props) {
   const [date, setDate] = useState(todayIso());
   const [odometerKm, setOdometerKm] = useState("");
   const [liters, setLiters] = useState("");
@@ -22,32 +24,35 @@ export default function EntryForm({ onAdd }: Props) {
   const [totalCost, setTotalCost] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  function recomputeFromLitersOrPrice(nextLiters: string, nextPrice: string) {
-    const l = parse(nextLiters);
-    const p = parse(nextPrice);
-    if (l > 0 && p > 0) {
-      setTotalCost((l * p).toFixed(2));
-    }
-  }
-
-  function handleLitersChange(value: string) {
-    setLiters(value);
-    recomputeFromLitersOrPrice(value, pricePerLiter);
-  }
-
+  // The pump receipt shows price and total, so liters is derived from those
+  // whenever both are known; the other directions only fill a missing field.
   function handlePriceChange(value: string) {
     setPricePerLiter(value);
-    recomputeFromLitersOrPrice(liters, value);
+    const p = parse(value);
+    const t = parse(totalCost);
+    const l = parse(liters);
+    if (p > 0 && t > 0) setLiters((t / p).toFixed(2));
+    else if (p > 0 && l > 0) setTotalCost((l * p).toFixed(2));
   }
 
   function handleTotalCostChange(value: string) {
     setTotalCost(value);
-    const l = parse(liters);
     const t = parse(value);
-    if (l > 0 && t > 0) {
-      setPricePerLiter((t / l).toFixed(3));
-    }
+    const p = parse(pricePerLiter);
+    const l = parse(liters);
+    if (t > 0 && p > 0) setLiters((t / p).toFixed(2));
+    else if (t > 0 && l > 0) setPricePerLiter((t / l).toFixed(3));
+  }
+
+  function handleLitersChange(value: string) {
+    setLiters(value);
+    const l = parse(value);
+    const p = parse(pricePerLiter);
+    const t = parse(totalCost);
+    if (l > 0 && p > 0) setTotalCost((l * p).toFixed(2));
+    else if (l > 0 && t > 0) setPricePerLiter((t / l).toFixed(3));
   }
 
   function reset() {
@@ -59,7 +64,7 @@ export default function EntryForm({ onAdd }: Props) {
     setNote("");
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const km = parse(odometerKm);
     const l = parse(liters);
@@ -71,16 +76,23 @@ export default function EntryForm({ onAdd }: Props) {
     if (t <= 0) return setError("Tutar değeri girin.");
 
     setError(null);
-    onAdd({
-      id: crypto.randomUUID(),
-      date,
-      odometerKm: km,
-      liters: l,
-      pricePerLiter: p > 0 ? p : t / l,
-      totalCost: t,
-      note: note.trim() || undefined,
-    });
-    reset();
+    setSubmitting(true);
+    try {
+      await onAdd({
+        vehicleId,
+        date,
+        odometerKm: km,
+        liters: l,
+        pricePerLiter: p > 0 ? p : t / l,
+        totalCost: t,
+        note: note.trim() || undefined,
+      });
+      reset();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -110,24 +122,11 @@ export default function EntryForm({ onAdd }: Props) {
         />
       </Field>
 
-      <Field label="Litre (L)">
-        <input
-          type="number"
-          inputMode="decimal"
-          step="0.01"
-          placeholder="35.50"
-          value={liters}
-          onChange={(e) => handleLitersChange(e.target.value)}
-          className="input"
-          required
-        />
-      </Field>
-
       <Field label="Litre Fiyatı (TL/L)">
         <input
           type="number"
           inputMode="decimal"
-          step="0.01"
+          step="any"
           placeholder="44.90"
           value={pricePerLiter}
           onChange={(e) => handlePriceChange(e.target.value)}
@@ -139,10 +138,23 @@ export default function EntryForm({ onAdd }: Props) {
         <input
           type="number"
           inputMode="decimal"
-          step="0.01"
+          step="any"
           placeholder="1594.00"
           value={totalCost}
           onChange={(e) => handleTotalCostChange(e.target.value)}
+          className="input"
+          required
+        />
+      </Field>
+
+      <Field label="Litre (L) · otomatik">
+        <input
+          type="number"
+          inputMode="decimal"
+          step="any"
+          placeholder="Tutar ÷ fiyat"
+          value={liters}
+          onChange={(e) => handleLitersChange(e.target.value)}
           className="input"
           required
         />
@@ -162,9 +174,10 @@ export default function EntryForm({ onAdd }: Props) {
         {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : <span />}
         <button
           type="submit"
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
+          disabled={submitting}
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
         >
-          Kaydı Ekle
+          {submitting ? "Kaydediliyor…" : "Kaydı Ekle"}
         </button>
       </div>
     </form>

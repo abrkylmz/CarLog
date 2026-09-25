@@ -3,4 +3,8 @@ dist
 dist-ssr
 *.local
 .env
+.vercel
 *.tsbuildinfo
+
+# Local databases: PGlite used by `npm run dev`, and the old SQLite file
+data/

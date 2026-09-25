@@ -1,4 +1,4 @@
-import type { DerivedEntry, FuelEntry, MonthlySummary } from "../types";
+import type { DerivedEntry, FuelEntry, MonthlySummary, VehicleStats } from "../types";
 
 /**
  * Adds km-since-last-fill and L/100km to each entry, assuming full-to-full
@@ -57,4 +57,29 @@ export function groupByMonth(entries: FuelEntry[]): MonthlySummary[] {
 
 function sum(values: number[]): number {
   return values.reduce((total, v) => total + v, 0);
+}
+
+export function vehicleStats(entries: FuelEntry[]): VehicleStats {
+  const derived = withDerived(entries);
+  const currentMonth = monthKey(new Date().toISOString());
+  const thisMonth = entries.filter((e) => monthKey(e.date) === currentMonth);
+
+  const totalCost = sum(entries.map((e) => e.totalCost));
+  const totalLiters = sum(entries.map((e) => e.liters));
+  const withDistance = derived.filter((e) => e.kmSinceLast != null && e.kmSinceLast > 0);
+  const kmTracked = sum(withDistance.map((e) => e.kmSinceLast ?? 0));
+  const litersWithKnownDistance = sum(withDistance.map((e) => e.liters));
+
+  return {
+    fillCount: entries.length,
+    totalCost,
+    totalLiters,
+    avgPricePerLiter: totalLiters > 0 ? totalCost / totalLiters : 0,
+    thisMonthCost: sum(thisMonth.map((e) => e.totalCost)),
+    thisMonthFillCount: thisMonth.length,
+    avgConsumptionPer100km: kmTracked > 0 ? (litersWithKnownDistance / kmTracked) * 100 : null,
+    kmTracked,
+    latestOdometerKm: derived.length > 0 ? derived[derived.length - 1].odometerKm : null,
+    lastFillDate: entries.reduce<string | null>((latest, e) => (latest && latest > e.date ? latest : e.date), null),
+  };
 }

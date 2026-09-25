@@ -1,10 +1,11 @@
-import { Trash2 } from "lucide-react";
+import { Trash2, UserRound } from "lucide-react";
 import type { DerivedEntry } from "../types";
 import { formatDate, formatNumber, formatTL } from "../lib/format";
 
 interface Props {
   entries: DerivedEntry[];
-  onDelete: (id: string) => void;
+  /** Omitted for users without delete permission; the delete column is hidden then. */
+  onDelete?: (id: string) => void;
 }
 
 export default function EntryTable({ entries, onDelete }: Props) {
@@ -13,7 +14,7 @@ export default function EntryTable({ entries, onDelete }: Props) {
   if (byDateDesc.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-        Henüz kayıt yok. Yukarıdan ilk yakıt alımını ekleyin.
+        Bu araç için henüz kayıt yok. Yukarıdan ilk yakıt alımını ekleyin.
       </p>
     );
   }
@@ -30,7 +31,7 @@ export default function EntryTable({ entries, onDelete }: Props) {
             <th className="px-3 py-2 font-medium">Tutar</th>
             <th className="px-3 py-2 font-medium">L/100km</th>
             <th className="px-3 py-2 font-medium">Not</th>
-            <th className="px-3 py-2" />
+            {onDelete ? <th className="px-3 py-2" /> : null}
           </tr>
         </thead>
         <tbody>
@@ -39,7 +40,16 @@ export default function EntryTable({ entries, onDelete }: Props) {
               key={entry.id}
               className="border-b border-slate-100 last:border-0 dark:border-slate-800/60"
             >
-              <td className="px-3 py-2 whitespace-nowrap">{formatDate(entry.date)}</td>
+              <td className="px-3 py-2 whitespace-nowrap">
+                {formatDate(entry.date)}
+                <span
+                  className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500"
+                  title="Kaydı ekleyen"
+                >
+                  <UserRound size={11} />
+                  {entry.createdBy ?? "silinmiş kullanıcı"}
+                </span>
+              </td>
               <td className="px-3 py-2 whitespace-nowrap">{formatNumber(entry.odometerKm, 0)}</td>
               <td className="px-3 py-2 whitespace-nowrap">{formatNumber(entry.liters)}</td>
               <td className="px-3 py-2 whitespace-nowrap">{formatNumber(entry.pricePerLiter, 2)}</td>
@@ -50,16 +60,18 @@ export default function EntryTable({ entries, onDelete }: Props) {
               <td className="max-w-[12rem] truncate px-3 py-2 text-slate-500 dark:text-slate-400">
                 {entry.note ?? ""}
               </td>
-              <td className="px-3 py-2 text-right">
-                <button
-                  type="button"
-                  onClick={() => onDelete(entry.id)}
-                  aria-label="Kaydı sil"
-                  className="rounded p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </td>
+              {onDelete ? (
+                <td className="px-3 py-2 text-right">
+                  <button
+                    type="button"
+                    onClick={() => onDelete(entry.id)}
+                    aria-label="Kaydı sil"
+                    className="rounded p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>
