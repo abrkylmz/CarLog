@@ -102,25 +102,31 @@ export async function purgeExpired(): Promise<void> {
   await query("DELETE FROM login_attempts WHERE reset_at <= now()");
 }
 
-// Per-IP brake on failed logins so passwords can't be brute-forced.
-const MAX_FAILED_LOGINS = 10;
-
-export async function isLoginBlocked(ip: string): Promise<boolean> {
-  const row = await queryOne("SELECT count FROM login_attempts WHERE ip = $1 AND reset_at > now()", [ip]);
-  return row != null && Number(row.count) >= MAX_FAILED_LOGINS;
+// Attempt counters per key (e.g. "login:<ip>") in 15-minute windows, so passwords,
+// setup keys and sign-ups can't be brute-forced or spammed.
+export async function isThrottled(key: string, max: number): Promise<boolean> {
+  const row = await queryOne("SELECT count FROM login_attempts WHERE ip = $1 AND reset_at > now()", [key]);
+  return row != null && Number(row.count) >= max;
 }
 
-export async function recordFailedLogin(ip: string): Promise<void> {
+export async function recordAttempt(key: string): Promise<void> {
   await query(
     `INSERT INTO login_attempts (ip, count, reset_at) VALUES ($1, 1, now() + interval '15 minutes')
      ON CONFLICT (ip) DO UPDATE SET
        count    = CASE WHEN login_attempts.reset_at > now() THEN login_attempts.count + 1 ELSE 1 END,
        reset_at = CASE WHEN login_attempts.reset_at > now() THEN login_attempts.reset_at
                        ELSE now() + interval '15 minutes' END`,
-    [ip],
+    [key],
   );
 }
 
-export async function clearFailedLogins(ip: string): Promise<void> {
-  await query("DELETE FROM login_attempts WHERE ip = $1", [ip]);
+export async function clearAttempts(key: string): Promise<void> {
+  await query("DELETE FROM login_attempts WHERE ip = $1", [key]);
+}
+
+/** Constant-time string comparison for secrets such as the admin setup key. */
+export function secretsMatch(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }

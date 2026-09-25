@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Fuel, LogOut, ShieldCheck, UserRound, Users } from "lucide-react";
+import { Fuel, LayoutDashboard, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import BackLink from "./components/BackLink";
-import { api, errorMessage, UNAUTHORIZED_EVENT } from "./lib/api";
-import { navigate, paths, useHashRoute } from "./lib/router";
-import AuthPage from "./pages/AuthPage";
+import { api, errorMessage, UNAUTHORIZED_EVENT, type AdminSetupState } from "./lib/api";
+import { navigate, paths, useHashRoute, type Route } from "./lib/router";
+import { AdminAuthPage, UserAuthPage } from "./pages/AuthPage";
 import HomePage from "./pages/HomePage";
 import NewVehiclePage from "./pages/NewVehiclePage";
 import UsersPage from "./pages/UsersPage";
@@ -13,29 +13,26 @@ import type { FuelEntry, FuelEntryInput, User, Vehicle, VehicleInput } from "./t
 type AuthState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "setup" }
-  | { status: "login" }
+  | { status: "signed-out"; adminSetup: AdminSetupState }
   | { status: "ready"; user: User };
 
 export default function App() {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
+  const route = useHashRoute();
 
   const checkAuth = useCallback(() => {
     api
       .authStatus()
-      .then(({ needsSetup, user }) =>
-        setAuth(user ? { status: "ready", user } : { status: needsSetup ? "setup" : "login" }),
-      )
+      .then(({ user, adminSetup }) => setAuth(user ? { status: "ready", user } : { status: "signed-out", adminSetup }))
       .catch((err) => setAuth({ status: "error", message: errorMessage(err) }));
   }, []);
 
   useEffect(checkAuth, [checkAuth]);
 
   useEffect(() => {
-    const onUnauthorized = () => setAuth({ status: "login" });
-    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
-    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
-  }, []);
+    window.addEventListener(UNAUTHORIZED_EVENT, checkAuth);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, checkAuth);
+  }, [checkAuth]);
 
   if (auth.status === "loading") return <CenteredMessage>Yükleniyor…</CenteredMessage>;
   if (auth.status === "error") {
@@ -48,27 +45,33 @@ export default function App() {
       </CenteredMessage>
     );
   }
-  if (auth.status === "setup" || auth.status === "login") {
-    return <AuthPage mode={auth.status} onAuthenticated={(user) => setAuth({ status: "ready", user })} />;
+  if (auth.status === "signed-out") {
+    const onAuthenticated = (user: User) => setAuth({ status: "ready", user });
+    return route.name === "admin" ? (
+      <AdminAuthPage adminSetup={auth.adminSetup} onAuthenticated={onAuthenticated} />
+    ) : (
+      <UserAuthPage onAuthenticated={onAuthenticated} />
+    );
   }
 
   return (
     <SignedInApp
       user={auth.user}
+      route={route}
       onLogout={async () => {
         await api.logout().catch(() => undefined);
-        navigate(paths.home);
-        setAuth({ status: "login" });
+        // Send each role back to the login panel it came from.
+        navigate(auth.user.role === "admin" ? paths.admin : paths.home);
+        checkAuth();
       }}
     />
   );
 }
 
-function SignedInApp({ user, onLogout }: { user: User; onLogout: () => void }) {
+function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLogout: () => void }) {
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
   const [entries, setEntries] = useState<FuelEntry[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const route = useHashRoute();
   const isAdmin = user.role === "admin";
 
   const reload = useCallback(async () => {
@@ -134,7 +137,7 @@ function SignedInApp({ user, onLogout }: { user: User; onLogout: () => void }) {
     ) : (
       <p className="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
     );
-  } else if (route.name === "users") {
+  } else if (route.name === "admin") {
     page = isAdmin ? <UsersPage currentUser={user} /> : <NotAllowed />;
   } else if (route.name === "new-vehicle") {
     page = <NewVehiclePage onCreate={addVehicle} />;
@@ -176,18 +179,18 @@ function SignedInApp({ user, onLogout }: { user: User; onLogout: () => void }) {
         <div className="flex items-center gap-1 text-sm">
           <span
             className="mr-1 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-            title={isAdmin ? "Admin" : "Kullanıcı"}
+            title={isAdmin ? "Yönetici" : "Kullanıcı"}
           >
             {isAdmin ? <ShieldCheck size={14} /> : <UserRound size={14} />}
             {user.username}
           </span>
           {isAdmin ? (
             <a
-              href={paths.users}
+              href={paths.admin}
               className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              <Users size={16} />
-              <span className="hidden sm:inline">Kullanıcılar</span>
+              <LayoutDashboard size={16} />
+              <span className="hidden sm:inline">Yönetici Paneli</span>
             </a>
           ) : null}
           <button

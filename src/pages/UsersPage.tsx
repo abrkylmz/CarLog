@@ -44,7 +44,11 @@ export default function UsersPage({ currentUser }: Props) {
   return (
     <>
       <BackLink />
-      <h2 className="mb-4 text-lg font-semibold">Kullanıcılar</h2>
+      <h2 className="text-lg font-semibold">Yönetici Paneli</h2>
+      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+        Kullanıcı hesaplarını yönetin. Kayıt olan herkes normal kullanıcı olarak eklenir; buradan yönetici
+        hesabı da oluşturabilirsiniz.
+      </p>
 
       <section className="mb-8">
         <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Yeni Kullanıcı</h3>

@@ -10,17 +10,30 @@ dolumlar arası tüketimi (L/100km) ve aylık toplam gider/litre özetini hesapl
 
 ## Kullanıcılar ve yetkiler
 
-- **İlk açılışta** kurulum ekranı gelir ve **admin** hesabı oluşturulur.
-- Admin, üst menüdeki **Kullanıcılar** sayfasından kullanıcı ekler, şifre
-  değiştirir ve kullanıcı siler.
+- **Kullanıcı paneli** (ana sayfa): *Giriş Yap* ve *Hesap Oluştur* sekmeleri.
+  Kayıt olan herkes normal **kullanıcı** olur.
+- **Yönetici paneli** (`/#/admin`): yöneticiler yalnızca buradan, kullanıcılar
+  yalnızca ana sayfadan giriş yapar. Giriş sonrası üst menüdeki **Yönetici
+  Paneli**'nden kullanıcı eklenir (yönetici dahil), şifre değiştirilir, kullanıcı
+  silinir.
 - **Kullanıcı**: araç ve dolum ekleyebilir, araç bilgilerini düzenleyebilir.
-- **Admin**: bunlara ek olarak dolum/araç silebilir ve kullanıcıları yönetir.
+- **Yönetici**: bunlara ek olarak dolum/araç silebilir ve kullanıcıları yönetir.
   Silme yetkisi sunucuda da kontrol edilir.
 - Her dolumun altında onu **kimin eklediği** küçük yazıyla görünür.
 
+### İlk yönetici
+
+Herkese açık bir "admin oluştur" ekranı yoktur. İlk yönetici iki yoldan biriyle gelir:
+
+1. Eski verileri taşımak (`npm run migrate:sqlite`, aşağıda) — eski yönetici hesabı da taşınır.
+2. Vercel'de **Settings → Environment Variables** altına `ADMIN_SETUP_KEY` adında
+   uzun, gizli bir değer ekleyip yeniden yayınlamak. Ardından `/#/admin`
+   sayfasında bu anahtarla ilk yönetici oluşturulur. Hiç yönetici yokken ve anahtar
+   doğruysa çalışır; ilk yöneticiden sonra kapanır. İşiniz bitince değişkeni silebilirsiniz.
+
 Şifreler scrypt ile hash'lenerek saklanır; oturum 30 gün geçerli bir HttpOnly
-çerezde tutulur. Aynı IP'den 15 dakikada 10 hatalı girişten sonra giriş geçici
-olarak engellenir.
+çerezde tutulur. Aynı IP'den 15 dakikada 10 hatalı giriş, 5 hatalı kurulum
+anahtarı denemesi veya 5 yeni hesaptan sonra ilgili işlem geçici olarak engellenir.
 
 ## Canlı ortam (Vercel)
 

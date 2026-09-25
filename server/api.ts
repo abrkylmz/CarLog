@@ -2,15 +2,16 @@ import { randomUUID } from "node:crypto";
 import { Router, type Request } from "express";
 import type { FuelEntryInput, VehicleInput } from "../src/types.ts";
 import {
-  clearFailedLogins,
+  clearAttempts,
   createSession,
   destroySession,
   hashPassword,
-  isLoginBlocked,
+  isThrottled,
   purgeExpired,
-  recordFailedLogin,
+  recordAttempt,
   requireAdmin,
   requireUser,
+  secretsMatch,
   verifyPassword,
 } from "./auth.ts";
 import {
@@ -34,51 +35,109 @@ function paramId(req: Request): string {
   return String(req.params.id);
 }
 
-async function userCount(): Promise<number> {
-  return Number((await queryOne("SELECT COUNT(*) AS n FROM users"))!.n);
-}
-
 // ---- Auth ------------------------------------------------------------------
 
+const TOO_MANY_ATTEMPTS = "Çok fazla deneme yapıldı. 15 dakika sonra tekrar deneyin.";
+
+async function adminExists(): Promise<boolean> {
+  return (await queryOne("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1")) != null;
+}
+
+/** Secret that must be entered to create the first admin; set in Vercel's environment variables. */
+function adminSetupKey(): string | null {
+  return process.env.ADMIN_SETUP_KEY?.trim() || null;
+}
+
 api.get("/auth/status", async (req, res) => {
-  res.json({ needsSetup: (await userCount()) === 0, user: req.user ?? null });
+  const hasAdmin = await adminExists();
+  res.json({
+    user: req.user ?? null,
+    // Only the admin panel uses these, to offer first-admin setup.
+    adminSetup: hasAdmin ? "done" : adminSetupKey() ? "available" : "needs-key",
+  });
 });
 
-/** First-run only: creates the initial admin account. */
+/** Creates the first admin, only with the ADMIN_SETUP_KEY secret and only while no admin exists. */
 api.post("/auth/setup", async (req, res) => {
+  const throttleKey = `setup:${req.ip ?? "unknown"}`;
+  if (await isThrottled(throttleKey, 5)) return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
+
+  const expectedKey = adminSetupKey();
+  if (!expectedKey) {
+    return void res.status(403).json({ error: "Admin kurulumu kapalı: sunucuda ADMIN_SETUP_KEY tanımlı değil." });
+  }
+  const givenKey = typeof req.body?.setupKey === "string" ? req.body.setupKey.trim() : "";
+  if (!secretsMatch(givenKey, expectedKey)) {
+    await recordAttempt(throttleKey);
+    return void res.status(403).json({ error: "Kurulum anahtarı hatalı." });
+  }
+
   const parsed = parseCredentials(req.body);
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
 
-  // The NOT EXISTS guard makes this a no-op once any account exists.
+  // The NOT EXISTS guard makes this a no-op once any admin exists.
   const row = await queryOne(
     `INSERT INTO users (id, username, password_hash, role, created_at)
      SELECT $1::text, $2::text, $3::text, 'admin', $4::text
-     WHERE NOT EXISTS (SELECT 1 FROM users)
+     WHERE NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin')
+     ON CONFLICT DO NOTHING
      RETURNING *`,
     [randomUUID(), parsed.value.username, await hashPassword(parsed.value.password), new Date().toISOString()],
   );
-  if (!row) return void res.status(409).json({ error: "Kurulum zaten tamamlanmış." });
+  if (!row) {
+    return void res
+      .status(409)
+      .json({ error: (await adminExists()) ? "Admin hesabı zaten var." : "Bu kullanıcı adı zaten kullanılıyor." });
+  }
 
   await createSession(res, row.id as string);
   res.status(201).json({ user: toUser(row) });
 });
 
+/** Public sign-up; always creates a regular user. */
+api.post("/auth/register", async (req, res) => {
+  const throttleKey = `register:${req.ip ?? "unknown"}`;
+  if (await isThrottled(throttleKey, 5)) return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
+
+  const parsed = parseCredentials(req.body);
+  if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
+
+  const row = await queryOne(
+    `INSERT INTO users (id, username, password_hash, role, created_at)
+     VALUES ($1, $2, $3, 'user', $4)
+     ON CONFLICT DO NOTHING
+     RETURNING *`,
+    [randomUUID(), parsed.value.username, await hashPassword(parsed.value.password), new Date().toISOString()],
+  );
+  if (!row) return void res.status(409).json({ error: "Bu kullanıcı adı zaten kullanılıyor." });
+
+  await recordAttempt(throttleKey);
+  await createSession(res, row.id as string);
+  res.status(201).json({ user: toUser(row) });
+});
+
+/** `panel` keeps the two login screens apart: admins sign in only on the admin panel, users only on the main one. */
 api.post("/auth/login", async (req, res) => {
-  const ip = req.ip ?? "unknown";
-  if (await isLoginBlocked(ip)) {
-    return void res.status(429).json({ error: "Çok fazla hatalı deneme. 15 dakika sonra tekrar deneyin." });
-  }
+  const throttleKey = `login:${req.ip ?? "unknown"}`;
+  if (await isThrottled(throttleKey, 10)) return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
 
   const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
+  const panel = req.body?.panel === "admin" ? "admin" : "user";
   const row = await queryOne("SELECT * FROM users WHERE lower(username) = lower($1)", [username]);
 
   if (!row || !(await verifyPassword(password, row.password_hash as string))) {
-    await recordFailedLogin(ip);
+    await recordAttempt(throttleKey);
     return void res.status(401).json({ error: "Kullanıcı adı veya şifre hatalı." });
   }
+  if (panel === "admin" && row.role !== "admin") {
+    return void res.status(403).json({ error: "Bu hesap yönetici değil. Kullanıcı girişini kullanın." });
+  }
+  if (panel === "user" && row.role === "admin") {
+    return void res.status(403).json({ error: "Yönetici hesapları yönetici panelinden giriş yapar." });
+  }
 
-  await clearFailedLogins(ip);
+  await clearAttempts(throttleKey);
   await purgeExpired();
   await createSession(res, row.id as string);
   res.json({ user: toUser(row) });

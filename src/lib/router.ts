@@ -13,20 +13,20 @@ export const VEHICLE_TAB_LABELS: Record<VehicleTab, string> = {
 export type Route =
   | { name: "home" }
   | { name: "new-vehicle" }
-  | { name: "users" }
+  | { name: "admin" }
   | { name: "vehicle"; id: string; tab: VehicleTab };
 
 export const paths = {
   home: "#/",
   newVehicle: "#/arac-ekle",
-  users: "#/kullanicilar",
+  admin: "#/admin",
   vehicle: (id: string, tab: VehicleTab = "ozet") => `#/arac/${encodeURIComponent(id)}/${tab}`,
 };
 
 export function parseHash(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (parts[0] === "arac-ekle") return { name: "new-vehicle" };
-  if (parts[0] === "kullanicilar") return { name: "users" };
+  if (parts[0] === "admin") return { name: "admin" };
   if (parts[0] === "arac" && parts[1]) {
     const tab = VEHICLE_TABS.find((t) => t === parts[2]) ?? "ozet";
     return { name: "vehicle", id: decodeURIComponent(parts[1]), tab };
