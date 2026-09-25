@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Upload } from "lucide-react";
 import { api, errorMessage } from "../lib/api";
 import { clearLegacyData, readLegacyData } from "../lib/legacy";
+import { useDialog } from "./DialogProvider";
 
 interface Props {
   /** Called after a successful import so the app can reload data from the server. */
@@ -13,6 +14,7 @@ export default function LegacyImportBanner({ onImported }: Props) {
   const [legacy, setLegacy] = useState(() => readLegacyData());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialog = useDialog();
 
   if (!legacy) return null;
 
@@ -24,7 +26,11 @@ export default function LegacyImportBanner({ onImported }: Props) {
       const result = await api.importLegacy(legacy);
       clearLegacyData();
       setLegacy(null);
-      window.alert(`${result.vehicles} araç ve ${result.entries} dolum kaydı sunucuya aktarıldı.`);
+      await dialog.alert({
+        title: "Aktarım tamamlandı",
+        message: `${result.vehicles} araç ve ${result.entries} dolum kaydı sunucuya aktarıldı.`,
+        tone: "success",
+      });
       onImported();
     } catch (err) {
       setError(errorMessage(err));
@@ -32,8 +38,14 @@ export default function LegacyImportBanner({ onImported }: Props) {
     }
   }
 
-  function handleDismiss() {
-    if (!window.confirm("Bu tarayıcıdaki eski kayıtlar kalıcı olarak silinecek. Emin misiniz?")) return;
+  async function handleDismiss() {
+    const confirmed = await dialog.confirm({
+      title: "Eski kayıtlar silinsin mi?",
+      message: "Bu tarayıcıdaki, sunucuya aktarılmamış kayıtlar kalıcı olarak silinecek.",
+      tone: "danger",
+      confirmLabel: "Sil",
+    });
+    if (!confirmed) return;
     clearLegacyData();
     setLegacy(null);
   }

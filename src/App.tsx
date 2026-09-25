@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Fuel, LayoutDashboard, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import BackLink from "./components/BackLink";
+import { useDialog } from "./components/DialogProvider";
 import { api, errorMessage, UNAUTHORIZED_EVENT, type AdminSetupState } from "./lib/api";
+import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL } from "./lib/format";
 import { navigate, paths, useHashRoute, type Route } from "./lib/router";
 import { AdminAuthPage, UserAuthPage } from "./pages/AuthPage";
 import HomePage from "./pages/HomePage";
@@ -74,6 +76,9 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const isAdmin = user.role === "admin";
+  const dialog = useDialog();
+  const showError = (err: unknown) =>
+    dialog.alert({ title: "İşlem tamamlanamadı", message: errorMessage(err), tone: "danger" });
 
   const reload = useCallback(async () => {
     try {
@@ -114,7 +119,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       setExpenses((prev) => prev.filter((e) => e.vehicleId !== id));
       navigate(paths.home);
     } catch (err) {
-      window.alert(errorMessage(err));
+      await showError(err);
     }
   }
 
@@ -124,12 +129,21 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   }
 
   async function deleteEntry(id: string) {
-    if (!window.confirm("Bu dolum kaydı silinecek. Emin misiniz?")) return;
+    const entry = entries.find((e) => e.id === id);
+    const confirmed = await dialog.confirm({
+      title: "Dolum kaydı silinsin mi?",
+      message: entry
+        ? `${formatDate(entry.date)} tarihli ${formatTL(entry.totalCost)} tutarındaki dolum kalıcı olarak silinecek.`
+        : "Bu dolum kaydı kalıcı olarak silinecek.",
+      tone: "danger",
+      confirmLabel: "Sil",
+    });
+    if (!confirmed) return;
     try {
       await api.deleteEntry(id);
       setEntries((prev) => prev.filter((e) => e.id !== id));
     } catch (err) {
-      window.alert(errorMessage(err));
+      await showError(err);
     }
   }
 
@@ -139,12 +153,21 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   }
 
   async function deleteExpense(id: string) {
-    if (!window.confirm("Bu masraf kaydı silinecek. Emin misiniz?")) return;
+    const expense = expenses.find((e) => e.id === id);
+    const confirmed = await dialog.confirm({
+      title: "Masraf silinsin mi?",
+      message: expense
+        ? `${formatDate(expense.date)} tarihli ${formatTL(expense.amount)} tutarındaki "${EXPENSE_CATEGORY_LABELS[expense.category]}" masrafı kalıcı olarak silinecek.`
+        : "Bu masraf kaydı kalıcı olarak silinecek.",
+      tone: "danger",
+      confirmLabel: "Sil",
+    });
+    if (!confirmed) return;
     try {
       await api.deleteExpense(id);
       setExpenses((prev) => prev.filter((e) => e.id !== id));
     } catch (err) {
-      window.alert(errorMessage(err));
+      await showError(err);
     }
   }
 

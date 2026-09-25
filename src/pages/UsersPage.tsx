@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { KeyRound, ShieldCheck, Trash2, UserPlus, UserRound } from "lucide-react";
 import BackLink from "../components/BackLink";
+import { useDialog } from "../components/DialogProvider";
 import { api, errorMessage } from "../lib/api";
 import { formatDate } from "../lib/format";
 import type { Role, User } from "../types";
@@ -12,6 +13,7 @@ interface Props {
 export default function UsersPage({ currentUser }: Props) {
   const [users, setUsers] = useState<User[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const dialog = useDialog();
 
   useEffect(() => {
     api
@@ -21,23 +23,43 @@ export default function UsersPage({ currentUser }: Props) {
   }, []);
 
   async function handleResetPassword(user: User) {
-    const password = window.prompt(`"${user.username}" için yeni şifre (en az 6 karakter):`);
+    const password = await dialog.prompt({
+      title: `"${user.username}" için yeni şifre`,
+      message: "Kaydedince kullanıcının açık oturumları kapanır; yeni şifreyle tekrar giriş yapması gerekir.",
+      confirmLabel: "Şifreyi Kaydet",
+      input: {
+        label: "Yeni şifre",
+        type: "password",
+        placeholder: "En az 6 karakter",
+        validate: (value) => (value.length < 6 ? "Şifre en az 6 karakter olmalı." : null),
+      },
+    });
     if (password == null) return;
     try {
       await api.setUserPassword(user.id, password);
-      window.alert("Şifre güncellendi. Kullanıcının tüm oturumları kapatıldı.");
+      await dialog.alert({
+        title: "Şifre güncellendi",
+        message: `"${user.username}" kullanıcısının tüm oturumları kapatıldı.`,
+        tone: "success",
+      });
     } catch (err) {
-      window.alert(errorMessage(err));
+      await dialog.alert({ title: "Şifre değiştirilemedi", message: errorMessage(err), tone: "danger" });
     }
   }
 
   async function handleDelete(user: User) {
-    if (!window.confirm(`"${user.username}" silinecek. Eklediği dolum kayıtları silinmez. Emin misiniz?`)) return;
+    const confirmed = await dialog.confirm({
+      title: `"${user.username}" silinsin mi?`,
+      message: "Hesap kalıcı olarak silinir. Eklediği dolum ve masraf kayıtları silinmez.",
+      tone: "danger",
+      confirmLabel: "Kullanıcıyı Sil",
+    });
+    if (!confirmed) return;
     try {
       await api.deleteUser(user.id);
       setUsers((prev) => prev?.filter((u) => u.id !== user.id) ?? null);
     } catch (err) {
-      window.alert(errorMessage(err));
+      await dialog.alert({ title: "Kullanıcı silinemedi", message: errorMessage(err), tone: "danger" });
     }
   }
 

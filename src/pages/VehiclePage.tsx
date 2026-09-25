@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Car, Pencil, Trash2 } from "lucide-react";
 import BackLink from "../components/BackLink";
 import CategoryBreakdown from "../components/CategoryBreakdown";
+import { useDialog } from "../components/DialogProvider";
 import EntryForm from "../components/EntryForm";
 import EntryTable from "../components/EntryTable";
 import ExpenseForm from "../components/ExpenseForm";
@@ -220,13 +221,19 @@ function VehicleSettings({
   onDelete?: (id: string) => void;
 }) {
   const [saved, setSaved] = useState(false);
+  const dialog = useDialog();
 
-  function handleDelete() {
-    const message =
-      recordCount > 0
-        ? `"${vehicle.name}" ve ona ait ${recordCount} dolum/masraf kaydı silinecek. Emin misiniz?`
-        : `"${vehicle.name}" silinecek. Emin misiniz?`;
-    if (window.confirm(message)) onDelete?.(vehicle.id);
+  async function handleDelete() {
+    const confirmed = await dialog.confirm({
+      title: `"${vehicle.name}" silinsin mi?`,
+      message:
+        recordCount > 0
+          ? `Araç ve ona ait ${recordCount} dolum/masraf kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.`
+          : "Araç kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+      tone: "danger",
+      confirmLabel: "Aracı Sil",
+    });
+    if (confirmed) onDelete?.(vehicle.id);
   }
 
   return (
