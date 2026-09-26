@@ -12,6 +12,7 @@ import type {
   VehicleRole,
 } from "../src/types.ts";
 import {
+  DELETE_OWN_ONLY,
   EDIT_OWN_ONLY,
   NOT_FOUND,
   OWNER_ONLY,
@@ -83,7 +84,7 @@ async function checkEditable(req: Request, table: RecordTable): Promise<[number,
 async function checkDeletable(req: Request, table: RecordTable): Promise<[number, string] | null> {
   const access = await recordAccess(req, table, paramId(req));
   if (!access) return [404, NOT_FOUND];
-  if (!access.canDelete) return [403, OWNER_ONLY];
+  if (!access.canDelete) return [403, DELETE_OWN_ONLY];
   return null;
 }
 

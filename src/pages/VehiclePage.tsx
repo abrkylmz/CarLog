@@ -49,11 +49,11 @@ interface Props {
   onUpdateVehicle: (id: string, input: VehicleInput) => Promise<void>;
   onExport: () => void;
   currentUser: User;
-  /** The vehicle's owner may edit every record, helpers only their own. */
+  /** The vehicle's owner may edit and delete every record, helpers only their own. */
   canEdit: (record: Authored) => boolean;
   /** Called after the current user leaves this shared vehicle. */
   onLeft: () => void;
-  /** Delete handlers are only passed to the vehicle's owner. */
+  /** Record delete buttons follow canEdit; deleting the vehicle is passed to its owner only. */
   onDeleteEntry?: (id: string) => void;
   onDeleteExpense?: (id: string) => void;
   onDeleteReminder?: (reminder: Reminder) => void;

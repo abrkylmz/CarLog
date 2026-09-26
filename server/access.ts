@@ -1,7 +1,7 @@
 // Per-vehicle access rules. Every vehicle has one owner and any number of helpers:
 //   - members (owner or helper) see the vehicle and add fill-ups, expenses, reminders;
-//   - a record can be edited by its author or the vehicle's owner;
-//   - only the owner deletes, edits vehicle details and manages sharing.
+//   - a record can be edited and deleted by its author or the vehicle's owner;
+//   - only the owner deletes the vehicle, edits its details and manages sharing.
 // The site admin role only manages accounts and grants no access to other people's vehicles.
 // A vehicle the user can't access answers 404, so its existence isn't revealed.
 import type { Request } from "express";
@@ -42,7 +42,7 @@ export async function recordAccess(req: Request, table: RecordTable, id: string)
     createdBy,
     role,
     canEdit: role === "owner" || createdBy === req.user!.id,
-    canDelete: role === "owner",
+    canDelete: role === "owner" || createdBy === req.user!.id,
   };
 }
 
@@ -50,3 +50,4 @@ export const NOT_FOUND = "Kayıt bulunamadı.";
 export const VEHICLE_NOT_FOUND = "Araç bulunamadı.";
 export const OWNER_ONLY = "Bu işlemi yalnızca aracın sahibi yapabilir.";
 export const EDIT_OWN_ONLY = "Yalnızca kendi eklediğiniz kayıtları düzenleyebilirsiniz.";
+export const DELETE_OWN_ONLY = "Yalnızca kendi eklediğiniz kayıtları silebilirsiniz.";

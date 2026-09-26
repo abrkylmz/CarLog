@@ -323,7 +323,7 @@ export function ReminderList({ reminders, latestKm, onComplete, onEdit, canEdit,
                   // Keeps the buttons aligned on rows this user can't edit.
                   <span className="w-6" aria-hidden />
                 ) : null}
-                {onDelete ? (
+                {onDelete && (canEdit?.(r) ?? true) ? (
                   <button
                     type="button"
                     onClick={() => onDelete(r)}
@@ -356,7 +356,7 @@ export function ReminderList({ reminders, latestKm, onComplete, onEdit, canEdit,
                   <br />
                   {r.doneBy ?? "silinmiş kullanıcı"}
                 </span>
-                {onDelete ? (
+                {onDelete && (canEdit?.(r) ?? true) ? (
                   <button
                     type="button"
                     onClick={() => onDelete(r)}

@@ -6,7 +6,7 @@ interface Props {
   entries: DerivedEntry[];
   /** Omitted for users without delete permission; the delete column is hidden then. */
   onDelete?: (id: string) => void;
-  /** Shown only on rows canEdit allows (the author's own rows, or all rows for admins). */
+  /** Edit and delete show only on rows canEdit allows: the author's own, or all for the vehicle owner. */
   onEdit?: (entry: DerivedEntry) => void;
   canEdit?: (entry: DerivedEntry) => boolean;
 }
@@ -79,7 +79,7 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
                       <Pencil size={16} />
                     </button>
                   ) : null}
-                  {onDelete ? (
+                  {onDelete && (canEdit?.(entry) ?? true) ? (
                     <button
                       type="button"
                       onClick={() => onDelete(entry.id)}

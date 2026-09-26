@@ -180,8 +180,8 @@ export default function SharePanel({ vehicle, currentUser, onLeft }: Props) {
         )}
 
         <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-          <b>Yardımcılar</b> aracı görür; dolum, masraf ve hatırlatma ekler ve kendi kayıtlarını düzenler. Silme,
-          araç bilgilerini değiştirme ve paylaşım yalnızca <b>sahipte</b>dir.
+          <b>Yardımcılar</b> aracı görür; dolum, masraf ve hatırlatma ekler, kendi girdiği kayıtları düzenleyip
+          silebilir. Herkesin kayıtlarını değiştirmek, aracı silmek ve paylaşımı yönetmek <b>sahibe</b> aittir.
         </p>
 
         {!isOwner ? (

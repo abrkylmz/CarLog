@@ -173,7 +173,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     }
   }
 
-  // Per vehicle: the owner may edit any record there, helpers only their own.
+  // Per vehicle: the owner may edit or delete any record there, helpers only their own.
   const canEditIn = (vehicle: Vehicle) => (record: { createdById: string | null }) =>
     vehicle.myRole === "owner" || record.createdById === user.id;
 
@@ -316,9 +316,9 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
           navigate(paths.home);
           await reload();
         }}
-        onDeleteEntry={vehicle.myRole === "owner" ? deleteEntry : undefined}
-        onDeleteExpense={vehicle.myRole === "owner" ? deleteExpense : undefined}
-        onDeleteReminder={vehicle.myRole === "owner" ? deleteReminder : undefined}
+        onDeleteEntry={deleteEntry}
+        onDeleteExpense={deleteExpense}
+        onDeleteReminder={deleteReminder}
         onDeleteVehicle={vehicle.myRole === "owner" ? deleteVehicle : undefined}
       />
     ) : (

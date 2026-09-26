@@ -7,7 +7,7 @@ interface Props {
   expenses: Expense[];
   /** Omitted for users without delete permission; the delete buttons are hidden then. */
   onDelete?: (id: string) => void;
-  /** Shown only on rows canEdit allows (the author's own rows, or all rows for admins). */
+  /** Edit and delete show only on rows canEdit allows: the author's own, or all for the vehicle owner. */
   onEdit?: (expense: Expense) => void;
   canEdit?: (expense: Expense) => boolean;
 }
@@ -67,7 +67,7 @@ export default function ExpenseList({ expenses, onDelete, onEdit, canEdit }: Pro
                     <Pencil size={16} />
                   </button>
                 ) : null}
-                {onDelete ? (
+                {onDelete && (canEdit?.(expense) ?? true) ? (
                   <button
                     type="button"
                     onClick={() => onDelete(expense.id)}

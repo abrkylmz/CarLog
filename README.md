@@ -45,8 +45,8 @@ Her kullanıcı yalnızca **sahibi olduğu** ve **kendisiyle paylaşılan** ara�
 |---|---|---|
 | Aracı ve kayıtlarını görür | ✔ | ✔ |
 | Dolum, masraf, hatırlatma ekler; hatırlatma tamamlar | ✔ | ✔ |
-| Kayıt düzenler | hepsini | kendi eklediklerini |
-| Kayıt / araç siler, araç bilgilerini değiştirir | ✔ | – |
+| Kayıt düzenler ve siler | hepsini | kendi eklediklerini |
+| Aracı siler, araç bilgilerini değiştirir | ✔ | – |
 | Paylaşımı yönetir (davet, çıkarma) | ✔ | – (yalnızca ayrılabilir) |
 
 Sahip, aracın **Paylaşım** sekmesinden:
