@@ -1,22 +1,15 @@
 /** @type {import('tailwindcss').Config} */
+const brandShade = (shade) => `rgb(var(--brand-${shade}) / <alpha-value>)`;
+
 export default {
-  darkMode: "media",
+  // Dark mode follows the "dark" class on <html>, set from the user's Açık/Koyu/Sistem choice.
+  darkMode: "class",
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        brand: {
-          50: "#eef6ff",
-          100: "#d9ecff",
-          200: "#b8dcff",
-          300: "#8ac6ff",
-          400: "#57a8ff",
-          500: "#2f87f5",
-          600: "#1f68d1",
-          700: "#1c53a8",
-          800: "#1b4685",
-          900: "#1a3c6d",
-        },
+        // Accent color, re-tinted per vehicle fuel type via CSS variables (see index.css).
+        brand: Object.fromEntries([50, 100, 200, 300, 400, 500, 600, 700, 800, 900].map((s) => [s, brandShade(s)])),
       },
     },
   },

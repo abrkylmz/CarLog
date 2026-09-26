@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Car, Download, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import BackLink from "../components/BackLink";
 import CategoryBreakdown from "../components/CategoryBreakdown";
 import { useDialog } from "../components/DialogProvider";
@@ -14,6 +14,8 @@ import { ReminderForm, ReminderList } from "../components/Reminders";
 import SpendChart from "../components/SpendChart";
 import SharePanel from "../components/SharePanel";
 import StatCard from "../components/StatCard";
+import VehicleBottomNav from "../components/VehicleBottomNav";
+import VehicleHero from "../components/VehicleHero";
 import UpcomingReminders from "../components/UpcomingReminders";
 import VehicleForm, { catalogVersionLabel } from "../components/VehicleForm";
 import { groupByMonth, vehicleStats, withDerived } from "../lib/calc";
@@ -125,37 +127,12 @@ export default function VehiclePage({
     <>
       <BackLink />
 
-      <div className="mb-5 flex items-center gap-3">
-        <div className="rounded-lg bg-brand-50 p-2.5 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300">
-          <Car size={26} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="truncate text-lg font-semibold">{vehicle.name}</h2>
-            {vehicle.plate ? (
-              <span className="rounded border border-slate-300 px-1.5 py-0.5 font-mono text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300">
-                {vehicle.plate}
-              </span>
-            ) : null}
-          </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {[subtitle, FUEL_TYPE_LABELS[vehicle.fuelType]].filter(Boolean).join(" · ")}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onExport}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-        >
-          <Download size={16} />
-          <span className="hidden sm:inline">Dışa Aktar</span>
-        </button>
-      </div>
+      <VehicleHero vehicle={vehicle} subtitle={subtitle} stats={stats} onExport={onExport} />
 
       {/* Horizontal-only tab strip. The outer box draws the baseline (an inset shadow, so the active
           tab's underline covers it) and clips the scroller's extra bottom padding: iOS Safari draws its
           own scroll indicator there and ignores the CSS that hides scrollbars elsewhere. */}
-      <div className="mb-6 overflow-hidden shadow-[inset_0_-1px_0_theme(colors.slate.200)] dark:shadow-[inset_0_-1px_0_theme(colors.slate.800)]">
+      <div className="mb-6 hidden overflow-hidden shadow-[inset_0_-1px_0_theme(colors.slate.200)] dark:shadow-[inset_0_-1px_0_theme(colors.slate.800)] sm:block">
         <nav
           ref={tabsRef}
           className="-mb-5 flex gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -339,6 +316,8 @@ export default function VehiclePage({
           onDelete={onDeleteVehicle}
         />
       )}
+
+      <VehicleBottomNav key={vehicle.id} vehicleId={vehicle.id} tab={tab} onExport={onExport} />
 
       {editingEntry ? (
         <Modal title="Dolumu Düzenle" onClose={() => setEditingEntry(null)} width="max-w-2xl">

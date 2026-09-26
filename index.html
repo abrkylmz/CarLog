@@ -2,8 +2,31 @@
 <html lang="tr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f8fafc" />
     <title>CarLog — Yakıt Takibi</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="CarLog" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <script>
+      // Apply the saved Açık/Koyu/Sistem choice before first paint, so the page never flashes
+      // the wrong theme. Mirrors applyThemeMode() in src/lib/theme.ts.
+      (function () {
+        var mode = "system";
+        try {
+          mode = localStorage.getItem("carlog:theme") || "system";
+        } catch (e) {}
+        var dark = mode === "dark" || (mode !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) {
+          document.documentElement.classList.add("dark");
+          document.querySelector('meta[name="theme-color"]').setAttribute("content", "#020617");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

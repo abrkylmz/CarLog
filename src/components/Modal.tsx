@@ -7,10 +7,12 @@ interface Props {
   children: React.ReactNode;
   /** Tailwind max-width class for the panel. */
   width?: string;
+  /** Vehicle accent palette for the panel (see index.css), e.g. when opened from the home screen. */
+  accent?: string;
 }
 
 /** Centered panel for forms (edit, export). Esc, the close button or the backdrop close it. */
-export default function Modal({ title, onClose, children, width = "max-w-lg" }: Props) {
+export default function Modal({ title, onClose, children, width = "max-w-lg", accent }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
@@ -48,6 +50,7 @@ export default function Modal({ title, onClose, children, width = "max-w-lg" }: 
 
   return (
     <div
+      data-accent={accent}
       className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/50 backdrop-blur-[2px] sm:items-center sm:p-4 dark:bg-black/60"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -59,7 +62,7 @@ export default function Modal({ title, onClose, children, width = "max-w-lg" }: 
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`max-h-[92vh] w-full overflow-y-auto rounded-t-2xl border border-slate-200 bg-slate-50 p-4 shadow-xl sm:rounded-2xl sm:p-5 dark:border-slate-800 dark:bg-slate-950 ${width}`}
+        className={`max-h-[92vh] w-full overflow-y-auto rounded-t-2xl border border-slate-200 bg-slate-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl sm:rounded-2xl sm:p-5 dark:border-slate-800 dark:bg-slate-950 ${width}`}
       >
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 id={titleId} className="font-semibold">

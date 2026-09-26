@@ -2,8 +2,81 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Accent palettes ("brand" in Tailwind), as RGB channels so utilities can add opacity.
+   :root is CarLog blue; data-accent on any element re-tints everything inside it.
+   Every palette passes WCAG AA (4.5:1) for white-on-600, 600-on-white and 300-on-dark. */
+
 :root {
-  color-scheme: light dark;
+  --brand-50: 238 246 255;
+  --brand-100: 217 236 255;
+  --brand-200: 184 220 255;
+  --brand-300: 138 198 255;
+  --brand-400: 87 168 255;
+  --brand-500: 47 135 245;
+  --brand-600: 31 104 209;
+  --brand-700: 28 83 168;
+  --brand-800: 27 70 133;
+  --brand-900: 26 60 109;
+}
+
+[data-accent="hibrit"] {
+  --brand-50: 240 249 255;
+  --brand-100: 224 242 254;
+  --brand-200: 186 230 253;
+  --brand-300: 125 211 252;
+  --brand-400: 56 189 248;
+  --brand-500: 14 165 233;
+  --brand-600: 3 105 161;
+  --brand-700: 7 89 133;
+  --brand-800: 12 74 110;
+  --brand-900: 11 58 87;
+}
+
+[data-accent="benzin"] {
+  --brand-50: 238 242 255;
+  --brand-100: 224 231 255;
+  --brand-200: 199 210 254;
+  --brand-300: 165 180 252;
+  --brand-400: 129 140 248;
+  --brand-500: 99 102 241;
+  --brand-600: 79 70 229;
+  --brand-700: 67 56 202;
+  --brand-800: 55 48 163;
+  --brand-900: 49 46 129;
+}
+
+[data-accent="dizel"] {
+  --brand-50: 241 245 249;
+  --brand-100: 226 232 240;
+  --brand-200: 203 213 225;
+  --brand-300: 180 192 208;
+  --brand-400: 138 154 176;
+  --brand-500: 100 116 139;
+  --brand-600: 71 85 105;
+  --brand-700: 51 65 85;
+  --brand-800: 30 41 59;
+  --brand-900: 23 32 51;
+}
+
+[data-accent="lpg"] {
+  --brand-50: 245 243 255;
+  --brand-100: 237 233 254;
+  --brand-200: 221 214 254;
+  --brand-300: 196 181 253;
+  --brand-400: 167 139 250;
+  --brand-500: 139 92 246;
+  --brand-600: 124 58 237;
+  --brand-700: 109 40 217;
+  --brand-800: 91 33 182;
+  --brand-900: 76 29 149;
+}
+
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
 }
 
 body {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Fuel, KeyRound, LogIn, ShieldCheck, UserPlus } from "lucide-react";
 import { api, errorMessage, type AdminSetupState } from "../lib/api";
+import ThemeToggle from "../components/ThemeToggle";
 import { paths } from "../lib/router";
 import type { User } from "../types";
 
@@ -111,7 +112,8 @@ export function AdminAuthPage({ adminSetup, onAuthenticated }: AdminAuthProps) {
 
 function AuthShell({ subtitle, admin, children }: { subtitle: string; admin?: boolean; children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+    <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
+      <ThemeToggle className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))]" />
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-center">
           <div className={`mb-3 rounded-xl p-3 text-white ${admin ? "bg-slate-800 dark:bg-slate-700" : "bg-brand-600"}`}>

@@ -20,6 +20,24 @@ düzenlenir ve elle girilen marka/modeller (kime ait olduğu gösterilmeden, yal
 sayılarıyla) "Katalogda Olmayan Araçlar" olarak listelenir. Elektrikli araçlar
 şimdilik katalogda yoktur.
 
+### Görünüm ve tema
+
+- **Yakıt tipine göre renk:** bir aracın sayfasında tüm uygulama (başlık, düğmeler,
+  sekmeler) o aracın yakıt tipinin renginde olur — Hibrit: elektrik mavisi, Benzin:
+  lacivert, Dizel: grafit, LPG / Benzin + LPG: mor. Garajım'daki kartlar da kendi
+  renklerini taşır. Renkler `src/index.css` içindeki `[data-accent]` paletlerinde
+  tanımlıdır; grafik renkleri (yakıt/diğer) temadan bağımsız sabit kalır.
+- **Açık / Koyu / Sistem:** üst çubuktaki düğme sırayla değiştirir; seçim tarayıcıda
+  saklanır ve sayfa açılırken yanıp sönme olmadan uygulanır.
+- **Araç vitrini:** araç sayfasının başında renkli kart, TR plaka ve bu ay / ortalama
+  tüketim / son km özeti.
+- **Telefonda alt gezinme çubuğu:** Özet, Dolumlar, Masraflar, Hatırlatma; diğer
+  sekmeler ve Dışa Aktar "Diğer" menüsündedir.
+- **Hızlı + düğmesi:** her yerden araç → Dolum / Masraf / Hatırlatma seçip kaydetme.
+- **Ana ekrana ekle (PWA):** Safari'de Paylaş → "Ana Ekrana Ekle" ile uygulama simgesiyle
+  tam ekran açılır (`public/manifest.webmanifest`, simgeler `public/`). Çevrimdışı
+  çalışma (service worker) yoktur; internet gerekir.
+
 ### Tüketim (L/100km) nasıl hesaplanır
 
 Depo her seferinde fullenmeyebileceği için her aralıkta eldeki en güvenilir yöntem
@@ -171,6 +189,7 @@ sunucuda Express 5, Neon Postgres (`@neondatabase/serverless`), yerelde PGlite.
 ## Proje yapısı
 
 ```
+public/             PWA manifest ve uygulama simgeleri
 api/
   index.ts          Vercel fonksiyonu; server/app.ts'i dışa açar
 server/
@@ -190,10 +209,10 @@ src/
   components/       VehicleCard, VehicleForm, EntryForm, EntryTable, ExpenseForm, ExpenseList,
                     CategoryBreakdown, MonthlySummaryTable, SpendChart, StatCard, BackLink,
                     Reminders, UpcomingReminders, SharePanel, CatalogAdmin, ExportDialog, Modal,
-                    DialogProvider,
-                    LegacyImportBanner
+                    DialogProvider, LegacyImportBanner, VehicleHero, TrPlate,
+                    VehicleBottomNav, QuickAdd, ThemeToggle
   lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, reminders.ts,
-                    export.ts (CSV), legacy.ts,
+                    export.ts (CSV), legacy.ts, theme.ts (tema modu, yakıt tipi renkleri),
                     router.ts (hash tabanlı yönlendirme)
   types.ts          Sunucu ve arayüzün ortak tipleri
   App.tsx           Oturum durumu, veri yükleme ve sayfa seçimi

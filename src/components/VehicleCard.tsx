@@ -1,7 +1,9 @@
 import { AlertTriangle, Car, ChevronRight, Clock, Users } from "lucide-react";
 import { formatConsumption, FUEL_TYPE_LABELS, formatDate, formatNumber, formatTL, vehicleSubtitle } from "../lib/format";
 import { paths, VEHICLE_TAB_LABELS, type VehicleTab } from "../lib/router";
+import { FUEL_ACCENT } from "../lib/theme";
 import type { Vehicle, VehicleStats } from "../types";
+import TrPlate from "./TrPlate";
 
 interface Props {
   vehicle: Vehicle;
@@ -16,7 +18,10 @@ export default function VehicleCard({ vehicle, stats, alerts }: Props) {
   const subtitle = vehicleSubtitle(vehicle);
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-brand-400 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-brand-500">
+    <div
+      data-accent={FUEL_ACCENT[vehicle.fuelType]}
+      className="flex flex-col overflow-hidden rounded-xl border border-t-4 border-slate-200 border-t-brand-500 bg-white shadow-sm transition hover:border-brand-400 hover:shadow-md dark:border-slate-800 dark:border-t-brand-500 dark:bg-slate-900 dark:hover:border-brand-500"
+    >
       <a href={paths.vehicle(vehicle.id)} className="group flex-1 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -30,11 +35,7 @@ export default function VehicleCard({ vehicle, stats, alerts }: Props) {
               </p>
             </div>
           </div>
-          {vehicle.plate ? (
-            <span className="shrink-0 rounded border border-slate-300 px-1.5 py-0.5 font-mono text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300">
-              {vehicle.plate}
-            </span>
-          ) : null}
+          {vehicle.plate ? <TrPlate plate={vehicle.plate} size="sm" /> : null}
         </div>
 
         <dl className="mt-4 grid grid-cols-3 gap-2">

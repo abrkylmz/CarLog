@@ -3,10 +3,13 @@ import { Fuel, LayoutDashboard, LogOut, ShieldCheck, UserRound } from "lucide-re
 import BackLink from "./components/BackLink";
 import { useDialog } from "./components/DialogProvider";
 import ExportDialog from "./components/ExportDialog";
+import QuickAdd from "./components/QuickAdd";
+import ThemeToggle from "./components/ThemeToggle";
 import { nextReminderPreview, reminderTitle } from "./components/Reminders";
 import { api, errorMessage, UNAUTHORIZED_EVENT, type AdminSetupState } from "./lib/api";
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL, parseAmount } from "./lib/format";
 import { navigate, paths, useHashRoute, type Route } from "./lib/router";
+import { FUEL_ACCENT, usePageAccent } from "./lib/theme";
 import { AdminAuthPage, UserAuthPage } from "./pages/AuthPage";
 import InvitePage, { InviteNotice } from "./pages/InvitePage";
 import HomePage from "./pages/HomePage";
@@ -275,6 +278,11 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     }
   }
 
+  const currentVehicle = route.name === "vehicle" ? vehicles?.find((v) => v.id === route.id) : undefined;
+  // Inside a vehicle the whole app (header included) takes that vehicle's fuel-type color.
+  usePageAccent(currentVehicle ? FUEL_ACCENT[currentVehicle.fuelType] : null);
+  const showQuickAdd = Boolean(vehicles?.length) && (route.name === "home" || currentVehicle != null);
+
   let page: React.ReactNode;
   if (vehicles == null) {
     page = loadError ? (
@@ -348,7 +356,12 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div
+      className={`mx-auto max-w-5xl px-4 pt-[max(2rem,env(safe-area-inset-top))] sm:px-6 ${
+        // Room for the floating + button and, on vehicle pages, the phone tab bar.
+        currentVehicle ? "pb-40 sm:pb-24" : showQuickAdd ? "pb-28 sm:pb-24" : "pb-8"
+      }`}
+    >
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <a href={paths.home} className="inline-flex items-center gap-2">
           <div className="rounded-lg bg-brand-600 p-2 text-white">
@@ -375,6 +388,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
               <span className="hidden sm:inline">Yönetici Paneli</span>
             </a>
           ) : null}
+          <ThemeToggle />
           <button
             type="button"
             onClick={onLogout}
@@ -387,6 +401,18 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       </header>
 
       {page}
+
+      {showQuickAdd && vehicles ? (
+        <QuickAdd
+          vehicles={vehicles}
+          entries={entries}
+          currentVehicleId={currentVehicle?.id}
+          aboveTabBar={currentVehicle != null}
+          onAddEntry={addEntry}
+          onAddExpense={addExpense}
+          onAddReminder={addReminder}
+        />
+      ) : null}
 
       {exportFor !== undefined && vehicles ? (
         <ExportDialog
