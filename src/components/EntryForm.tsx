@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { errorMessage } from "../lib/api";
+import { fillUpWarnings, GAUGE_OPTIONS } from "../lib/consumption";
 import type { FuelEntry, FuelEntryInput } from "../types";
+import { useDialog } from "./DialogProvider";
 
 interface Props {
   vehicleId: string;
   onAdd: (entry: FuelEntryInput) => Promise<void>;
+  /** The vehicle's tank size, for the gauge hint and the "more than a tankful" check. */
+  tankCapacity?: number;
+  /** The vehicle's other fill-ups, for the odometer sanity checks. */
+  otherEntries?: FuelEntry[];
   /** Edit mode: fields start from this record and aren't cleared after saving. */
   initial?: FuelEntry;
   submitLabel?: string;
@@ -20,13 +26,25 @@ function parse(value: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export default function EntryForm({ vehicleId, onAdd, initial, submitLabel = "Kaydı Ekle", onCancel }: Props) {
+export default function EntryForm({
+  vehicleId,
+  onAdd,
+  tankCapacity,
+  otherEntries = [],
+  initial,
+  submitLabel = "Kaydı Ekle",
+  onCancel,
+}: Props) {
+  const dialog = useDialog();
   const [date, setDate] = useState(initial?.date ?? todayIso());
   const [odometerKm, setOdometerKm] = useState(initial ? String(initial.odometerKm) : "");
   const [liters, setLiters] = useState(initial ? String(initial.liters) : "");
   const [pricePerLiter, setPricePerLiter] = useState(initial ? String(Number(initial.pricePerLiter.toFixed(3))) : "");
   const [totalCost, setTotalCost] = useState(initial ? String(initial.totalCost) : "");
   const [note, setNote] = useState(initial?.note ?? "");
+  // Most fill-ups are full, so new ones start checked; untick for a partial fill.
+  const [isFull, setIsFull] = useState(initial?.isFull ?? true);
+  const [gauge, setGauge] = useState(initial?.gaugeBefore != null ? String(initial.gaugeBefore) : "");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -66,6 +84,8 @@ export default function EntryForm({ vehicleId, onAdd, initial, submitLabel = "Ka
     setPricePerLiter("");
     setTotalCost("");
     setNote("");
+    setIsFull(true);
+    setGauge("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -80,6 +100,28 @@ export default function EntryForm({ vehicleId, onAdd, initial, submitLabel = "Ka
     if (t <= 0) return setError("Tutar değeri girin.");
 
     setError(null);
+    const warnings = fillUpWarnings(
+      { date, odometerKm: km, liters: l },
+      otherEntries.filter((o) => o.id !== initial?.id),
+      tankCapacity,
+    );
+    if (warnings.length > 0) {
+      const proceed = await dialog.confirm({
+        title: "Bu dolumu kontrol edin",
+        message: (
+          <ul className="list-disc space-y-1 pl-4">
+            {warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        ),
+        tone: "danger",
+        confirmLabel: "Yine de Kaydet",
+        cancelLabel: "Düzelt",
+      });
+      if (!proceed) return;
+    }
+
     setSubmitting(true);
     try {
       await onAdd({
@@ -89,6 +131,8 @@ export default function EntryForm({ vehicleId, onAdd, initial, submitLabel = "Ka
         liters: l,
         pricePerLiter: p > 0 ? p : t / l,
         totalCost: t,
+        isFull,
+        gaugeBefore: !isFull && gauge ? Number(gauge) : undefined,
         note: note.trim() || undefined,
       });
       if (!initial) reset();
@@ -163,6 +207,40 @@ export default function EntryForm({ vehicleId, onAdd, initial, submitLabel = "Ka
           required
         />
       </Field>
+
+      <div className="col-span-full flex flex-col gap-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800/50 sm:flex-row sm:items-center sm:gap-4">
+        <label className="inline-flex cursor-pointer items-center gap-2 font-medium text-slate-700 dark:text-slate-200">
+          <input
+            type="checkbox"
+            checked={isFull}
+            onChange={(e) => setIsFull(e.target.checked)}
+            className="h-5 w-5 rounded border-slate-300 accent-brand-600"
+          />
+          Depo fullendi
+        </label>
+        {isFull ? (
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            Tüketim iki full dolum arasında kesin olarak hesaplanır.
+          </span>
+        ) : (
+          <label className="flex flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+            <span className="text-slate-600 dark:text-slate-300">Dolumdan önce gösterge:</span>
+            <select value={gauge} onChange={(e) => setGauge(e.target.value)} className="input sm:w-56">
+              <option value="">Bilmiyorum</option>
+              {GAUGE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {!tankCapacity ? (
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Göstergeden tahmin için Araç Bilgileri'ne depo hacmini girin.
+              </span>
+            ) : null}
+          </label>
+        )}
+      </div>
 
       <Field label="Not (opsiyonel)">
         <input

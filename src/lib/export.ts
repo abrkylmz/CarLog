@@ -1,5 +1,6 @@
 import { withDerived } from "./calc";
-import { EXPENSE_CATEGORY_LABELS, formatDate, REMINDER_KIND_LABELS } from "./format";
+import { gaugeLabel } from "./consumption";
+import { CONSUMPTION_KIND_LABELS, EXPENSE_CATEGORY_LABELS, formatDate, REMINDER_KIND_LABELS } from "./format";
 import type { Expense, FuelEntry, Reminder, Vehicle } from "../types";
 
 export type ExportContent = "all" | "fuel" | "expenses" | "reminders";
@@ -99,7 +100,7 @@ export function buildExport(data: ExportData, options: ExportOptions): ExportRes
     const byVehicle = new Map<string, FuelEntry[]>();
     for (const e of forVehicle(data.entries)) byVehicle.set(e.vehicleId, [...(byVehicle.get(e.vehicleId) ?? []), e]);
     for (const list of byVehicle.values()) {
-      for (const e of withDerived(list)) {
+      for (const e of withDerived(list, vehicleById.get(list[0].vehicleId)?.tankCapacity)) {
         if (!inRange(e.date, options.from, options.to)) continue;
         rows.push({
           date: e.date,
@@ -114,7 +115,13 @@ export function buildExport(data: ExportData, options: ExportOptions): ExportRes
             num(e.liters),
             num(e.pricePerLiter, 3),
             num(e.odometerKm, 0),
+            e.isFull === true
+              ? "Full"
+              : e.isFull === false
+                ? `Kısmi${e.gaugeBefore != null ? ` (${gaugeLabel(e.gaugeBefore)})` : ""}`
+                : "",
             num(e.consumptionPer100km),
+            e.consumptionKind ? CONSUMPTION_KIND_LABELS[e.consumptionKind] + (e.suspicious ? " – olağandışı" : "") : "",
             e.note ?? "",
             e.createdBy ?? "",
           ],
@@ -140,6 +147,8 @@ export function buildExport(data: ExportData, options: ExportOptions): ExportRes
           "",
           "",
           "",
+          "",
+          "",
           x.note ?? "",
           x.createdBy ?? "",
         ],
@@ -158,7 +167,9 @@ export function buildExport(data: ExportData, options: ExportOptions): ExportRes
     "Litre",
     "TL/L",
     "Kilometre",
+    "Depo",
     "L/100km",
+    "Tüketim Yöntemi",
     "Not",
     "Ekleyen",
   ];

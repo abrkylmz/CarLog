@@ -1,5 +1,5 @@
 import { AlertTriangle, Car, ChevronRight, Clock, Users } from "lucide-react";
-import { FUEL_TYPE_LABELS, formatDate, formatNumber, formatTL, vehicleSubtitle } from "../lib/format";
+import { formatConsumption, FUEL_TYPE_LABELS, formatDate, formatNumber, formatTL, vehicleSubtitle } from "../lib/format";
 import { paths, VEHICLE_TAB_LABELS, type VehicleTab } from "../lib/router";
 import type { Vehicle, VehicleStats } from "../types";
 
@@ -43,7 +43,7 @@ export default function VehicleCard({ vehicle, stats, alerts }: Props) {
             label="Ort. tüketim"
             value={
               stats.avgConsumptionPer100km != null
-                ? `${formatNumber(stats.avgConsumptionPer100km, 1)} L`
+                ? `${formatConsumption(stats.avgConsumptionPer100km, stats.consumptionKind)} L`
                 : "—"
             }
           />

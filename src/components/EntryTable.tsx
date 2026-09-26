@@ -1,6 +1,7 @@
-import { Pencil, Trash2, UserRound } from "lucide-react";
+import { AlertTriangle, Pencil, Trash2, UserRound } from "lucide-react";
 import type { DerivedEntry } from "../types";
-import { formatDate, formatNumber, formatTL } from "../lib/format";
+import { gaugeLabel, PLAUSIBLE_MAX, PLAUSIBLE_MIN } from "../lib/consumption";
+import { CONSUMPTION_KIND_LABELS, formatConsumption, formatDate, formatNumber, formatTL } from "../lib/format";
 
 interface Props {
   entries: DerivedEntry[];
@@ -33,6 +34,7 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
             <th className="px-3 py-2 font-medium">Litre</th>
             <th className="px-3 py-2 font-medium">TL/L</th>
             <th className="px-3 py-2 font-medium">Tutar</th>
+            <th className="px-3 py-2 font-medium">Depo</th>
             <th className="px-3 py-2 font-medium">L/100km</th>
             <th className="px-3 py-2 font-medium">Not</th>
             {hasActions ? <th className="px-3 py-2" /> : null}
@@ -61,8 +63,11 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
               <td className="px-3 py-2 whitespace-nowrap">{formatNumber(entry.liters)}</td>
               <td className="px-3 py-2 whitespace-nowrap">{formatNumber(entry.pricePerLiter, 2)}</td>
               <td className="px-3 py-2 whitespace-nowrap font-medium">{formatTL(entry.totalCost)}</td>
+              <td className="px-3 py-2 whitespace-nowrap text-xs">
+                <TankCell entry={entry} />
+              </td>
               <td className="px-3 py-2 whitespace-nowrap text-slate-500 dark:text-slate-400">
-                {entry.consumptionPer100km != null ? formatNumber(entry.consumptionPer100km) : "—"}
+                <ConsumptionCell entry={entry} />
               </td>
               <td className="max-w-[12rem] truncate px-3 py-2 text-slate-500 dark:text-slate-400">
                 {entry.note ?? ""}
@@ -97,4 +102,47 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
       </table>
     </div>
   );
+}
+
+function TankCell({ entry }: { entry: DerivedEntry }) {
+  if (entry.isFull === true) return <span className="font-medium text-slate-700 dark:text-slate-200">Full</span>;
+  if (entry.isFull === false) {
+    return (
+      <span className="text-slate-500 dark:text-slate-400" title="Kısmi dolum; parantez içi dolumdan önceki gösterge">
+        Kısmi{entry.gaugeBefore != null ? ` (${gaugeLabel(entry.gaugeBefore)})` : ""}
+      </span>
+    );
+  }
+  return (
+    <span className="text-slate-400 dark:text-slate-500" title="Depo durumu girilmemiş; düzenleyerek işaretleyebilirsiniz">
+      ?
+    </span>
+  );
+}
+
+function ConsumptionCell({ entry }: { entry: DerivedEntry }) {
+  if (entry.consumptionPer100km != null && entry.consumptionKind) {
+    const value = formatConsumption(entry.consumptionPer100km, entry.consumptionKind);
+    const basis = `${CONSUMPTION_KIND_LABELS[entry.consumptionKind]}, ${formatNumber(entry.consumptionKm ?? 0, 0)} km`;
+    if (entry.suspicious) {
+      return (
+        <span
+          className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400"
+          title={`Olağandışı değer (${PLAUSIBLE_MIN}–${PLAUSIBLE_MAX} L/100km dışında): girilmemiş bir dolum veya yanlış km olabilir. Ortalamalara katılmadı. (${basis})`}
+        >
+          <AlertTriangle size={12} />
+          {value}
+        </span>
+      );
+    }
+    return <span title={basis}>{value}</span>;
+  }
+  if (entry.awaitingFull) {
+    return (
+      <span className="text-xs" title="Bir sonraki full dolumla birlikte hesaplanacak">
+        full bekleniyor
+      </span>
+    );
+  }
+  return <span title="Bu dolumun yakıtı, kapsayan full–full aralığının hesabına dahil ya da ölçülecek önceki dolum yok">—</span>;
 }

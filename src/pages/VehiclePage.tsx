@@ -3,6 +3,7 @@ import { Car, Download, Pencil, Trash2 } from "lucide-react";
 import BackLink from "../components/BackLink";
 import CategoryBreakdown from "../components/CategoryBreakdown";
 import { useDialog } from "../components/DialogProvider";
+import { errorMessage } from "../lib/api";
 import EntryForm from "../components/EntryForm";
 import EntryTable from "../components/EntryTable";
 import ExpenseForm from "../components/ExpenseForm";
@@ -16,7 +17,15 @@ import StatCard from "../components/StatCard";
 import UpcomingReminders from "../components/UpcomingReminders";
 import VehicleForm from "../components/VehicleForm";
 import { groupByMonth, vehicleStats, withDerived } from "../lib/calc";
-import { FUEL_TYPE_LABELS, formatDate, formatNumber, formatTL, vehicleSubtitle } from "../lib/format";
+import {
+  CONSUMPTION_KIND_LABELS,
+  formatConsumption,
+  FUEL_TYPE_LABELS,
+  formatDate,
+  formatNumber,
+  formatTL,
+  vehicleSubtitle,
+} from "../lib/format";
 import { paths, VEHICLE_TAB_LABELS, VEHICLE_TABS, type VehicleTab } from "../lib/router";
 import type {
   Expense,
@@ -99,9 +108,10 @@ export default function VehiclePage({
       nav.scrollLeft = left - 16;
     }
   }, [tab]);
-  const derived = useMemo(() => withDerived(entries), [entries]);
-  const summaries = useMemo(() => groupByMonth(entries, expenses), [entries, expenses]);
-  const stats = useMemo(() => vehicleStats(entries, expenses), [entries, expenses]);
+  const tank = vehicle.tankCapacity;
+  const derived = useMemo(() => withDerived(entries, tank), [entries, tank]);
+  const summaries = useMemo(() => groupByMonth(entries, expenses, tank), [entries, expenses, tank]);
+  const stats = useMemo(() => vehicleStats(entries, expenses, tank), [entries, expenses, tank]);
   const thisMonthTotal = stats.thisMonthCost + stats.thisMonthOtherCost;
   const grandTotal = stats.totalCost + stats.otherCostTotal;
   const split = (fuel: number, other: number) => `Yakıt ${formatTL(fuel)} · Diğer ${formatTL(other)}`;
@@ -182,10 +192,14 @@ export default function VehiclePage({
               label="Ort. Tüketim"
               value={
                 stats.avgConsumptionPer100km != null
-                  ? `${formatNumber(stats.avgConsumptionPer100km, 1)} L/100km`
+                  ? `${formatConsumption(stats.avgConsumptionPer100km, stats.consumptionKind)} L/100km`
                   : "—"
               }
-              hint={stats.kmTracked > 0 ? `${formatNumber(stats.kmTracked, 0)} km üzerinden` : undefined}
+              hint={
+                stats.kmTracked > 0 && stats.consumptionKind
+                  ? `${formatNumber(stats.kmTracked, 0)} km · ${CONSUMPTION_KIND_LABELS[stats.consumptionKind]}`
+                  : undefined
+              }
             />
             <StatCard
               label="Ortalama TL/L"
@@ -221,11 +235,19 @@ export default function VehiclePage({
         <>
           <section className="mb-8">
             <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Yeni Dolum Ekle</h3>
-            <EntryForm vehicleId={vehicle.id} onAdd={onAddEntry} />
+            <EntryForm vehicleId={vehicle.id} onAdd={onAddEntry} tankCapacity={tank} otherEntries={entries} />
           </section>
           <section>
             <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Kayıtlar</h3>
+            <FillUpStatusNotice
+              entries={entries}
+              stats={stats}
+              canEdit={canEdit}
+              onUpdateEntry={onUpdateEntry}
+              hasTank={Boolean(tank)}
+            />
             <EntryTable entries={derived} onDelete={onDeleteEntry} onEdit={setEditingEntry} canEdit={canEdit} />
+            <ConsumptionExplainer />
           </section>
         </>
       )}
@@ -316,6 +338,8 @@ export default function VehiclePage({
         <Modal title="Dolumu Düzenle" onClose={() => setEditingEntry(null)} width="max-w-2xl">
           <EntryForm
             vehicleId={vehicle.id}
+            tankCapacity={tank}
+            otherEntries={entries}
             initial={editingEntry}
             submitLabel="Kaydet"
             onCancel={() => setEditingEntry(null)}
@@ -358,6 +382,129 @@ export default function VehiclePage({
         </Modal>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Fill-ups from before "Depo fullendi" existed have no full/partial status, which forces the
+ * rough estimate. Offers to mark the ones this user may edit as full in one go.
+ */
+function FillUpStatusNotice({
+  entries,
+  stats,
+  canEdit,
+  onUpdateEntry,
+  hasTank,
+}: {
+  entries: FuelEntry[];
+  stats: ReturnType<typeof vehicleStats>;
+  canEdit: (record: Authored) => boolean;
+  onUpdateEntry: (id: string, entry: FuelEntryInput) => Promise<void>;
+  hasTank: boolean;
+}) {
+  const dialog = useDialog();
+  const [busy, setBusy] = useState(false);
+  const unknown = entries.filter((e) => e.isFull == null);
+  const editable = unknown.filter(canEdit);
+  const notes: React.ReactNode[] = [];
+
+  async function markAllFull() {
+    const confirmed = await dialog.confirm({
+      title: `${editable.length} dolum "full" olarak işaretlensin mi?`,
+      message:
+        "Bu dolumlarda depoyu fullediyseniz tüketim kesin hesaplanır. Yarım aldığınız dolumlar varsa onları sonradan tek tek düzenleyip \"kısmi\" yapabilirsiniz.",
+      confirmLabel: "Full Olarak İşaretle",
+    });
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      for (const e of editable) {
+        await onUpdateEntry(e.id, {
+          vehicleId: e.vehicleId,
+          date: e.date,
+          odometerKm: e.odometerKm,
+          liters: e.liters,
+          pricePerLiter: e.pricePerLiter,
+          totalCost: e.totalCost,
+          isFull: true,
+          note: e.note,
+        });
+      }
+    } catch (err) {
+      await dialog.alert({ title: "İşlem tamamlanamadı", message: errorMessage(err), tone: "danger" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (unknown.length > 0) {
+    notes.push(
+      <div key="unknown" className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span>
+          <b>{unknown.length}</b> eski dolumda depo durumu (full/kısmi) girilmemiş, bu yüzden tüketim bu dolumlar için
+          kaba tahmin.
+        </span>
+        {editable.length > 0 ? (
+          <button
+            type="button"
+            onClick={markAllFull}
+            disabled={busy}
+            className="shrink-0 rounded-lg border border-amber-400 px-3 py-1 font-medium text-amber-900 transition hover:bg-amber-100 disabled:opacity-60 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/40"
+          >
+            {busy ? "İşaretleniyor…" : `${editable.length === unknown.length ? "Hepsini" : `Benim ${editable.length} dolumumu`} full olarak işaretle`}
+          </button>
+        ) : null}
+      </div>,
+    );
+  }
+  if (stats.suspiciousCount > 0) {
+    notes.push(
+      <p key="suspicious">
+        <b>{stats.suspiciousCount}</b> aralıkta olağandışı tüketim var (⚠ işaretli); ortalamalara katılmadı. Genelde
+        girilmemiş bir dolum veya yanlış kilometreden kaynaklanır.
+      </p>,
+    );
+  }
+  if (!hasTank && entries.some((e) => e.isFull === false)) {
+    notes.push(
+      <p key="tank">
+        Kısmi dolumları gösterge ile tahmin edebilmek için <b>Araç Bilgileri</b>'nden depo hacmini girin.
+      </p>,
+    );
+  }
+  if (notes.length === 0) return null;
+  return (
+    <div className="mb-3 flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200">
+      {notes}
+    </div>
+  );
+}
+
+function ConsumptionExplainer() {
+  return (
+    <details className="mt-3 rounded-xl border border-slate-200 bg-white text-sm dark:border-slate-800 dark:bg-slate-900">
+      <summary className="cursor-pointer px-4 py-2.5 font-medium text-slate-600 dark:text-slate-300">
+        Tüketim nasıl hesaplanır?
+      </summary>
+      <div className="space-y-2 border-t border-slate-100 px-4 py-3 text-slate-600 dark:border-slate-800 dark:text-slate-300">
+        <p>
+          <b>Kesin (full–full):</b> İki full dolum arasında alınan tüm yakıt (aradaki yarım dolumlar dahil) o aradaki
+          kilometreye bölünür. En doğru yöntem budur; ara ara depoyu fullemeniz yeterli.
+        </p>
+        <p>
+          <b>~ Göstergeye göre tahmini:</b> Kısmi dolumlarda, dolumdan önceki gösterge ve aracın depo hacmiyle dolumdan
+          doluma hesaplanır. Göstergeler tam hassas olmadığından yaklaşıktır.
+        </p>
+        <p>
+          <b>~ Kaba tahmin:</b> İkisi de yoksa toplam litre toplam kilometreye bölünür. Depodaki yakıt bilinmediği için bir
+          depo kadar sapabilir; uzun mesafede güvenilir hale gelir.
+        </p>
+        <p>
+          2–30 L/100km dışındaki değerler ⚠ ile işaretlenir ve ortalamalara katılmaz. Aylık raporda bir aralık, onu
+          kapatan dolumun ayına sayılır.
+        </p>
+      </div>
+    </details>
   );
 }
 

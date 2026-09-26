@@ -47,6 +47,14 @@ export function parseVehicleInput(body: unknown): Result<VehicleInput> {
   const fuelType = FUEL_TYPES.find((f) => f === b.fuelType);
   if (!fuelType) return { ok: false, error: "Geçersiz yakıt türü." };
 
+  let tankCapacity: number | undefined;
+  if (b.tankCapacity != null) {
+    if (typeof b.tankCapacity !== "number" || !(b.tankCapacity >= 5 && b.tankCapacity <= 300)) {
+      return { ok: false, error: "Depo hacmi 5-300 litre arasında olmalı." };
+    }
+    tankCapacity = b.tankCapacity;
+  }
+
   let year: number | undefined;
   if (b.year != null) {
     if (typeof b.year !== "number" || !Number.isInteger(b.year) || b.year < 1900 || b.year > 2100) {
@@ -64,6 +72,7 @@ export function parseVehicleInput(body: unknown): Result<VehicleInput> {
       year,
       plate: optionalString(b.plate, 20)?.toLocaleUpperCase("tr-TR"),
       fuelType,
+      tankCapacity,
     },
   };
 }
@@ -82,6 +91,14 @@ export function parseEntryInput(body: unknown): Result<FuelEntryInput> {
   if (liters == null) return { ok: false, error: "Litre değeri girin." };
   if (totalCost == null) return { ok: false, error: "Tutar değeri girin." };
 
+  let gaugeBefore: number | undefined;
+  if (b.gaugeBefore != null) {
+    if (typeof b.gaugeBefore !== "number" || !(b.gaugeBefore >= 0 && b.gaugeBefore <= 1)) {
+      return { ok: false, error: "Gösterge değeri 0 ile 1 arasında olmalı." };
+    }
+    gaugeBefore = b.gaugeBefore;
+  }
+
   return {
     ok: true,
     value: {
@@ -91,6 +108,8 @@ export function parseEntryInput(body: unknown): Result<FuelEntryInput> {
       liters,
       pricePerLiter: positiveNumber(b.pricePerLiter) ?? totalCost / liters,
       totalCost,
+      isFull: typeof b.isFull === "boolean" ? b.isFull : null,
+      gaugeBefore,
       note: optionalString(b.note, 200),
     },
   };

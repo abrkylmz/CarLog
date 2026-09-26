@@ -28,6 +28,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, onRel
           vehicleStats(
             entries.filter((e) => e.vehicleId === v.id),
             expenses.filter((e) => e.vehicleId === v.id),
+            v.tankCapacity,
           ),
         ]),
       ),

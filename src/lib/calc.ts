@@ -1,29 +1,27 @@
 import type { DerivedEntry, Expense, FuelEntry, MonthlySummary, VehicleStats } from "../types";
+import { analyzeConsumption, averageOf } from "./consumption";
 
 /**
- * Adds km-since-last-fill and L/100km to each entry, assuming full-to-full
- * fill-ups ordered by odometer reading (not by entry date, since typos in
- * date shouldn't break the distance math).
+ * One vehicle's fill-ups ordered by odometer (not date, so a mistyped date doesn't break the
+ * distance math), each with the consumption of the stretch it closes. See consumption.ts.
  */
-export function withDerived(entries: FuelEntry[]): DerivedEntry[] {
-  const byOdometer = [...entries].sort((a, b) => a.odometerKm - b.odometerKm);
-
-  return byOdometer.map((entry, i) => {
-    const prev = byOdometer[i - 1];
-    const kmSinceLast = prev ? entry.odometerKm - prev.odometerKm : null;
-    const consumptionPer100km =
-      kmSinceLast && kmSinceLast > 0 ? (entry.liters / kmSinceLast) * 100 : null;
-    return { ...entry, kmSinceLast, consumptionPer100km };
-  });
+export function withDerived(entries: FuelEntry[], tankCapacity?: number): DerivedEntry[] {
+  return analyzeConsumption(entries, tankCapacity).derived;
 }
 
 export function monthKey(dateIso: string): string {
   return dateIso.slice(0, 7);
 }
 
-/** Monthly totals, newest first; months with only non-fuel expenses are included too. */
-export function groupByMonth(entries: FuelEntry[], expenses: Expense[] = []): MonthlySummary[] {
-  const derived = withDerived(entries);
+/**
+ * Monthly totals for one vehicle, newest first; months with only non-fuel expenses are included too.
+ * A measured stretch counts toward the month of the fill-up that closes it. When the vehicle has no
+ * measurable stretch at all, each month falls back to its own liters ÷ km, marked rough.
+ */
+export function groupByMonth(entries: FuelEntry[], expenses: Expense[] = [], tankCapacity?: number): MonthlySummary[] {
+  const { derived, segments } = analyzeConsumption(entries, tankCapacity);
+  const roughOnly = segments.every((seg) => seg.kind === "rough");
+  const firstId = derived[0]?.id;
   const byMonth = new Map<string, DerivedEntry[]>();
   const otherByMonth = new Map<string, number>();
 
@@ -44,9 +42,18 @@ export function groupByMonth(entries: FuelEntry[], expenses: Expense[] = []): Mo
     const totalCost = sum(bucket.map((e) => e.totalCost));
     const totalLiters = sum(bucket.map((e) => e.liters));
     const kmDriven = sum(bucket.map((e) => e.kmSinceLast ?? 0));
-    const litersWithKnownDistance = sum(
-      bucket.filter((e) => e.kmSinceLast != null && e.kmSinceLast > 0).map((e) => e.liters),
-    );
+
+    let consumption: { per100km: number | null; km: number; kind: MonthlySummary["consumptionKind"] };
+    if (roughOnly) {
+      // The very first fill-up's fuel was burned before any recorded distance.
+      const liters = sum(bucket.filter((e) => e.id !== firstId).map((e) => e.liters));
+      const plausible = kmDriven > 0 && (liters / kmDriven) * 100 >= 2 && (liters / kmDriven) * 100 <= 30;
+      consumption = plausible
+        ? { per100km: (liters / kmDriven) * 100, km: kmDriven, kind: "rough" }
+        : { per100km: null, km: 0, kind: null };
+    } else {
+      consumption = averageOf(segments.filter((seg) => monthKey(seg.endDate) === month));
+    }
 
     const otherCost = otherByMonth.get(month) ?? 0;
 
@@ -59,7 +66,9 @@ export function groupByMonth(entries: FuelEntry[], expenses: Expense[] = []): Mo
       fillCount: bucket.length,
       avgPricePerLiter: totalLiters > 0 ? totalCost / totalLiters : 0,
       kmDriven,
-      avgConsumptionPer100km: kmDriven > 0 ? (litersWithKnownDistance / kmDriven) * 100 : null,
+      avgConsumptionPer100km: consumption.per100km,
+      consumptionKind: consumption.per100km != null ? consumption.kind : null,
+      consumptionKm: consumption.km,
     });
   }
 
@@ -70,17 +79,16 @@ function sum(values: number[]): number {
   return values.reduce((total, v) => total + v, 0);
 }
 
-export function vehicleStats(entries: FuelEntry[], expenses: Expense[] = []): VehicleStats {
-  const derived = withDerived(entries);
+/** Pass tankCapacity for a single vehicle; for several vehicles only the money figures are meaningful. */
+export function vehicleStats(entries: FuelEntry[], expenses: Expense[] = [], tankCapacity?: number): VehicleStats {
+  const { derived, segments } = analyzeConsumption(entries, tankCapacity);
+  const average = averageOf(segments);
   const currentMonth = monthKey(new Date().toISOString());
   const thisMonth = entries.filter((e) => monthKey(e.date) === currentMonth);
   const thisMonthExpenses = expenses.filter((e) => monthKey(e.date) === currentMonth);
 
   const totalCost = sum(entries.map((e) => e.totalCost));
   const totalLiters = sum(entries.map((e) => e.liters));
-  const withDistance = derived.filter((e) => e.kmSinceLast != null && e.kmSinceLast > 0);
-  const kmTracked = sum(withDistance.map((e) => e.kmSinceLast ?? 0));
-  const litersWithKnownDistance = sum(withDistance.map((e) => e.liters));
 
   return {
     fillCount: entries.length,
@@ -92,8 +100,11 @@ export function vehicleStats(entries: FuelEntry[], expenses: Expense[] = []): Ve
     otherCostTotal: sum(expenses.map((e) => e.amount)),
     thisMonthOtherCost: sum(thisMonthExpenses.map((e) => e.amount)),
     expenseCount: expenses.length,
-    avgConsumptionPer100km: kmTracked > 0 ? (litersWithKnownDistance / kmTracked) * 100 : null,
-    kmTracked,
+    avgConsumptionPer100km: average.per100km,
+    consumptionKind: average.kind,
+    kmTracked: average.km,
+    unknownFillCount: entries.filter((e) => e.isFull == null).length,
+    suspiciousCount: segments.filter((seg) => seg.suspicious).length,
     latestOdometerKm: derived.length > 0 ? derived[derived.length - 1].odometerKm : null,
     lastFillDate: entries.reduce<string | null>((latest, e) => (latest && latest > e.date ? latest : e.date), null),
   };

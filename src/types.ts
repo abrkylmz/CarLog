@@ -21,6 +21,8 @@ export interface Vehicle {
   year?: number;
   plate?: string;
   fuelType: FuelType;
+  /** Tank capacity in liters; lets partial fill-ups be estimated from the fuel gauge. */
+  tankCapacity?: number;
   createdAt: string;
   /** The signed-in user's role on this vehicle (set by the server on reads). */
   myRole?: VehicleRole;
@@ -64,6 +66,10 @@ export interface FuelEntry {
   liters: number;
   pricePerLiter: number;
   totalCost: number;
+  /** Tank filled to the brim. null = not recorded (entries from before this was asked). */
+  isFull: boolean | null;
+  /** Fuel gauge before filling, 0 (empty) … 1 (full); only asked for partial fill-ups. */
+  gaugeBefore?: number;
   note?: string;
   /** Username of whoever entered it; null if that user was deleted. */
   createdBy: string | null;
@@ -141,11 +147,36 @@ export interface Reminder {
 
 export type ReminderInput = Omit<Reminder, "id" | "doneAt" | "doneBy" | "createdBy" | "createdById" | "createdAt">;
 
+/**
+ * How a consumption figure was obtained:
+ * - exact: between two full fill-ups (all liters in between summed);
+ * - gauge: estimated from the fuel gauge readings and the tank capacity;
+ * - rough: long-range liters ÷ km, off by up to one tank's worth.
+ */
+export type ConsumptionKind = "exact" | "gauge" | "rough";
+
 export interface DerivedEntry extends FuelEntry {
   /** km driven since the previous fill-up, by odometer order. Null for the first entry. */
   kmSinceLast: number | null;
-  /** L/100km for the distance covered since the previous fill-up. Null when kmSinceLast is null or zero. */
+  /** L/100km for the stretch this fill-up closes; null when it can't be measured. */
   consumptionPer100km: number | null;
+  consumptionKind: ConsumptionKind | null;
+  /** km the figure covers (a full-to-full stretch can span several fill-ups). */
+  consumptionKm: number | null;
+  /** Outside a plausible 2–30 L/100km: likely a missed fill-up or a typo; left out of averages. */
+  suspicious: boolean;
+  /** A partial fill-up whose fuel is counted once the next full fill-up closes the stretch. */
+  awaitingFull: boolean;
+}
+
+/** A measured stretch of driving used for averages. */
+export interface ConsumptionSegment {
+  /** Date of the fill-up that closes the stretch; the stretch counts toward that month. */
+  endDate: string;
+  km: number;
+  liters: number;
+  kind: ConsumptionKind;
+  suspicious: boolean;
 }
 
 export interface MonthlySummary {
@@ -162,6 +193,10 @@ export interface MonthlySummary {
   avgPricePerLiter: number;
   kmDriven: number;
   avgConsumptionPer100km: number | null;
+  /** Weakest method behind the monthly figure (exact < gauge < rough). */
+  consumptionKind: ConsumptionKind | null;
+  /** km the monthly figure is based on; under ~300 km the figure is shaky. */
+  consumptionKm: number;
 }
 
 export interface VehicleStats {
@@ -175,9 +210,14 @@ export interface VehicleStats {
   otherCostTotal: number;
   thisMonthOtherCost: number;
   expenseCount: number;
-  /** Overall L/100km across all fill-ups with a known distance. */
+  /** Overall L/100km over the measured stretches (suspicious ones left out). */
   avgConsumptionPer100km: number | null;
+  /** Weakest method behind the overall figure. */
+  consumptionKind: ConsumptionKind | null;
   kmTracked: number;
+  /** Fill-ups whose full/partial status wasn't recorded. */
+  unknownFillCount: number;
+  suspiciousCount: number;
   latestOdometerKm: number | null;
   lastFillDate: string | null;
 }

@@ -17,6 +17,7 @@ export default function VehicleForm({ initial, submitLabel, onSubmit, onCancel }
   const [year, setYear] = useState(initial?.year ? String(initial.year) : "");
   const [plate, setPlate] = useState(initial?.plate ?? "");
   const [fuelType, setFuelType] = useState<FuelType>(initial?.fuelType ?? "benzin");
+  const [tankCapacity, setTankCapacity] = useState(initial?.tankCapacity ? String(initial.tankCapacity) : "");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -29,6 +30,10 @@ export default function VehicleForm({ initial, submitLabel, onSubmit, onCancel }
     if (year && (!Number.isInteger(parsedYear) || parsedYear < 1900 || parsedYear > 2100)) {
       return setError("Geçerli bir model yılı girin.");
     }
+    const parsedTank = Number(tankCapacity.replace(",", "."));
+    if (tankCapacity && !(parsedTank >= 5 && parsedTank <= 300)) {
+      return setError("Depo hacmi 5-300 litre arasında olmalı.");
+    }
 
     setError(null);
     setSubmitting(true);
@@ -40,6 +45,7 @@ export default function VehicleForm({ initial, submitLabel, onSubmit, onCancel }
         year: year ? parsedYear : undefined,
         plate: plate.trim().toLocaleUpperCase("tr-TR") || undefined,
         fuelType,
+        tankCapacity: tankCapacity ? parsedTank : undefined,
       });
     } catch (err) {
       setError(errorMessage(err));
@@ -118,6 +124,22 @@ export default function VehicleForm({ initial, submitLabel, onSubmit, onCancel }
           ))}
         </select>
       </Field>
+
+      <Field label="Depo Hacmi (L, opsiyonel)">
+        <input
+          type="number"
+          inputMode="decimal"
+          step="any"
+          placeholder="50"
+          value={tankCapacity}
+          onChange={(e) => setTankCapacity(e.target.value)}
+          className="input"
+        />
+      </Field>
+      <p className="self-end text-xs text-slate-500 dark:text-slate-400 sm:col-span-1">
+        Depoyu her seferinde fullemiyorsanız, gösterge ile tüketim tahmini için gerekir (ruhsat veya kullanım
+        kılavuzunda yazar).
+      </p>
 
       <div className="col-span-full flex items-center justify-between gap-3">
         {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : <span />}

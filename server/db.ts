@@ -119,6 +119,11 @@ const SCHEMA: string[] = [
   `ALTER TABLE entries ADD COLUMN IF NOT EXISTS updated_by TEXT`,
   `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS updated_at TEXT`,
   `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS updated_by TEXT`,
+  // Partial fill-ups: whether the tank was filled up, the gauge before filling, and tank size.
+  // Old entries keep NULL for is_full (not recorded).
+  `ALTER TABLE entries ADD COLUMN IF NOT EXISTS is_full BOOLEAN`,
+  `ALTER TABLE entries ADD COLUMN IF NOT EXISTS gauge_before DOUBLE PRECISION`,
+  `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS tank_capacity DOUBLE PRECISION`,
   `CREATE TABLE IF NOT EXISTS reminders (
      id            TEXT PRIMARY KEY,
      vehicle_id    TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
@@ -248,6 +253,7 @@ export function toVehicle(row: Row): Vehicle {
     year: (row.year as number | null) ?? undefined,
     plate: (row.plate as string | null) ?? undefined,
     fuelType: row.fuel_type as FuelType,
+    tankCapacity: row.tank_capacity == null ? undefined : Number(row.tank_capacity),
     createdAt: row.created_at as string,
     myRole: (row.my_role as VehicleRole | undefined) ?? undefined,
     ownerName: row.owner_name === undefined ? undefined : ((row.owner_name as string | null) ?? null),
@@ -277,6 +283,8 @@ export function toEntry(row: Row): FuelEntry {
     liters: Number(row.liters),
     pricePerLiter: Number(row.price_per_liter),
     totalCost: Number(row.total_cost),
+    isFull: row.is_full == null ? null : Boolean(row.is_full),
+    gaugeBefore: row.gauge_before == null ? undefined : Number(row.gauge_before),
     note: (row.note as string | null) ?? undefined,
     ...audit(row),
   };
@@ -348,11 +356,21 @@ export const ENTRY_SELECT = `
 
 export function insertVehicleStatement(v: Vehicle, { ignoreExisting = false } = {}): Statement {
   return {
-    text: `INSERT INTO vehicles (id, name, brand, model, year, plate, fuel_type, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    text: `INSERT INTO vehicles (id, name, brand, model, year, plate, fuel_type, created_at, tank_capacity)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            ${ignoreExisting ? "ON CONFLICT (id) DO NOTHING" : ""}
            RETURNING id`,
-    params: [v.id, v.name, v.brand ?? null, v.model ?? null, v.year ?? null, v.plate ?? null, v.fuelType, v.createdAt],
+    params: [
+      v.id,
+      v.name,
+      v.brand ?? null,
+      v.model ?? null,
+      v.year ?? null,
+      v.plate ?? null,
+      v.fuelType,
+      v.createdAt,
+      v.tankCapacity ?? null,
+    ],
   };
 }
 
@@ -363,9 +381,10 @@ export function insertEntryStatement(
   { ignoreExisting = false } = {},
 ): Statement {
   return {
-    text: `INSERT INTO entries (id, vehicle_id, date, odometer_km, liters, price_per_liter, total_cost, note, created_by, created_at)
+    text: `INSERT INTO entries (id, vehicle_id, date, odometer_km, liters, price_per_liter, total_cost, note, created_by, created_at,
+                               is_full, gauge_before)
            SELECT $1::text, $2::text, $3::text, $4::float8, $5::float8, $6::float8, $7::float8,
-                  $8::text, $9::text, $10::text
+                  $8::text, $9::text, $10::text, $11::boolean, $12::float8
            WHERE EXISTS (SELECT 1 FROM vehicles WHERE id = $2::text)
            ${ignoreExisting ? "ON CONFLICT (id) DO NOTHING" : ""}
            RETURNING id`,
@@ -380,6 +399,8 @@ export function insertEntryStatement(
       e.note ?? null,
       createdByUserId,
       e.createdAt,
+      e.isFull,
+      e.gaugeBefore ?? null,
     ],
   };
 }

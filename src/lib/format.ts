@@ -1,4 +1,4 @@
-import type { ExpenseCategory, FuelType, ReminderKind, Vehicle } from "../types";
+import type { ConsumptionKind, ExpenseCategory, FuelType, ReminderKind, Vehicle } from "../types";
 
 const currency = new Intl.NumberFormat("tr-TR", {
   style: "currency",
@@ -59,6 +59,18 @@ export const REMINDER_KIND_LABELS: Record<ReminderKind, string> = {
   egzoz: "Egzoz Emisyon",
   diger: "Diğer",
 };
+
+/** How a consumption figure was measured, in words. */
+export const CONSUMPTION_KIND_LABELS: Record<ConsumptionKind, string> = {
+  exact: "kesin (full–full)",
+  gauge: "göstergeye göre tahmini",
+  rough: "kaba tahmin",
+};
+
+/** "6,4" for exact figures, "~6,4" for estimates. */
+export function formatConsumption(value: number, kind: ConsumptionKind | null): string {
+  return `${kind && kind !== "exact" ? "~" : ""}${formatNumber(value, 1)}`;
+}
 
 /** "Toyota Corolla · 2019", or null when no details were entered. */
 export function vehicleSubtitle(vehicle: Vehicle): string | null {

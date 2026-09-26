@@ -1,5 +1,8 @@
 import type { MonthlySummary } from "../types";
-import { formatMonth, formatNumber, formatTL } from "../lib/format";
+import { CONSUMPTION_KIND_LABELS, formatConsumption, formatMonth, formatNumber, formatTL } from "../lib/format";
+
+/** Below this many km a monthly consumption figure is too shaky to lean on. */
+const LOW_DATA_KM = 300;
 
 interface Props {
   summaries: MonthlySummary[];
@@ -38,7 +41,18 @@ export default function MonthlySummaryTable({ summaries }: Props) {
                 <td className="px-3 py-2 whitespace-nowrap font-semibold">{formatTL(s.grandTotal)}</td>
                 <td className="px-3 py-2 whitespace-nowrap">{hasFuel ? formatNumber(s.avgPricePerLiter, 2) : "—"}</td>
                 <td className="px-3 py-2 whitespace-nowrap text-slate-500 dark:text-slate-400">
-                  {s.avgConsumptionPer100km != null ? formatNumber(s.avgConsumptionPer100km) : "—"}
+                  {s.avgConsumptionPer100km != null && s.consumptionKind ? (
+                    <span
+                      title={`${CONSUMPTION_KIND_LABELS[s.consumptionKind]}, ${formatNumber(s.consumptionKm, 0)} km üzerinden`}
+                    >
+                      {formatConsumption(s.avgConsumptionPer100km, s.consumptionKind)}
+                      {s.consumptionKm < LOW_DATA_KM ? (
+                        <span className="ml-1 text-[11px] text-amber-600 dark:text-amber-400">az veri</span>
+                      ) : null}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                 </td>
               </tr>
             );

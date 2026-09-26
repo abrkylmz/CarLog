@@ -279,8 +279,18 @@ api.put("/vehicles/:id", requireUser, async (req, res) => {
 
   const v: VehicleInput = parsed.value;
   await query(
-    `UPDATE vehicles SET name = $1, brand = $2, model = $3, year = $4, plate = $5, fuel_type = $6 WHERE id = $7`,
-    [v.name, v.brand ?? null, v.model ?? null, v.year ?? null, v.plate ?? null, v.fuelType, paramId(req)],
+    `UPDATE vehicles SET name = $1, brand = $2, model = $3, year = $4, plate = $5, fuel_type = $6, tank_capacity = $7
+     WHERE id = $8`,
+    [
+      v.name,
+      v.brand ?? null,
+      v.model ?? null,
+      v.year ?? null,
+      v.plate ?? null,
+      v.fuelType,
+      v.tankCapacity ?? null,
+      paramId(req),
+    ],
   );
   res.json(await myVehicle(req, paramId(req)));
 });
@@ -480,7 +490,7 @@ api.put("/entries/:id", requireUser, async (req, res) => {
   const e: FuelEntryInput = parsed.value;
   const row = await queryOne(
     `UPDATE entries SET vehicle_id = $1, date = $2, odometer_km = $3, liters = $4, price_per_liter = $5,
-       total_cost = $6, note = $7, updated_at = $8, updated_by = $9
+       total_cost = $6, note = $7, updated_at = $8, updated_by = $9, is_full = $11, gauge_before = $12
      WHERE id = $10 AND EXISTS (SELECT 1 FROM vehicles WHERE id = $1)
      RETURNING id`,
     [
@@ -494,6 +504,8 @@ api.put("/entries/:id", requireUser, async (req, res) => {
       new Date().toISOString(),
       req.user!.id,
       paramId(req),
+      e.isFull,
+      e.gaugeBefore ?? null,
     ],
   );
   if (!row) return void res.status(404).json({ error: "Araç bulunamadı." });

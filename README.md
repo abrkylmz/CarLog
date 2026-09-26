@@ -4,9 +4,28 @@ Araç yakıt giderlerini takip etmek için basit bir React + Node.js uygulaması
 Birden fazla araç eklenebilir; ana ekrandaki (Garajım) araç kutusuna tıklayınca o
 aracın Özet, Dolumlar, Aylık Rapor ve Araç Bilgileri sekmeleri açılır.
 
-Her dolumda kaydedilenler: tarih, kilometre, litre fiyatı (TL), toplam tutar (TL)
-ve litre (tutar ÷ fiyat olarak otomatik hesaplanır). Uygulama bunlardan
-dolumlar arası tüketimi (L/100km) ve aylık toplam gider/litre özetini hesaplar.
+Her dolumda kaydedilenler: tarih, kilometre, litre fiyatı (TL), toplam tutar (TL),
+litre (tutar ÷ fiyat olarak otomatik hesaplanır) ve **depo fullendi mi**; fullenmediyse
+isteğe bağlı olarak dolumdan önceki gösterge.
+
+### Tüketim (L/100km) nasıl hesaplanır
+
+Depo her seferinde fullenmeyebileceği için her aralıkta eldeki en güvenilir yöntem
+kullanılır ([src/lib/consumption.ts](src/lib/consumption.ts)):
+
+1. **Kesin (full–full):** iki full dolum arasında alınan tüm yakıt (aradaki yarım
+   dolumlar dahil) ÷ aradaki km. Ara ara fullemek yeterlidir.
+2. **~ Göstergeye göre tahmini:** aracın depo hacmi girilmişse kısmi dolumlar dolumdan
+   doluma hesaplanır: önceki dolumdan sonra depodaki yakıt − bu dolumdan önce kalan
+   (gösterge × depo hacmi).
+3. **~ Kaba tahmin:** ikisi de yoksa toplam litre ÷ toplam km (bir depo kadar sapabilir).
+
+2–30 L/100km dışındaki aralıklar ⚠ ile işaretlenir ve ortalamalara katılmaz (genelde
+girilmemiş dolum veya yanlış km). Aylık raporda bir aralık, onu kapatan dolumun ayına
+sayılır; 300 km'den az veriye dayanan aylar "az veri" olarak işaretlenir. Kayıt
+sırasında önceki dolumdan küçük km, 2.000 km'yi aşan boşluk veya depo hacminden
+fazla litre için uyarı verilir. Bu özellikten önce girilmiş dolumlar "?" olarak
+görünür ve tek tıkla "full" işaretlenebilir.
 
 Yakıt dışındaki masraflar (bakım, lastik, sigorta/kasko, MTV, muayene, otopark,
 köprü/otoyol, yıkama, ceza, diğer) aracın **Masraflar** sekmesinde ayrı tutulur:
