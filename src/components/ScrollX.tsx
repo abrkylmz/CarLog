@@ -29,10 +29,13 @@ export default function ScrollX({ children, className = "" }: { children: React.
   }, []);
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative overflow-hidden ${className}`}>
+      {/* iOS Safari draws its own scroll indicator and ignores the CSS that hides scrollbars
+          elsewhere, so the scroller gets an extra 20px at the bottom that the outer box clips:
+          the indicator lands in that hidden strip. */}
       <div
         ref={ref}
-        className="overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mb-5 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {children}
       </div>

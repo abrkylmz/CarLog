@@ -152,29 +152,31 @@ export default function VehiclePage({
         </button>
       </div>
 
-      {/* Horizontal-only scroller. The baseline is an inset shadow rather than a border so the active
-          tab's underline can cover it without overflowing — any vertical overflow here lets iOS drag
-          the strip up and down. */}
-      <nav
-        ref={tabsRef}
-        className="mb-6 flex gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain shadow-[inset_0_-1px_0_theme(colors.slate.200)] [scrollbar-width:none] dark:shadow-[inset_0_-1px_0_theme(colors.slate.800)] [&::-webkit-scrollbar]:hidden"
-      >
-        {VEHICLE_TABS.map((t) => (
-          <a
-            key={t}
-            href={paths.vehicle(vehicle.id, t)}
-            data-active={t === tab || undefined}
-            aria-current={t === tab ? "page" : undefined}
-            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition ${
-              t === tab
-                ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-300"
-                : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-          >
-            {VEHICLE_TAB_LABELS[t]}
-          </a>
-        ))}
-      </nav>
+      {/* Horizontal-only tab strip. The outer box draws the baseline (an inset shadow, so the active
+          tab's underline covers it) and clips the scroller's extra bottom padding: iOS Safari draws its
+          own scroll indicator there and ignores the CSS that hides scrollbars elsewhere. */}
+      <div className="mb-6 overflow-hidden shadow-[inset_0_-1px_0_theme(colors.slate.200)] dark:shadow-[inset_0_-1px_0_theme(colors.slate.800)]">
+        <nav
+          ref={tabsRef}
+          className="-mb-5 flex gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {VEHICLE_TABS.map((t) => (
+            <a
+              key={t}
+              href={paths.vehicle(vehicle.id, t)}
+              data-active={t === tab || undefined}
+              aria-current={t === tab ? "page" : undefined}
+              className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition ${
+                t === tab
+                  ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-300"
+                  : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              {VEHICLE_TAB_LABELS[t]}
+            </a>
+          ))}
+        </nav>
+      </div>
 
       {tab === "ozet" && (
         <>
