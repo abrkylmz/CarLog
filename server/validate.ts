@@ -1,4 +1,5 @@
 import type {
+  CatalogEntryInput,
   ExpenseCategory,
   ExpenseInput,
   FuelEntryInput,
@@ -73,6 +74,7 @@ export function parseVehicleInput(body: unknown): Result<VehicleInput> {
       plate: optionalString(b.plate, 20)?.toLocaleUpperCase("tr-TR"),
       fuelType,
       tankCapacity,
+      catalogId: typeof b.catalogId === "string" && b.catalogId.length <= 80 ? b.catalogId : undefined,
     },
   };
 }
@@ -169,6 +171,42 @@ export function parseReminderInput(body: unknown): Result<ReminderInput> {
       repeatKm,
       note: optionalString(b.note, 200),
     },
+  };
+}
+
+export function parseCatalogInput(body: unknown): Result<CatalogEntryInput> {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const brand = optionalString(b.brand, 40);
+  const model = optionalString(b.model, 60);
+  const generation = optionalString(b.generation, 60);
+  if (!brand || !model || !generation) return { ok: false, error: "Marka, model ve nesil gerekli." };
+
+  const year = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 1950 && v <= 2100 ? v : null);
+  const yearFrom = year(b.yearFrom);
+  if (yearFrom == null) return { ok: false, error: "Geçerli bir başlangıç yılı girin." };
+  let yearTo: number | undefined;
+  if (b.yearTo != null) {
+    const y = year(b.yearTo);
+    if (y == null || y < yearFrom) return { ok: false, error: "Bitiş yılı başlangıçtan önce olamaz." };
+    yearTo = y;
+  }
+
+  const fuelTypes = Array.isArray(b.fuelTypes) ? FUEL_TYPES.filter((f) => (b.fuelTypes as unknown[]).includes(f)) : [];
+  if (fuelTypes.length === 0) return { ok: false, error: "En az bir yakıt tipi seçin." };
+
+  const tank = (v: unknown) => (typeof v === "number" && v >= 5 && v <= 300 ? v : null);
+  const tankCapacity = tank(b.tankCapacity);
+  if (tankCapacity == null) return { ok: false, error: "Depo hacmi 5-300 litre arasında olmalı." };
+  let lpgTankCapacity: number | undefined;
+  if (b.lpgTankCapacity != null) {
+    const l = tank(b.lpgTankCapacity);
+    if (l == null) return { ok: false, error: "LPG tank hacmi 5-300 litre arasında olmalı." };
+    lpgTankCapacity = l;
+  }
+
+  return {
+    ok: true,
+    value: { brand, model, generation, yearFrom, yearTo, fuelTypes, tankCapacity, lpgTankCapacity, note: optionalString(b.note, 200) },
   };
 }
 

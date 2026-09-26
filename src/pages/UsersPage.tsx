@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { KeyRound, ShieldCheck, Trash2, UserPlus, UserRound } from "lucide-react";
 import BackLink from "../components/BackLink";
+import CatalogAdmin from "../components/CatalogAdmin";
 import { useDialog } from "../components/DialogProvider";
 import { api, ApiError, errorMessage } from "../lib/api";
 import { formatDate } from "../lib/format";
@@ -14,6 +15,7 @@ export default function UsersPage({ currentUser }: Props) {
   const [users, setUsers] = useState<User[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const dialog = useDialog();
+  const [tab, setTab] = useState<"users" | "catalog">("users");
 
   useEffect(() => {
     api
@@ -86,62 +88,91 @@ export default function UsersPage({ currentUser }: Props) {
         kendisine ve aracını paylaştığı kişilere açıktır.
       </p>
 
-      <section className="mb-8">
-        <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Yeni Kullanıcı</h3>
-        <NewUserForm onCreated={(user) => setUsers((prev) => [...(prev ?? []), user])} />
-      </section>
+      <nav className="mb-6 flex gap-1 border-b border-slate-200 dark:border-slate-800">
+        {(
+          [
+            ["users", "Kullanıcılar"],
+            ["catalog", "Araç Kataloğu"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            aria-current={tab === key ? "page" : undefined}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition ${
+              tab === key
+                ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-300"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
 
-      <section>
-        <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Hesaplar</h3>
-        {loadError ? (
-          <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
-        ) : users == null ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
-        ) : (
-          <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
-            {users.map((user) => (
-              <li key={user.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="rounded-full bg-slate-100 p-2 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                  {user.role === "admin" ? <ShieldCheck size={16} /> : <UserRound size={16} />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {user.username}
-                    {user.id === currentUser.id ? (
-                      <span className="ml-1.5 text-xs font-normal text-slate-400">(siz)</span>
-                    ) : null}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {user.role === "admin" ? "Admin" : "Kullanıcı"} · {formatDate(user.createdAt)}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleResetPassword(user)}
-                  title="Şifreyi değiştir"
-                  aria-label={`${user.username} şifresini değiştir`}
-                  className="rounded p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                >
-                  <KeyRound size={16} />
-                </button>
-                {user.id !== currentUser.id ? (
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(user)}
-                    title="Kullanıcıyı sil"
-                    aria-label={`${user.username} kullanıcısını sil`}
-                    className="rounded p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                ) : (
-                  <span className="w-7" />
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {tab === "catalog" ? <CatalogAdmin /> : null}
+
+      {tab === "users" ? (
+        <>
+          <section className="mb-8">
+            <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Yeni Kullanıcı</h3>
+            <NewUserForm onCreated={(user) => setUsers((prev) => [...(prev ?? []), user])} />
+          </section>
+    
+          <section>
+            <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Hesaplar</h3>
+            {loadError ? (
+              <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
+            ) : users == null ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+            ) : (
+              <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
+                {users.map((user) => (
+                  <li key={user.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="rounded-full bg-slate-100 p-2 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                      {user.role === "admin" ? <ShieldCheck size={16} /> : <UserRound size={16} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {user.username}
+                        {user.id === currentUser.id ? (
+                          <span className="ml-1.5 text-xs font-normal text-slate-400">(siz)</span>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {user.role === "admin" ? "Admin" : "Kullanıcı"} · {formatDate(user.createdAt)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleResetPassword(user)}
+                      title="Şifreyi değiştir"
+                      aria-label={`${user.username} şifresini değiştir`}
+                      className="rounded p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    >
+                      <KeyRound size={16} />
+                    </button>
+                    {user.id !== currentUser.id ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(user)}
+                        title="Kullanıcıyı sil"
+                        aria-label={`${user.username} kullanıcısını sil`}
+                        className="rounded p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    ) : (
+                      <span className="w-7" />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      ) : null}
     </>
   );
 }

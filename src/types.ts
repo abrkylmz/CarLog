@@ -23,6 +23,8 @@ export interface Vehicle {
   fuelType: FuelType;
   /** Tank capacity in liters; lets partial fill-ups be estimated from the fuel gauge. */
   tankCapacity?: number;
+  /** The catalog model this vehicle was picked from; absent when entered by hand. */
+  catalogId?: string;
   createdAt: string;
   /** The signed-in user's role on this vehicle (set by the server on reads). */
   myRole?: VehicleRole;
@@ -220,4 +222,37 @@ export interface VehicleStats {
   suspiciousCount: number;
   latestOdometerKm: number | null;
   lastFillDate: string | null;
+}
+
+/**
+ * One model generation + fuel variant in the vehicle catalog, with the factory tank size.
+ * Picking one fills brand, model, allowed fuel types and tank capacity on the vehicle form.
+ */
+export interface CatalogEntry {
+  id: string;
+  brand: string;
+  model: string;
+  /** Generation / variant label, e.g. "E210 Hibrit" */
+  generation: string;
+  yearFrom: number;
+  /** Absent while still in production. */
+  yearTo?: number;
+  fuelTypes: FuelType[];
+  /** Factory fuel tank, liters. */
+  tankCapacity: number;
+  /** Factory-fitted LPG tank, liters (ECO-G and similar). */
+  lpgTankCapacity?: number;
+  /** Caveat shown on the form, e.g. an optional larger tank. */
+  note?: string;
+}
+
+export type CatalogEntryInput = Omit<CatalogEntry, "id">;
+
+/** Hand-entered vehicles not in the catalog, counted without revealing whose they are. */
+export interface MissingCatalogModel {
+  brand: string;
+  model: string;
+  year?: number;
+  fuelType: FuelType;
+  count: number;
 }

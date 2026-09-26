@@ -1,9 +1,12 @@
 import type {
+  CatalogEntry,
+  CatalogEntryInput,
   Expense,
   ExpenseInput,
   FuelEntry,
   FuelEntryInput,
   InvitePreview,
+  MissingCatalogModel,
   Reminder,
   ReminderInput,
   Role,
@@ -69,6 +72,13 @@ export const api = {
   updateVehicle: (id: string, input: VehicleInput) =>
     request<Vehicle>("PUT", `/vehicles/${encodeURIComponent(id)}`, input),
   deleteVehicle: (id: string) => request<void>("DELETE", `/vehicles/${encodeURIComponent(id)}`),
+
+  listCatalog: () => request<CatalogEntry[]>("GET", "/catalog"),
+  createCatalogEntry: (input: CatalogEntryInput) => request<CatalogEntry>("POST", "/catalog", input),
+  updateCatalogEntry: (id: string, input: CatalogEntryInput) =>
+    request<CatalogEntry>("PUT", `/catalog/${encodeURIComponent(id)}`, input),
+  deleteCatalogEntry: (id: string) => request<void>("DELETE", `/catalog/${encodeURIComponent(id)}`),
+  catalogMissing: () => request<MissingCatalogModel[]>("GET", "/catalog/missing"),
 
   listMembers: (vehicleId: string) =>
     request<VehicleMember[]>("GET", `/vehicles/${encodeURIComponent(vehicleId)}/members`),

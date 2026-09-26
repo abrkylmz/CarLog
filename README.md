@@ -8,6 +8,18 @@ Her dolumda kaydedilenler: tarih, kilometre, litre fiyatı (TL), toplam tutar (T
 litre (tutar ÷ fiyat olarak otomatik hesaplanır) ve **depo fullendi mi**; fullenmediyse
 isteğe bağlı olarak dolumdan önceki gösterge.
 
+### Araç kataloğu
+
+Araç eklerken **Marka → Model → Versiyon (nesil · yıllar · yakıt)** seçilir; yakıt
+seçenekleri ve **fabrika depo hacmi** otomatik gelir (düzenlenebilir). Başlangıç
+kataloğu Türkiye'de yaygın ~70 model/nesildir ([server/catalogSeed.ts](server/catalogSeed.ts));
+değerler üretici teknik verilerinden (auto-data.net) alınmış, çelişkili olanlar
+ikinci kaynakla doğrulanıp not düşülmüştür. Katalogda olmayan araç "Listede yok"
+ile elle girilir. Yönetici panelinin **Araç Kataloğu** sekmesinde katalog
+düzenlenir ve elle girilen marka/modeller (kime ait olduğu gösterilmeden, yalnızca
+sayılarıyla) "Katalogda Olmayan Araçlar" olarak listelenir. Elektrikli araçlar
+şimdilik katalogda yoktur.
+
 ### Tüketim (L/100km) nasıl hesaplanır
 
 Depo her seferinde fullenmeyebileceği için her aralıkta eldeki en güvenilir yöntem
@@ -164,8 +176,9 @@ api/
 server/
   app.ts            /api Express uygulaması (Vercel ve yerel sunucu ortak)
   index.ts          Yerel sunucu; geliştirmede Vite'ı ara katman olarak çalıştırır
-  api.ts            Uç noktalar (auth, vehicles, members, invites, entries, expenses,
-                    reminders, users, import)
+  api.ts            Uç noktalar (auth, vehicles, catalog, members, invites, entries,
+                    expenses, reminders, users, import)
+  catalogSeed.ts    Başlangıç araç kataloğu (marka, model, nesil, depo hacmi)
   auth.ts           Şifre hash'leme, oturumlar, rol ve giriş denemesi kontrolü
   access.ts         Araç bazlı erişim kuralları (sahip / yardımcı)
   db.ts             Postgres bağlantısı (Neon / PGlite), şema ve satır dönüşümleri
@@ -176,7 +189,8 @@ src/
                     InvitePage (davet linki)
   components/       VehicleCard, VehicleForm, EntryForm, EntryTable, ExpenseForm, ExpenseList,
                     CategoryBreakdown, MonthlySummaryTable, SpendChart, StatCard, BackLink,
-                    Reminders, UpcomingReminders, SharePanel, ExportDialog, Modal, DialogProvider,
+                    Reminders, UpcomingReminders, SharePanel, CatalogAdmin, ExportDialog, Modal,
+                    DialogProvider,
                     LegacyImportBanner
   lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, reminders.ts,
                     export.ts (CSV), legacy.ts,

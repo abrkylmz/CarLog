@@ -15,7 +15,7 @@ import SpendChart from "../components/SpendChart";
 import SharePanel from "../components/SharePanel";
 import StatCard from "../components/StatCard";
 import UpcomingReminders from "../components/UpcomingReminders";
-import VehicleForm from "../components/VehicleForm";
+import VehicleForm, { catalogVersionLabel } from "../components/VehicleForm";
 import { groupByMonth, vehicleStats, withDerived } from "../lib/calc";
 import {
   CONSUMPTION_KIND_LABELS,
@@ -28,6 +28,7 @@ import {
 } from "../lib/format";
 import { paths, VEHICLE_TAB_LABELS, VEHICLE_TABS, type VehicleTab } from "../lib/router";
 import type {
+  CatalogEntry,
   Expense,
   ExpenseInput,
   FuelEntry,
@@ -58,6 +59,7 @@ interface Props {
   onUpdateVehicle: (id: string, input: VehicleInput) => Promise<void>;
   onExport: () => void;
   currentUser: User;
+  catalog: CatalogEntry[];
   /** The vehicle's owner may edit and delete every record, helpers only their own. */
   canEdit: (record: Authored) => boolean;
   /** Called after the current user leaves this shared vehicle. */
@@ -84,6 +86,7 @@ export default function VehiclePage({
   onCompleteReminder,
   onExport,
   currentUser,
+  catalog,
   canEdit,
   onLeft,
   onDeleteEntry,
@@ -328,6 +331,7 @@ export default function VehiclePage({
       {tab === "bilgiler" && (
         <VehicleSettings
           vehicle={vehicle}
+          catalog={catalog}
           recordCount={entries.length + expenses.length + reminders.length}
           onUpdate={onUpdateVehicle}
           onDelete={onDeleteVehicle}
@@ -510,11 +514,13 @@ function ConsumptionExplainer() {
 
 function VehicleSettings({
   vehicle,
+  catalog,
   recordCount,
   onUpdate,
   onDelete,
 }: {
   vehicle: Vehicle;
+  catalog: CatalogEntry[];
   recordCount: number;
   onUpdate: (id: string, input: VehicleInput) => Promise<void>;
   onDelete?: (id: string) => void;
@@ -535,6 +541,8 @@ function VehicleSettings({
     if (confirmed) onDelete?.(vehicle.id);
   }
 
+  const catalogEntry = vehicle.catalogId ? catalog.find((c) => c.id === vehicle.catalogId) : undefined;
+
   if (vehicle.myRole !== "owner") {
     const rows: [string, string | undefined][] = [
       ["Araç Adı", vehicle.name],
@@ -543,6 +551,8 @@ function VehicleSettings({
       ["Model", vehicle.model],
       ["Model Yılı", vehicle.year ? String(vehicle.year) : undefined],
       ["Yakıt Türü", FUEL_TYPE_LABELS[vehicle.fuelType]],
+      ["Katalog Versiyonu", catalogEntry ? catalogVersionLabel(catalogEntry) : "Elle girildi"],
+      ["Depo Hacmi", vehicle.tankCapacity ? `${vehicle.tankCapacity} L` : undefined],
       ["Sahibi", vehicle.ownerName ?? undefined],
     ];
     return (
@@ -571,7 +581,8 @@ function VehicleSettings({
           {saved ? <span className="ml-2 font-normal text-emerald-600 dark:text-emerald-400">Kaydedildi</span> : null}
         </h3>
         <VehicleForm
-          key={vehicle.id}
+          key={`${vehicle.id}-${catalog.length}`}
+          catalog={catalog}
           initial={vehicle}
           submitLabel="Kaydet"
           onSubmit={async (input) => {

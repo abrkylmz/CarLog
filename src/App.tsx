@@ -14,6 +14,7 @@ import NewVehiclePage from "./pages/NewVehiclePage";
 import UsersPage from "./pages/UsersPage";
 import VehiclePage from "./pages/VehiclePage";
 import type {
+  CatalogEntry,
   Expense,
   ExpenseInput,
   FuelEntry,
@@ -91,6 +92,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   const [entries, setEntries] = useState<FuelEntry[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   /** undefined = closed, "" = all vehicles, otherwise the pre-selected vehicle id. */
   const [exportFor, setExportFor] = useState<string | undefined>(undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -107,6 +109,8 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
         api.listExpenses(),
         api.listReminders(),
       ]);
+      // The catalog is optional: without it the vehicle form falls back to manual entry.
+      api.listCatalog().then(setCatalog, () => undefined);
       setVehicles(v);
       setEntries(e);
       setExpenses(x);
@@ -291,7 +295,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       />
     );
   } else if (route.name === "new-vehicle") {
-    page = <NewVehiclePage onCreate={addVehicle} />;
+    page = <NewVehiclePage catalog={catalog} onCreate={addVehicle} />;
   } else if (route.name === "vehicle") {
     const vehicle = vehicles.find((v) => v.id === route.id);
     page = vehicle ? (
@@ -311,6 +315,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
         onUpdateVehicle={updateVehicle}
         onExport={() => setExportFor(vehicle.id)}
         currentUser={user}
+        catalog={catalog}
         canEdit={canEditIn(vehicle)}
         onLeft={async () => {
           navigate(paths.home);

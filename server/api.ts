@@ -36,6 +36,7 @@ import {
 } from "./auth.ts";
 import {
   accessibleVehicles,
+  catalogUpsert,
   ENTRY_SELECT,
   EXPENSE_SELECT,
   insertEntryStatement,
@@ -44,6 +45,7 @@ import {
   query,
   queryOne,
   REMINDER_SELECT,
+  toCatalogEntry,
   toEntry,
   toExpense,
   toReminder,
@@ -55,6 +57,7 @@ import {
 } from "./db.ts";
 import {
   checkPassword,
+  parseCatalogInput,
   parseCredentials,
   parseEntryInput,
   parseExpenseInput,
@@ -261,7 +264,12 @@ api.post("/vehicles", requireUser, async (req, res) => {
   const parsed = parseVehicleInput(req.body);
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
 
-  const vehicle = { ...parsed.value, id: randomUUID(), createdAt: new Date().toISOString() };
+  const vehicle = {
+    ...parsed.value,
+    catalogId: await knownCatalogId(parsed.value.catalogId),
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+  };
   await transaction([
     insertVehicleStatement(vehicle),
     {
@@ -279,7 +287,8 @@ api.put("/vehicles/:id", requireUser, async (req, res) => {
 
   const v: VehicleInput = parsed.value;
   await query(
-    `UPDATE vehicles SET name = $1, brand = $2, model = $3, year = $4, plate = $5, fuel_type = $6, tank_capacity = $7
+    `UPDATE vehicles SET name = $1, brand = $2, model = $3, year = $4, plate = $5, fuel_type = $6, tank_capacity = $7,
+       catalog_id = $9
      WHERE id = $8`,
     [
       v.name,
@@ -290,6 +299,7 @@ api.put("/vehicles/:id", requireUser, async (req, res) => {
       v.fuelType,
       v.tankCapacity ?? null,
       paramId(req),
+      (await knownCatalogId(v.catalogId)) ?? null,
     ],
   );
   res.json(await myVehicle(req, paramId(req)));
@@ -299,6 +309,81 @@ api.delete("/vehicles/:id", requireUser, async (req, res) => {
   if (!(await guardVehicle(req, res, "owner"))) return;
   await query("DELETE FROM vehicles WHERE id = $1", [paramId(req)]);
   res.status(204).end();
+});
+
+// ---- Vehicle catalog -------------------------------------------------------
+
+/** A catalog id the client sent, if it (still) exists; otherwise the vehicle counts as hand-entered. */
+async function knownCatalogId(id: string | undefined): Promise<string | undefined> {
+  if (!id) return undefined;
+  return (await queryOne("SELECT 1 FROM vehicle_catalog WHERE id = $1", [id])) ? id : undefined;
+}
+
+api.get("/catalog", requireUser, async (_req, res) => {
+  res.json((await query("SELECT * FROM vehicle_catalog ORDER BY brand, model, year_from")).map(toCatalogEntry));
+});
+
+function catalogId(input: { brand: string; model: string; generation: string }): string {
+  const slug = (t: string) =>
+    t
+      .toLocaleLowerCase("tr-TR")
+      .replace(/[çğıöşü]/g, (c) => ({ ç: "c", ğ: "g", ı: "i", ö: "o", ş: "s", ü: "u" })[c]!)
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+  return `${slug(input.brand)}-${slug(input.model)}-${slug(input.generation)}-${randomUUID().slice(0, 6)}`;
+}
+
+api.post("/catalog", requireAdmin, async (req, res) => {
+  const parsed = parseCatalogInput(req.body);
+  if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
+  const entry = { ...parsed.value, id: catalogId(parsed.value) };
+  const insert = catalogUpsert(entry);
+  await query(insert.text, insert.params);
+  res.status(201).json(entry);
+});
+
+api.put("/catalog/:id", requireAdmin, async (req, res) => {
+  const parsed = parseCatalogInput(req.body);
+  if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
+  const e = parsed.value;
+  const row = await queryOne(
+    `UPDATE vehicle_catalog SET brand = $1, model = $2, generation = $3, year_from = $4, year_to = $5, fuel_types = $6,
+       tank_capacity = $7, lpg_tank_capacity = $8, note = $9
+     WHERE id = $10 RETURNING *`,
+    [e.brand, e.model, e.generation, e.yearFrom, e.yearTo ?? null, e.fuelTypes.join(","), e.tankCapacity, e.lpgTankCapacity ?? null, e.note ?? null, paramId(req)],
+  );
+  if (!row) return void res.status(404).json({ error: "Katalog kaydı bulunamadı." });
+  res.json(toCatalogEntry(row));
+});
+
+/** Vehicles picked from this entry keep their data and simply become hand-entered. */
+api.delete("/catalog/:id", requireAdmin, async (req, res) => {
+  const [, deleted] = await transaction([
+    { text: "UPDATE vehicles SET catalog_id = NULL WHERE catalog_id = $1", params: [paramId(req)] },
+    { text: "DELETE FROM vehicle_catalog WHERE id = $1 RETURNING id", params: [paramId(req)] },
+  ]);
+  if (deleted.length === 0) return void res.status(404).json({ error: "Katalog kaydı bulunamadı." });
+  res.status(204).end();
+});
+
+/** Hand-entered makes and models, counted only: the admin learns what to add, not whose car it is. */
+api.get("/catalog/missing", requireAdmin, async (_req, res) => {
+  const rows = await query(
+    `SELECT initcap(trim(brand)) AS brand, initcap(trim(model)) AS model, year, fuel_type, COUNT(*) AS n
+     FROM vehicles
+     WHERE catalog_id IS NULL AND brand IS NOT NULL AND model IS NOT NULL
+     GROUP BY 1, 2, 3, 4
+     ORDER BY n DESC, 1, 2`,
+  );
+  res.json(
+    rows.map((r) => ({
+      brand: r.brand as string,
+      model: r.model as string,
+      year: r.year == null ? undefined : Number(r.year),
+      fuelType: r.fuel_type,
+      count: Number(r.n),
+    })),
+  );
 });
 
 // ---- Sharing: members and invite links ---------------------------------------

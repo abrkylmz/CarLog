@@ -1,5 +1,7 @@
 import { join } from "node:path";
+import { CATALOG_SEED, CATALOG_SEED_VERSION } from "./catalogSeed.ts";
 import type {
+  CatalogEntry,
   Expense,
   ExpenseCategory,
   FuelEntry,
@@ -124,6 +126,22 @@ const SCHEMA: string[] = [
   `ALTER TABLE entries ADD COLUMN IF NOT EXISTS is_full BOOLEAN`,
   `ALTER TABLE entries ADD COLUMN IF NOT EXISTS gauge_before DOUBLE PRECISION`,
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS tank_capacity DOUBLE PRECISION`,
+  // Vehicle catalog (brand → model → generation → fuel, with factory tank size). catalog_id on
+  // vehicles has no foreign key so it can be added to existing tables; deletes clear it by hand.
+  `CREATE TABLE IF NOT EXISTS vehicle_catalog (
+     id                TEXT PRIMARY KEY,
+     brand             TEXT NOT NULL,
+     model             TEXT NOT NULL,
+     generation        TEXT NOT NULL,
+     year_from         INTEGER NOT NULL,
+     year_to           INTEGER,
+     fuel_types        TEXT NOT NULL,
+     tank_capacity     DOUBLE PRECISION NOT NULL,
+     lpg_tank_capacity DOUBLE PRECISION,
+     note              TEXT
+   )`,
+  `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS catalog_id TEXT`,
+  `CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS reminders (
      id            TEXT PRIMARY KEY,
      vehicle_id    TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
@@ -177,6 +195,7 @@ function getDb(): Promise<Db> {
     const db = await connect();
     for (const statement of SCHEMA) await db.query(statement);
     await assignOwnerlessVehicles(db);
+    await seedCatalog(db);
     return db;
   })().catch((err) => {
     ready = null; // let the next request retry instead of failing forever
@@ -218,6 +237,57 @@ async function assignOwnerlessVehicles(db: Db): Promise<void> {
   ]);
 }
 
+/** Inserts the starter catalog once per CATALOG_SEED_VERSION, leaving admin edits alone. */
+async function seedCatalog(db: Db): Promise<void> {
+  const row = (await db.query("SELECT value FROM app_meta WHERE key = 'catalog_seed_version'"))[0];
+  if (row && Number(row.value) >= CATALOG_SEED_VERSION) return;
+  await db.transaction([
+    ...CATALOG_SEED.map((entry) => {
+      const insert = catalogUpsert(entry);
+      return { ...insert, text: `${insert.text} ON CONFLICT (id) DO NOTHING` };
+    }),
+    {
+      text: `INSERT INTO app_meta (key, value) VALUES ('catalog_seed_version', $1)
+             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+      params: [String(CATALOG_SEED_VERSION)],
+    },
+  ]);
+}
+
+export function catalogUpsert(e: CatalogEntry): Statement {
+  return {
+    text: `INSERT INTO vehicle_catalog (id, brand, model, generation, year_from, year_to, fuel_types, tank_capacity, lpg_tank_capacity, note)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    params: [
+      e.id,
+      e.brand,
+      e.model,
+      e.generation,
+      e.yearFrom,
+      e.yearTo ?? null,
+      e.fuelTypes.join(","),
+      e.tankCapacity,
+      e.lpgTankCapacity ?? null,
+      e.note ?? null,
+    ],
+  };
+}
+
+export function toCatalogEntry(row: Row): CatalogEntry {
+  return {
+    id: row.id as string,
+    brand: row.brand as string,
+    model: row.model as string,
+    generation: row.generation as string,
+    yearFrom: Number(row.year_from),
+    yearTo: row.year_to == null ? undefined : Number(row.year_to),
+    fuelTypes: String(row.fuel_types).split(",") as FuelType[],
+    tankCapacity: Number(row.tank_capacity),
+    lpgTankCapacity: row.lpg_tank_capacity == null ? undefined : Number(row.lpg_tank_capacity),
+    note: (row.note as string | null) ?? undefined,
+  };
+}
+
 /** Exposed for scripts that insert vehicles directly (the SQLite migration). */
 export async function assignOwnersToOrphanVehicles(): Promise<void> {
   await assignOwnerlessVehicles(await getDb());
@@ -254,6 +324,7 @@ export function toVehicle(row: Row): Vehicle {
     plate: (row.plate as string | null) ?? undefined,
     fuelType: row.fuel_type as FuelType,
     tankCapacity: row.tank_capacity == null ? undefined : Number(row.tank_capacity),
+    catalogId: (row.catalog_id as string | null) ?? undefined,
     createdAt: row.created_at as string,
     myRole: (row.my_role as VehicleRole | undefined) ?? undefined,
     ownerName: row.owner_name === undefined ? undefined : ((row.owner_name as string | null) ?? null),
@@ -356,8 +427,8 @@ export const ENTRY_SELECT = `
 
 export function insertVehicleStatement(v: Vehicle, { ignoreExisting = false } = {}): Statement {
   return {
-    text: `INSERT INTO vehicles (id, name, brand, model, year, plate, fuel_type, created_at, tank_capacity)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    text: `INSERT INTO vehicles (id, name, brand, model, year, plate, fuel_type, created_at, tank_capacity, catalog_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            ${ignoreExisting ? "ON CONFLICT (id) DO NOTHING" : ""}
            RETURNING id`,
     params: [
@@ -370,6 +441,7 @@ export function insertVehicleStatement(v: Vehicle, { ignoreExisting = false } = 
       v.fuelType,
       v.createdAt,
       v.tankCapacity ?? null,
+      v.catalogId ?? null,
     ],
   };
 }
