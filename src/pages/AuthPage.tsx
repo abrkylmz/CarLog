@@ -6,15 +6,18 @@ import type { User } from "../types";
 
 interface UserAuthProps {
   onAuthenticated: (user: User) => void;
+  /** Extra context above the form, e.g. which vehicle an invite link is for. */
+  notice?: React.ReactNode;
 }
 
 /** Main-page panel for regular users: sign in or create an account. */
-export function UserAuthPage({ onAuthenticated }: UserAuthProps) {
+export function UserAuthPage({ onAuthenticated, notice }: UserAuthProps) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const isRegister = mode === "register";
 
   return (
     <AuthShell subtitle="Yakıt gideri takibi">
+      {notice}
       <div className="mb-4 grid grid-cols-2 rounded-lg bg-slate-100 p-1 text-sm font-medium dark:bg-slate-800">
         {(["login", "register"] as const).map((m) => (
           <button

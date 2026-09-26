@@ -8,6 +8,7 @@ import { api, errorMessage, UNAUTHORIZED_EVENT, type AdminSetupState } from "./l
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL, parseAmount } from "./lib/format";
 import { navigate, paths, useHashRoute, type Route } from "./lib/router";
 import { AdminAuthPage, UserAuthPage } from "./pages/AuthPage";
+import InvitePage, { InviteNotice } from "./pages/InvitePage";
 import HomePage from "./pages/HomePage";
 import NewVehiclePage from "./pages/NewVehiclePage";
 import UsersPage from "./pages/UsersPage";
@@ -64,7 +65,10 @@ export default function App() {
     return route.name === "admin" ? (
       <AdminAuthPage adminSetup={auth.adminSetup} onAuthenticated={onAuthenticated} />
     ) : (
-      <UserAuthPage onAuthenticated={onAuthenticated} />
+      <UserAuthPage
+        onAuthenticated={onAuthenticated}
+        notice={route.name === "invite" ? <InviteNotice token={route.token} /> : undefined}
+      />
     );
   }
 
@@ -169,7 +173,9 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     }
   }
 
-  const canEdit = (record: { createdById: string | null }) => isAdmin || record.createdById === user.id;
+  // Per vehicle: the owner may edit any record there, helpers only their own.
+  const canEditIn = (vehicle: Vehicle) => (record: { createdById: string | null }) =>
+    vehicle.myRole === "owner" || record.createdById === user.id;
 
   async function updateEntry(id: string, input: FuelEntryInput) {
     const entry = await api.updateEntry(id, input);
@@ -274,6 +280,16 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     );
   } else if (route.name === "admin") {
     page = isAdmin ? <UsersPage currentUser={user} /> : <NotAllowed />;
+  } else if (route.name === "invite") {
+    page = (
+      <InvitePage
+        token={route.token}
+        onAccepted={async (vehicleId) => {
+          await reload();
+          navigate(paths.vehicle(vehicleId));
+        }}
+      />
+    );
   } else if (route.name === "new-vehicle") {
     page = <NewVehiclePage onCreate={addVehicle} />;
   } else if (route.name === "vehicle") {
@@ -294,11 +310,16 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
         onCompleteReminder={completeReminder}
         onUpdateVehicle={updateVehicle}
         onExport={() => setExportFor(vehicle.id)}
-        canEdit={canEdit}
-        onDeleteEntry={isAdmin ? deleteEntry : undefined}
-        onDeleteExpense={isAdmin ? deleteExpense : undefined}
-        onDeleteReminder={isAdmin ? deleteReminder : undefined}
-        onDeleteVehicle={isAdmin ? deleteVehicle : undefined}
+        currentUser={user}
+        canEdit={canEditIn(vehicle)}
+        onLeft={async () => {
+          navigate(paths.home);
+          await reload();
+        }}
+        onDeleteEntry={vehicle.myRole === "owner" ? deleteEntry : undefined}
+        onDeleteExpense={vehicle.myRole === "owner" ? deleteExpense : undefined}
+        onDeleteReminder={vehicle.myRole === "owner" ? deleteReminder : undefined}
+        onDeleteVehicle={vehicle.myRole === "owner" ? deleteVehicle : undefined}
       />
     ) : (
       <>
@@ -315,7 +336,6 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
         entries={entries}
         expenses={expenses}
         reminders={reminders}
-        isAdmin={isAdmin}
         onReload={reload}
         onExport={() => setExportFor("")}
       />

@@ -33,12 +33,37 @@ indirir (UTF-8 BOM, `;` ayırıcı, virgüllü ondalık).
   yalnızca ana sayfadan giriş yapar. Giriş sonrası üst menüdeki **Yönetici
   Paneli**'nden kullanıcı eklenir (yönetici dahil), şifre değiştirilir, kullanıcı
   silinir.
-- **Kullanıcı**: araç, dolum, masraf ve hatırlatma ekleyebilir; araç bilgilerini ve
-  **kendi eklediği** kayıtları düzenleyebilir, hatırlatmaları tamamlayabilir.
-- **Yönetici**: bunlara ek olarak her kaydı düzenleyebilir, dolum/masraf/hatırlatma/araç
-  silebilir ve kullanıcıları yönetir.
-  Silme yetkisi sunucuda da kontrol edilir.
-- Her dolum ve masrafın altında onu **kimin eklediği** küçük yazıyla görünür.
+- **Yönetici** yalnızca hesapları yönetir; başkalarının araçlarını göremez. Kendi
+  araçları için o da sıradan bir kullanıcıdır.
+
+### Araç sahipliği ve paylaşım
+
+Her kullanıcı yalnızca **sahibi olduğu** ve **kendisiyle paylaşılan** araçları görür
+(ana ekranda "Araçlarım" ve "Benimle Paylaşılanlar"). Aracı ekleyen kişi sahibidir.
+
+| | Sahip | Yardımcı |
+|---|---|---|
+| Aracı ve kayıtlarını görür | ✔ | ✔ |
+| Dolum, masraf, hatırlatma ekler; hatırlatma tamamlar | ✔ | ✔ |
+| Kayıt düzenler | hepsini | kendi eklediklerini |
+| Kayıt / araç siler, araç bilgilerini değiştirir | ✔ | – |
+| Paylaşımı yönetir (davet, çıkarma) | ✔ | – (yalnızca ayrılabilir) |
+
+Sahip, aracın **Paylaşım** sekmesinden:
+- **Davet linki** oluşturur (7 gün geçerli, çok kullanımlık, iptal edilebilir) ve
+  Paylaş/Kopyala ile gönderir. Linki açan kişi giriş yapar ya da hesap açar, daveti
+  kabul edince yardımcı olur. Veritabanında linkin yalnızca özeti (SHA-256) tutulur.
+- Hesabı olan birini **kullanıcı adıyla** doğrudan ekler, yardımcıları çıkarır.
+
+Tüm kurallar sunucuda uygulanır ([server/access.ts](server/access.ts)); erişimi
+olmayan bir araç "bulunamadı" yanıtı verir. Her kaydın altında onu **kimin
+eklediği** (ve düzenlendiyse kimin düzenlediği) görünür.
+
+Bir kullanıcı silinirse sahibi olduğu araçlar en eski yardımcısına devredilir;
+yardımcısı olmayan araçlar kayıtlarıyla silinir (yönetici panelinde önce uyarı çıkar).
+
+Paylaşımdan önceki veriler ilk açılışta otomatik düzenlenir: sahipsiz araçlar en
+eski yöneticiye verilir, o araçlara kayıt girmiş herkes yardımcı olur.
 
 ### İlk yönetici
 
@@ -120,16 +145,19 @@ api/
 server/
   app.ts            /api Express uygulaması (Vercel ve yerel sunucu ortak)
   index.ts          Yerel sunucu; geliştirmede Vite'ı ara katman olarak çalıştırır
-  api.ts            Uç noktalar (auth, vehicles, entries, expenses, reminders, users, import)
-  auth.ts           Şifre hash'leme, oturumlar, yetki ve giriş denemesi kontrolü
+  api.ts            Uç noktalar (auth, vehicles, members, invites, entries, expenses,
+                    reminders, users, import)
+  auth.ts           Şifre hash'leme, oturumlar, rol ve giriş denemesi kontrolü
+  access.ts         Araç bazlı erişim kuralları (sahip / yardımcı)
   db.ts             Postgres bağlantısı (Neon / PGlite), şema ve satır dönüşümleri
   validate.ts       Gelen verinin doğrulanması
   migrate-sqlite.ts Eski data/carlog.db verisini Postgres'e taşır
 src/
-  pages/            AuthPage, HomePage (Garajım), NewVehiclePage, VehiclePage, UsersPage
+  pages/            AuthPage, HomePage (Garajım), NewVehiclePage, VehiclePage, UsersPage,
+                    InvitePage (davet linki)
   components/       VehicleCard, VehicleForm, EntryForm, EntryTable, ExpenseForm, ExpenseList,
                     CategoryBreakdown, MonthlySummaryTable, SpendChart, StatCard, BackLink,
-                    Reminders, UpcomingReminders, ExportDialog, Modal, DialogProvider,
+                    Reminders, UpcomingReminders, SharePanel, ExportDialog, Modal, DialogProvider,
                     LegacyImportBanner
   lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, reminders.ts,
                     export.ts (CSV), legacy.ts,

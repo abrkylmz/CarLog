@@ -4,7 +4,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { databaseUrl, query, transaction, type Statement } from "./db.ts";
+import { assignOwnersToOrphanVehicles, databaseUrl, query, transaction, type Statement } from "./db.ts";
 
 const source = process.argv[2] ?? join(import.meta.dirname, "..", "data", "carlog.db");
 if (!existsSync(source)) {
@@ -56,6 +56,8 @@ for (const e of entries) {
 console.log(`Hedef: ${databaseUrl() ? "Postgres (DATABASE_URL)" : "yerel PGlite (data/pglite)"}`);
 await query("SELECT 1"); // creates the tables if needed
 const results = statements.length > 0 ? await transaction(statements) : [];
+// Copied vehicles have no owner yet: give them to the admin, contributors become helpers.
+await assignOwnersToOrphanVehicles();
 
 const count = (from: number, to: number) => results.slice(from, to).filter((r) => r.length > 0).length;
 const u = users.length;

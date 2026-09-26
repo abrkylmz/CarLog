@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { KeyRound, ShieldCheck, Trash2, UserPlus, UserRound } from "lucide-react";
 import BackLink from "../components/BackLink";
 import { useDialog } from "../components/DialogProvider";
-import { api, errorMessage } from "../lib/api";
+import { api, ApiError, errorMessage } from "../lib/api";
 import { formatDate } from "../lib/format";
 import type { Role, User } from "../types";
 
@@ -56,7 +56,20 @@ export default function UsersPage({ currentUser }: Props) {
     });
     if (!confirmed) return;
     try {
-      await api.deleteUser(user.id);
+      try {
+        await api.deleteUser(user.id);
+      } catch (err) {
+        // 409: the user owns vehicles; the server explains what happens to them.
+        if (!(err instanceof ApiError && err.status === 409)) throw err;
+        const sure = await dialog.confirm({
+          title: "Kullanıcının araçları var",
+          message: `${err.message} Devam edilsin mi?`,
+          tone: "danger",
+          confirmLabel: "Yine de Sil",
+        });
+        if (!sure) return;
+        await api.deleteUser(user.id, true);
+      }
       setUsers((prev) => prev?.filter((u) => u.id !== user.id) ?? null);
     } catch (err) {
       await dialog.alert({ title: "Kullanıcı silinemedi", message: errorMessage(err), tone: "danger" });
@@ -69,7 +82,8 @@ export default function UsersPage({ currentUser }: Props) {
       <h2 className="text-lg font-semibold">Yönetici Paneli</h2>
       <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
         Kullanıcı hesaplarını yönetin. Kayıt olan herkes normal kullanıcı olarak eklenir; buradan yönetici
-        hesabı da oluşturabilirsiniz.
+        hesabı da oluşturabilirsiniz. Yöneticiler başkalarının araçlarını göremez; her kullanıcının verisi yalnızca
+        kendisine ve aracını paylaştığı kişilere açıktır.
       </p>
 
       <section className="mb-8">

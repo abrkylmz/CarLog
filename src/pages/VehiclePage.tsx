@@ -11,6 +11,7 @@ import Modal from "../components/Modal";
 import MonthlySummaryTable from "../components/MonthlySummaryTable";
 import { ReminderForm, ReminderList } from "../components/Reminders";
 import SpendChart from "../components/SpendChart";
+import SharePanel from "../components/SharePanel";
 import StatCard from "../components/StatCard";
 import UpcomingReminders from "../components/UpcomingReminders";
 import VehicleForm from "../components/VehicleForm";
@@ -24,6 +25,7 @@ import type {
   FuelEntryInput,
   Reminder,
   ReminderInput,
+  User,
   Vehicle,
   VehicleInput,
 } from "../types";
@@ -46,9 +48,12 @@ interface Props {
   onCompleteReminder: (reminder: Reminder, latestKm: number | null) => void;
   onUpdateVehicle: (id: string, input: VehicleInput) => Promise<void>;
   onExport: () => void;
-  /** Admins may edit everything, users only their own records. */
+  currentUser: User;
+  /** The vehicle's owner may edit every record, helpers only their own. */
   canEdit: (record: Authored) => boolean;
-  /** Delete handlers are only passed for admins. */
+  /** Called after the current user leaves this shared vehicle. */
+  onLeft: () => void;
+  /** Delete handlers are only passed to the vehicle's owner. */
   onDeleteEntry?: (id: string) => void;
   onDeleteExpense?: (id: string) => void;
   onDeleteReminder?: (reminder: Reminder) => void;
@@ -69,7 +74,9 @@ export default function VehiclePage({
   onUpdateReminder,
   onCompleteReminder,
   onExport,
+  currentUser,
   canEdit,
+  onLeft,
   onDeleteEntry,
   onDeleteExpense,
   onDeleteReminder,
@@ -294,6 +301,8 @@ export default function VehiclePage({
         </section>
       )}
 
+      {tab === "paylasim" && <SharePanel vehicle={vehicle} currentUser={currentUser} onLeft={onLeft} />}
+
       {tab === "bilgiler" && (
         <VehicleSettings
           vehicle={vehicle}
@@ -377,6 +386,33 @@ function VehicleSettings({
       confirmLabel: "Aracı Sil",
     });
     if (confirmed) onDelete?.(vehicle.id);
+  }
+
+  if (vehicle.myRole !== "owner") {
+    const rows: [string, string | undefined][] = [
+      ["Araç Adı", vehicle.name],
+      ["Plaka", vehicle.plate],
+      ["Marka", vehicle.brand],
+      ["Model", vehicle.model],
+      ["Model Yılı", vehicle.year ? String(vehicle.year) : undefined],
+      ["Yakıt Türü", FUEL_TYPE_LABELS[vehicle.fuelType]],
+      ["Sahibi", vehicle.ownerName ?? undefined],
+    ];
+    return (
+      <section>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3">
+          {rows.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-xs text-slate-500 dark:text-slate-400">{label}</dt>
+              <dd className="font-medium">{value || "—"}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+          Araç bilgilerini yalnızca aracın sahibi değiştirebilir.
+        </p>
+      </section>
+    );
   }
 
   return (

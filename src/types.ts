@@ -9,6 +9,9 @@ export interface User {
   createdAt: string;
 }
 
+/** A user's relation to a vehicle: the owner manages it, helpers add records to it. */
+export type VehicleRole = "owner" | "helper";
+
 export interface Vehicle {
   id: string;
   /** Short display name, e.g. "Aile arabası" */
@@ -19,10 +22,38 @@ export interface Vehicle {
   plate?: string;
   fuelType: FuelType;
   createdAt: string;
+  /** The signed-in user's role on this vehicle (set by the server on reads). */
+  myRole?: VehicleRole;
+  /** Username of the owner (set by the server on reads). */
+  ownerName?: string | null;
 }
 
-/** Fields the client sends when creating or editing a vehicle; the server owns id and createdAt. */
-export type VehicleInput = Omit<Vehicle, "id" | "createdAt">;
+/** Fields the client sends when creating or editing a vehicle; the server owns the rest. */
+export type VehicleInput = Omit<Vehicle, "id" | "createdAt" | "myRole" | "ownerName">;
+
+export interface VehicleMember {
+  userId: string;
+  username: string;
+  role: VehicleRole;
+  addedAt: string;
+}
+
+/** A shareable link that makes whoever opens it (after signing in) a helper on the vehicle. */
+export interface VehicleInvite {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  useCount: number;
+  createdBy: string | null;
+}
+
+/** What an invite link shows before the visitor signs in. */
+export interface InvitePreview {
+  vehicleName: string;
+  plate?: string;
+  ownerName: string | null;
+  expiresAt: string;
+}
 
 export interface FuelEntry {
   id: string;

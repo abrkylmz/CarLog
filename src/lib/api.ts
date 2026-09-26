@@ -3,12 +3,15 @@ import type {
   ExpenseInput,
   FuelEntry,
   FuelEntryInput,
+  InvitePreview,
   Reminder,
   ReminderInput,
   Role,
   User,
   Vehicle,
   VehicleInput,
+  VehicleInvite,
+  VehicleMember,
 } from "../types";
 
 export class ApiError extends Error {
@@ -67,6 +70,24 @@ export const api = {
     request<Vehicle>("PUT", `/vehicles/${encodeURIComponent(id)}`, input),
   deleteVehicle: (id: string) => request<void>("DELETE", `/vehicles/${encodeURIComponent(id)}`),
 
+  listMembers: (vehicleId: string) =>
+    request<VehicleMember[]>("GET", `/vehicles/${encodeURIComponent(vehicleId)}/members`),
+  addMember: (vehicleId: string, username: string) =>
+    request<VehicleMember[]>("POST", `/vehicles/${encodeURIComponent(vehicleId)}/members`, { username }),
+  /** The owner removes a helper, or a helper passes their own id to leave. */
+  removeMember: (vehicleId: string, userId: string) =>
+    request<void>("DELETE", `/vehicles/${encodeURIComponent(vehicleId)}/members/${encodeURIComponent(userId)}`),
+  listInvites: (vehicleId: string) =>
+    request<VehicleInvite[]>("GET", `/vehicles/${encodeURIComponent(vehicleId)}/invites`),
+  /** The token is only returned here; the server keeps just its hash. */
+  createInvite: (vehicleId: string) =>
+    request<{ invite: VehicleInvite; token: string }>("POST", `/vehicles/${encodeURIComponent(vehicleId)}/invites`),
+  revokeInvite: (vehicleId: string, inviteId: string) =>
+    request<void>("DELETE", `/vehicles/${encodeURIComponent(vehicleId)}/invites/${encodeURIComponent(inviteId)}`),
+  invitePreview: (token: string) => request<InvitePreview>("GET", `/invites/${encodeURIComponent(token)}`),
+  acceptInvite: (token: string) =>
+    request<{ vehicleId: string; alreadyMember: boolean }>("POST", `/invites/${encodeURIComponent(token)}/accept`),
+
   listEntries: () => request<FuelEntry[]>("GET", "/entries"),
   createEntry: (input: FuelEntryInput) => request<FuelEntry>("POST", "/entries", input),
   updateEntry: (id: string, input: FuelEntryInput) =>
@@ -97,7 +118,9 @@ export const api = {
     request<User>("POST", "/users", { username, password, role }),
   setUserPassword: (id: string, password: string) =>
     request<void>("PUT", `/users/${encodeURIComponent(id)}/password`, { password }),
-  deleteUser: (id: string) => request<void>("DELETE", `/users/${encodeURIComponent(id)}`),
+  /** Without force, a user who owns vehicles gets a 409 describing what would happen. */
+  deleteUser: (id: string, force = false) =>
+    request<void>("DELETE", `/users/${encodeURIComponent(id)}${force ? "?force=1" : ""}`),
 
   importLegacy: (data: { vehicles: unknown[]; entries: unknown[] }) =>
     request<{ vehicles: number; entries: number }>("POST", "/import", data),

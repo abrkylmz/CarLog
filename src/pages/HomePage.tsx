@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Car, Download, Plus } from "lucide-react";
+import { Car, Download, Plus, Users } from "lucide-react";
 import LegacyImportBanner from "../components/LegacyImportBanner";
 import StatCard from "../components/StatCard";
 import UpcomingReminders from "../components/UpcomingReminders";
@@ -15,12 +15,11 @@ interface Props {
   entries: FuelEntry[];
   expenses: Expense[];
   reminders: Reminder[];
-  isAdmin: boolean;
   onReload: () => void;
   onExport: () => void;
 }
 
-export default function HomePage({ vehicles, entries, expenses, reminders, isAdmin, onReload, onExport }: Props) {
+export default function HomePage({ vehicles, entries, expenses, reminders, onReload, onExport }: Props) {
   const statsByVehicle = useMemo(
     () =>
       new Map(
@@ -51,7 +50,17 @@ export default function HomePage({ vehicles, entries, expenses, reminders, isAdm
     return counts;
   }, [reminders, latestKmByVehicle]);
   const split = (fuel: number, other: number) => `Yakıt ${formatTL(fuel)} · Diğer ${formatTL(other)}`;
-  const banner = isAdmin ? <LegacyImportBanner onImported={onReload} /> : null;
+  const banner = <LegacyImportBanner onImported={onReload} />;
+  const owned = vehicles.filter((v) => v.myRole === "owner");
+  const shared = vehicles.filter((v) => v.myRole !== "owner");
+  const card = (vehicle: Vehicle) => (
+    <VehicleCard
+      key={vehicle.id}
+      vehicle={vehicle}
+      stats={statsByVehicle.get(vehicle.id)!}
+      alerts={alertsByVehicle.get(vehicle.id)}
+    />
+  );
 
   if (vehicles.length === 0) {
     return (
@@ -123,14 +132,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, isAdm
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {vehicles.map((vehicle) => (
-            <VehicleCard
-              key={vehicle.id}
-              vehicle={vehicle}
-              stats={statsByVehicle.get(vehicle.id)!}
-              alerts={alertsByVehicle.get(vehicle.id)}
-            />
-          ))}
+          {owned.map(card)}
           <a
             href={paths.newVehicle}
             className="flex min-h-[10rem] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 text-sm font-medium text-slate-500 transition hover:border-brand-400 hover:text-brand-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-brand-500 dark:hover:text-brand-300"
@@ -140,6 +142,16 @@ export default function HomePage({ vehicles, entries, expenses, reminders, isAdm
           </a>
         </div>
       </section>
+
+      {shared.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300">
+            <Users size={15} />
+            Benimle Paylaşılanlar
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{shared.map(card)}</div>
+        </section>
+      ) : null}
     </>
   );
 }

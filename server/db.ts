@@ -10,6 +10,7 @@ import type {
   Role,
   User,
   Vehicle,
+  VehicleRole,
 } from "../src/types.ts";
 
 export type Row = Record<string, unknown>;
@@ -134,6 +135,27 @@ const SCHEMA: string[] = [
      created_at    TEXT NOT NULL
    )`,
   `CREATE INDEX IF NOT EXISTS reminders_vehicle ON reminders (vehicle_id)`,
+  // Who can see a vehicle: exactly one owner, any number of helpers.
+  `CREATE TABLE IF NOT EXISTS vehicle_members (
+     vehicle_id TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+     user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     role       TEXT NOT NULL CHECK (role IN ('owner', 'helper')),
+     added_at   TEXT NOT NULL,
+     PRIMARY KEY (vehicle_id, user_id)
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS vehicle_one_owner ON vehicle_members (vehicle_id) WHERE role = 'owner'`,
+  `CREATE INDEX IF NOT EXISTS vehicle_members_user ON vehicle_members (user_id)`,
+  // Invite links. Only a hash of the token is stored, so a leaked database can't be used to join.
+  `CREATE TABLE IF NOT EXISTS vehicle_invites (
+     id         TEXT PRIMARY KEY,
+     vehicle_id TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+     token_hash TEXT NOT NULL UNIQUE,
+     created_by TEXT,
+     created_at TEXT NOT NULL,
+     expires_at TIMESTAMPTZ NOT NULL,
+     revoked_at TEXT,
+     use_count  INTEGER NOT NULL DEFAULT 0
+   )`,
   // Failed logins live in the database because serverless instances don't share memory.
   `CREATE TABLE IF NOT EXISTS login_attempts (
      ip       TEXT PRIMARY KEY,
@@ -149,12 +171,51 @@ function getDb(): Promise<Db> {
   ready ??= (async () => {
     const db = await connect();
     for (const statement of SCHEMA) await db.query(statement);
+    await assignOwnerlessVehicles(db);
     return db;
   })().catch((err) => {
     ready = null; // let the next request retry instead of failing forever
     throw err;
   });
   return ready;
+}
+
+/**
+ * Vehicles from before per-user access (or added by the SQLite migration) have no owner.
+ * They go to the oldest admin (or oldest user); everyone who entered records on them becomes
+ * a helper, so nobody loses access. Only touches vehicles without an owner, so it's safe to rerun
+ * and never re-adds a helper the owner removed.
+ */
+async function assignOwnerlessVehicles(db: Db): Promise<void> {
+  const now = new Date().toISOString();
+  await db.transaction([
+    {
+      text: `INSERT INTO vehicle_members (vehicle_id, user_id, role, added_at)
+             SELECT DISTINCT c.vehicle_id, c.user_id, 'helper', $1
+             FROM (
+               SELECT vehicle_id, created_by AS user_id FROM entries
+               UNION SELECT vehicle_id, created_by FROM expenses
+               UNION SELECT vehicle_id, created_by FROM reminders
+             ) c
+             JOIN users u ON u.id = c.user_id
+             WHERE NOT EXISTS (SELECT 1 FROM vehicle_members m WHERE m.vehicle_id = c.vehicle_id AND m.role = 'owner')
+             ON CONFLICT DO NOTHING`,
+      params: [now],
+    },
+    {
+      text: `WITH o AS (SELECT id FROM users ORDER BY (role = 'admin') DESC, created_at LIMIT 1)
+             INSERT INTO vehicle_members (vehicle_id, user_id, role, added_at)
+             SELECT v.id, o.id, 'owner', $1 FROM vehicles v, o
+             WHERE NOT EXISTS (SELECT 1 FROM vehicle_members m WHERE m.vehicle_id = v.id AND m.role = 'owner')
+             ON CONFLICT (vehicle_id, user_id) DO UPDATE SET role = 'owner'`,
+      params: [now],
+    },
+  ]);
+}
+
+/** Exposed for scripts that insert vehicles directly (the SQLite migration). */
+export async function assignOwnersToOrphanVehicles(): Promise<void> {
+  await assignOwnerlessVehicles(await getDb());
 }
 
 export async function query(text: string, params: unknown[] = []): Promise<Row[]> {
@@ -188,7 +249,23 @@ export function toVehicle(row: Row): Vehicle {
     plate: (row.plate as string | null) ?? undefined,
     fuelType: row.fuel_type as FuelType,
     createdAt: row.created_at as string,
+    myRole: (row.my_role as VehicleRole | undefined) ?? undefined,
+    ownerName: row.owner_name === undefined ? undefined : ((row.owner_name as string | null) ?? null),
   };
+}
+
+/** Vehicles the user ($1) can access, with their role and the owner's name. */
+export const MY_VEHICLES_SELECT = `
+  SELECT v.*, m.role AS my_role, ou.username AS owner_name
+  FROM vehicles v
+  JOIN vehicle_members m ON m.vehicle_id = v.id AND m.user_id = $1
+  LEFT JOIN vehicle_members om ON om.vehicle_id = v.id AND om.role = 'owner'
+  LEFT JOIN users ou ON ou.id = om.user_id
+`;
+
+/** SQL condition limiting a table aliased `alias` to vehicles the user (`param`) can access. */
+export function accessibleVehicles(alias: string, param: string): string {
+  return `${alias}.vehicle_id IN (SELECT vehicle_id FROM vehicle_members WHERE user_id = ${param})`;
 }
 
 export function toEntry(row: Row): FuelEntry {

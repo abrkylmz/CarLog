@@ -1,6 +1,25 @@
-import { randomUUID } from "node:crypto";
-import { Router, type Request } from "express";
-import type { ExpenseCategory, ExpenseInput, FuelEntryInput, ReminderKind, VehicleInput } from "../src/types.ts";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { Router, type Request, type Response } from "express";
+import type {
+  ExpenseCategory,
+  ExpenseInput,
+  FuelEntryInput,
+  InvitePreview,
+  ReminderKind,
+  VehicleInput,
+  VehicleInvite,
+  VehicleMember,
+  VehicleRole,
+} from "../src/types.ts";
+import {
+  EDIT_OWN_ONLY,
+  NOT_FOUND,
+  OWNER_ONLY,
+  recordAccess,
+  VEHICLE_NOT_FOUND,
+  vehicleRole,
+  type RecordTable,
+} from "./access.ts";
 import {
   clearAttempts,
   createSession,
@@ -15,10 +34,12 @@ import {
   verifyPassword,
 } from "./auth.ts";
 import {
+  accessibleVehicles,
   ENTRY_SELECT,
   EXPENSE_SELECT,
   insertEntryStatement,
   insertVehicleStatement,
+  MY_VEHICLES_SELECT,
   query,
   queryOne,
   REMINDER_SELECT,
@@ -50,16 +71,25 @@ function paramId(req: Request): string {
  * Editing rule: admins may edit any record, users only what they entered themselves.
  * Returns an error response tuple, or null when the edit is allowed.
  */
-async function checkEditable(
-  req: Request,
-  table: "entries" | "expenses" | "reminders",
-): Promise<[number, string] | null> {
-  const row = await queryOne(`SELECT created_by FROM ${table} WHERE id = $1`, [paramId(req)]);
-  if (!row) return [404, "Kayıt bulunamadı."];
-  if (req.user!.role !== "admin" && row.created_by !== req.user!.id) {
-    return [403, "Yalnızca kendi eklediğiniz kayıtları düzenleyebilirsiniz."];
-  }
+async function checkEditable(req: Request, table: RecordTable): Promise<[number, string] | null> {
+  const access = await recordAccess(req, table, paramId(req));
+  if (!access) return [404, NOT_FOUND];
+  if (!access.canEdit) return [403, EDIT_OWN_ONLY];
+  // Records stay on their vehicle; a vehicleId in the body is ignored.
+  req.body = { ...req.body, vehicleId: access.vehicleId };
   return null;
+}
+
+async function checkDeletable(req: Request, table: RecordTable): Promise<[number, string] | null> {
+  const access = await recordAccess(req, table, paramId(req));
+  if (!access) return [404, NOT_FOUND];
+  if (!access.canDelete) return [403, OWNER_ONLY];
+  return null;
+}
+
+/** New records may only go to vehicles the caller is a member of. */
+async function isMember(req: Request, vehicleId: string): Promise<boolean> {
+  return (await vehicleRole(req.user!.id, vehicleId)) != null;
 }
 
 function todayIso(): string {
@@ -202,44 +232,228 @@ api.post("/auth/logout", async (req, res) => {
 
 // ---- Vehicles --------------------------------------------------------------
 
-api.get("/vehicles", requireUser, async (_req, res) => {
-  res.json((await query("SELECT * FROM vehicles ORDER BY created_at")).map(toVehicle));
+api.get("/vehicles", requireUser, async (req, res) => {
+  res.json((await query(`${MY_VEHICLES_SELECT} ORDER BY v.created_at`, [req.user!.id])).map(toVehicle));
 });
 
+async function myVehicle(req: Request, vehicleId: string) {
+  const row = await queryOne(`${MY_VEHICLES_SELECT} WHERE v.id = $2`, [req.user!.id, vehicleId]);
+  return row ? toVehicle(row) : null;
+}
+
+/** Resolves the caller's role on :id and answers 404/403 unless it's at least `needed`. */
+async function guardVehicle(req: Request, res: Response, needed: "member" | "owner"): Promise<boolean> {
+  const role = await vehicleRole(req.user!.id, paramId(req));
+  if (!role) {
+    res.status(404).json({ error: VEHICLE_NOT_FOUND });
+    return false;
+  }
+  if (needed === "owner" && role !== "owner") {
+    res.status(403).json({ error: OWNER_ONLY });
+    return false;
+  }
+  return true;
+}
+
+/** Whoever adds a vehicle becomes its owner. */
 api.post("/vehicles", requireUser, async (req, res) => {
   const parsed = parseVehicleInput(req.body);
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
 
   const vehicle = { ...parsed.value, id: randomUUID(), createdAt: new Date().toISOString() };
-  const statement = insertVehicleStatement(vehicle);
-  await query(statement.text, statement.params);
-  res.status(201).json(vehicle);
+  await transaction([
+    insertVehicleStatement(vehicle),
+    {
+      text: "INSERT INTO vehicle_members (vehicle_id, user_id, role, added_at) VALUES ($1, $2, 'owner', $3)",
+      params: [vehicle.id, req.user!.id, vehicle.createdAt],
+    },
+  ]);
+  res.status(201).json(await myVehicle(req, vehicle.id));
 });
 
 api.put("/vehicles/:id", requireUser, async (req, res) => {
+  if (!(await guardVehicle(req, res, "owner"))) return;
   const parsed = parseVehicleInput(req.body);
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
 
   const v: VehicleInput = parsed.value;
-  const row = await queryOne(
-    `UPDATE vehicles SET name = $1, brand = $2, model = $3, year = $4, plate = $5, fuel_type = $6
-     WHERE id = $7 RETURNING *`,
+  await query(
+    `UPDATE vehicles SET name = $1, brand = $2, model = $3, year = $4, plate = $5, fuel_type = $6 WHERE id = $7`,
     [v.name, v.brand ?? null, v.model ?? null, v.year ?? null, v.plate ?? null, v.fuelType, paramId(req)],
   );
-  if (!row) return void res.status(404).json({ error: "Araç bulunamadı." });
-  res.json(toVehicle(row));
+  res.json(await myVehicle(req, paramId(req)));
 });
 
-api.delete("/vehicles/:id", requireAdmin, async (req, res) => {
-  const row = await queryOne("DELETE FROM vehicles WHERE id = $1 RETURNING id", [paramId(req)]);
-  if (!row) return void res.status(404).json({ error: "Araç bulunamadı." });
+api.delete("/vehicles/:id", requireUser, async (req, res) => {
+  if (!(await guardVehicle(req, res, "owner"))) return;
+  await query("DELETE FROM vehicles WHERE id = $1", [paramId(req)]);
   res.status(204).end();
+});
+
+// ---- Sharing: members and invite links ---------------------------------------
+
+async function listMembers(vehicleId: string): Promise<VehicleMember[]> {
+  const rows = await query(
+    `SELECT m.user_id, u.username, m.role, m.added_at
+     FROM vehicle_members m JOIN users u ON u.id = m.user_id
+     WHERE m.vehicle_id = $1
+     ORDER BY (m.role = 'owner') DESC, m.added_at`,
+    [vehicleId],
+  );
+  return rows.map((r) => ({
+    userId: r.user_id as string,
+    username: r.username as string,
+    role: r.role as VehicleRole,
+    addedAt: r.added_at as string,
+  }));
+}
+
+/** Any member may see who else has access; only the owner changes it. */
+api.get("/vehicles/:id/members", requireUser, async (req, res) => {
+  if (!(await guardVehicle(req, res, "member"))) return;
+  res.json(await listMembers(paramId(req)));
+});
+
+/** Adds an existing account as a helper by username. */
+api.post("/vehicles/:id/members", requireUser, async (req, res) => {
+  if (!(await guardVehicle(req, res, "owner"))) return;
+  const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
+  const user = await queryOne("SELECT id FROM users WHERE lower(username) = lower($1)", [username]);
+  if (!user) return void res.status(404).json({ error: "Bu kullanıcı adıyla bir hesap yok." });
+
+  const added = await queryOne(
+    `INSERT INTO vehicle_members (vehicle_id, user_id, role, added_at) VALUES ($1, $2, 'helper', $3)
+     ON CONFLICT DO NOTHING RETURNING user_id`,
+    [paramId(req), user.id, new Date().toISOString()],
+  );
+  if (!added) return void res.status(409).json({ error: "Bu kişinin araca zaten erişimi var." });
+  res.status(201).json(await listMembers(paramId(req)));
+});
+
+/** The owner removes a helper, or a helper leaves the vehicle themselves. */
+api.delete("/vehicles/:id/members/:userId", requireUser, async (req, res) => {
+  const role = await vehicleRole(req.user!.id, paramId(req));
+  if (!role) return void res.status(404).json({ error: VEHICLE_NOT_FOUND });
+  const target = String(req.params.userId);
+  const leaving = target === req.user!.id;
+  if (leaving && role === "owner") {
+    return void res.status(400).json({ error: "Araç sahibi paylaşımdan ayrılamaz; aracı silebilirsiniz." });
+  }
+  if (!leaving && role !== "owner") return void res.status(403).json({ error: OWNER_ONLY });
+
+  const row = await queryOne(
+    "DELETE FROM vehicle_members WHERE vehicle_id = $1 AND user_id = $2 AND role = 'helper' RETURNING user_id",
+    [paramId(req), target],
+  );
+  if (!row) return void res.status(404).json({ error: "Bu kişi araçta yardımcı değil." });
+  res.status(204).end();
+});
+
+const INVITE_TTL_DAYS = 7;
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function toInvite(row: Row): VehicleInvite {
+  return {
+    id: row.id as string,
+    createdAt: row.created_at as string,
+    expiresAt: new Date(row.expires_at as string | Date).toISOString(),
+    useCount: Number(row.use_count),
+    createdBy: (row.created_by_name as string | null) ?? null,
+  };
+}
+
+api.get("/vehicles/:id/invites", requireUser, async (req, res) => {
+  if (!(await guardVehicle(req, res, "owner"))) return;
+  const rows = await query(
+    `SELECT i.*, u.username AS created_by_name
+     FROM vehicle_invites i LEFT JOIN users u ON u.id = i.created_by
+     WHERE i.vehicle_id = $1 AND i.revoked_at IS NULL AND i.expires_at > now()
+     ORDER BY i.created_at DESC`,
+    [paramId(req)],
+  );
+  res.json(rows.map(toInvite));
+});
+
+/** Creates a link; the token is returned only now, since just its hash is stored. */
+api.post("/vehicles/:id/invites", requireUser, async (req, res) => {
+  if (!(await guardVehicle(req, res, "owner"))) return;
+  const token = randomBytes(24).toString("base64url");
+  const id = randomUUID();
+  await query(
+    `INSERT INTO vehicle_invites (id, vehicle_id, token_hash, created_by, created_at, expires_at)
+     VALUES ($1, $2, $3, $4, $5, now() + ($6 || ' days')::interval)`,
+    [id, paramId(req), hashToken(token), req.user!.id, new Date().toISOString(), String(INVITE_TTL_DAYS)],
+  );
+  const row = await queryOne(
+    `SELECT i.*, u.username AS created_by_name FROM vehicle_invites i LEFT JOIN users u ON u.id = i.created_by
+     WHERE i.id = $1`,
+    [id],
+  );
+  res.status(201).json({ invite: toInvite(row!), token });
+});
+
+api.delete("/vehicles/:id/invites/:inviteId", requireUser, async (req, res) => {
+  if (!(await guardVehicle(req, res, "owner"))) return;
+  const row = await queryOne(
+    "UPDATE vehicle_invites SET revoked_at = $1 WHERE id = $2 AND vehicle_id = $3 AND revoked_at IS NULL RETURNING id",
+    [new Date().toISOString(), String(req.params.inviteId), paramId(req)],
+  );
+  if (!row) return void res.status(404).json({ error: "Davet bulunamadı." });
+  res.status(204).end();
+});
+
+const INVALID_INVITE = "Bu davet linki geçersiz, iptal edilmiş veya süresi dolmuş.";
+
+async function findInvite(token: string) {
+  return queryOne(
+    `SELECT i.id, i.vehicle_id, i.expires_at, v.name, v.plate, ou.username AS owner_name
+     FROM vehicle_invites i
+     JOIN vehicles v ON v.id = i.vehicle_id
+     LEFT JOIN vehicle_members om ON om.vehicle_id = v.id AND om.role = 'owner'
+     LEFT JOIN users ou ON ou.id = om.user_id
+     WHERE i.token_hash = $1 AND i.revoked_at IS NULL AND i.expires_at > now()`,
+    [hashToken(token)],
+  );
+}
+
+/** Public: what the link is for, shown before the visitor signs in or registers. */
+api.get("/invites/:token", async (req, res) => {
+  const invite = await findInvite(String(req.params.token));
+  if (!invite) return void res.status(404).json({ error: INVALID_INVITE });
+  const preview: InvitePreview = {
+    vehicleName: invite.name as string,
+    plate: (invite.plate as string | null) ?? undefined,
+    ownerName: (invite.owner_name as string | null) ?? null,
+    expiresAt: new Date(invite.expires_at as string | Date).toISOString(),
+  };
+  res.json(preview);
+});
+
+api.post("/invites/:token/accept", requireUser, async (req, res) => {
+  const invite = await findInvite(String(req.params.token));
+  if (!invite) return void res.status(404).json({ error: INVALID_INVITE });
+  const vehicleId = invite.vehicle_id as string;
+  const existing = await vehicleRole(req.user!.id, vehicleId);
+  if (existing) return void res.json({ vehicleId, alreadyMember: true });
+
+  await transaction([
+    {
+      text: `INSERT INTO vehicle_members (vehicle_id, user_id, role, added_at) VALUES ($1, $2, 'helper', $3)
+             ON CONFLICT DO NOTHING`,
+      params: [vehicleId, req.user!.id, new Date().toISOString()],
+    },
+    { text: "UPDATE vehicle_invites SET use_count = use_count + 1 WHERE id = $1", params: [invite.id] },
+  ]);
+  res.json({ vehicleId, alreadyMember: false });
 });
 
 // ---- Fill-ups --------------------------------------------------------------
 
-api.get("/entries", requireUser, async (_req, res) => {
-  res.json((await query(`${ENTRY_SELECT} ORDER BY e.date`)).map(toEntry));
+api.get("/entries", requireUser, async (req, res) => {
+  res.json((await query(`${ENTRY_SELECT} WHERE ${accessibleVehicles("e", "$1")} ORDER BY e.date`, [req.user!.id])).map(toEntry));
 });
 
 api.post("/entries", requireUser, async (req, res) => {
@@ -247,6 +461,7 @@ api.post("/entries", requireUser, async (req, res) => {
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
 
   const input: FuelEntryInput = parsed.value;
+  if (!(await isMember(req, input.vehicleId))) return void res.status(404).json({ error: VEHICLE_NOT_FOUND });
   const id = randomUUID();
   const statement = insertEntryStatement({ ...input, id, createdAt: new Date().toISOString() }, req.user!.id);
   if ((await query(statement.text, statement.params)).length === 0) {
@@ -284,7 +499,9 @@ api.put("/entries/:id", requireUser, async (req, res) => {
   res.json(toEntry((await queryOne(`${ENTRY_SELECT} WHERE e.id = $1`, [paramId(req)]))!));
 });
 
-api.delete("/entries/:id", requireAdmin, async (req, res) => {
+api.delete("/entries/:id", requireUser, async (req, res) => {
+  const denied = await checkDeletable(req, "entries");
+  if (denied) return void res.status(denied[0]).json({ error: denied[1] });
   const row = await queryOne("DELETE FROM entries WHERE id = $1 RETURNING id", [paramId(req)]);
   if (!row) return void res.status(404).json({ error: "Kayıt bulunamadı." });
   res.status(204).end();
@@ -292,8 +509,10 @@ api.delete("/entries/:id", requireAdmin, async (req, res) => {
 
 // ---- Other expenses (service, insurance, tolls, ...) --------------------------
 
-api.get("/expenses", requireUser, async (_req, res) => {
-  res.json((await query(`${EXPENSE_SELECT} ORDER BY x.date`)).map(toExpense));
+api.get("/expenses", requireUser, async (req, res) => {
+  res.json(
+    (await query(`${EXPENSE_SELECT} WHERE ${accessibleVehicles("x", "$1")} ORDER BY x.date`, [req.user!.id])).map(toExpense),
+  );
 });
 
 api.post("/expenses", requireUser, async (req, res) => {
@@ -301,6 +520,7 @@ api.post("/expenses", requireUser, async (req, res) => {
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
 
   const input: ExpenseInput = parsed.value;
+  if (!(await isMember(req, input.vehicleId))) return void res.status(404).json({ error: VEHICLE_NOT_FOUND });
   const id = randomUUID();
   const rows = await query(
     `INSERT INTO expenses (id, vehicle_id, date, category, amount, note, created_by, created_at)
@@ -331,7 +551,9 @@ api.put("/expenses/:id", requireUser, async (req, res) => {
   res.json(toExpense((await queryOne(`${EXPENSE_SELECT} WHERE x.id = $1`, [paramId(req)]))!));
 });
 
-api.delete("/expenses/:id", requireAdmin, async (req, res) => {
+api.delete("/expenses/:id", requireUser, async (req, res) => {
+  const denied = await checkDeletable(req, "expenses");
+  if (denied) return void res.status(denied[0]).json({ error: denied[1] });
   const row = await queryOne("DELETE FROM expenses WHERE id = $1 RETURNING id", [paramId(req)]);
   if (!row) return void res.status(404).json({ error: "Masraf bulunamadı." });
   res.status(204).end();
@@ -339,8 +561,15 @@ api.delete("/expenses/:id", requireAdmin, async (req, res) => {
 
 // ---- Reminders (inspection, insurance, service, ...) ---------------------------
 
-api.get("/reminders", requireUser, async (_req, res) => {
-  res.json((await query(`${REMINDER_SELECT} ORDER BY r.due_date NULLS LAST, r.due_km NULLS LAST`)).map(toReminder));
+api.get("/reminders", requireUser, async (req, res) => {
+  res.json(
+    (
+      await query(
+        `${REMINDER_SELECT} WHERE ${accessibleVehicles("r", "$1")} ORDER BY r.due_date NULLS LAST, r.due_km NULLS LAST`,
+        [req.user!.id],
+      )
+    ).map(toReminder),
+  );
 });
 
 async function reminderResponse(id: string) {
@@ -352,6 +581,7 @@ api.post("/reminders", requireUser, async (req, res) => {
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
 
   const r = parsed.value;
+  if (!(await isMember(req, r.vehicleId))) return void res.status(404).json({ error: VEHICLE_NOT_FOUND });
   const id = randomUUID();
   const rows = await query(
     `INSERT INTO reminders (id, vehicle_id, kind, title, due_date, due_km, repeat_months, repeat_km, note, created_by, created_at)
@@ -396,6 +626,7 @@ api.put("/reminders/:id", requireUser, async (req, res) => {
  * given, it's also recorded as an expense. All in one transaction.
  */
 api.post("/reminders/:id/complete", requireUser, async (req, res) => {
+  if (!(await recordAccess(req, "reminders", paramId(req)))) return void res.status(404).json({ error: NOT_FOUND });
   const reminder = await queryOne("SELECT * FROM reminders WHERE id = $1", [paramId(req)]);
   if (!reminder) return void res.status(404).json({ error: "Hatırlatma bulunamadı." });
   if (reminder.done_at) return void res.status(409).json({ error: "Bu hatırlatma zaten tamamlanmış." });
@@ -482,7 +713,9 @@ api.post("/reminders/:id/complete", requireUser, async (req, res) => {
   });
 });
 
-api.delete("/reminders/:id", requireAdmin, async (req, res) => {
+api.delete("/reminders/:id", requireUser, async (req, res) => {
+  const denied = await checkDeletable(req, "reminders");
+  if (denied) return void res.status(denied[0]).json({ error: denied[1] });
   const row = await queryOne("DELETE FROM reminders WHERE id = $1 RETURNING id", [paramId(req)]);
   if (!row) return void res.status(404).json({ error: "Hatırlatma bulunamadı." });
   res.status(204).end();
@@ -526,40 +759,99 @@ api.put("/users/:id/password", requireAdmin, async (req, res) => {
   res.status(204).end();
 });
 
+/**
+ * Vehicles the deleted user owned pass to their longest-standing helper; vehicles without helpers
+ * are deleted with their records. Without ?force=1 the API first answers 409 describing that.
+ */
 api.delete("/users/:id", requireAdmin, async (req, res) => {
-  if (paramId(req) === req.user!.id) {
+  const userId = paramId(req);
+  if (userId === req.user!.id) {
     return void res.status(400).json({ error: "Kendi hesabınızı silemezsiniz." });
   }
-  const row = await queryOne("DELETE FROM users WHERE id = $1 RETURNING id", [paramId(req)]);
-  if (!row) return void res.status(404).json({ error: "Kullanıcı bulunamadı." });
+  if (!(await queryOne("SELECT 1 FROM users WHERE id = $1", [userId]))) {
+    return void res.status(404).json({ error: "Kullanıcı bulunamadı." });
+  }
+
+  const owned = await query(
+    `SELECT m.vehicle_id,
+       (SELECT COUNT(*) FROM vehicle_members h WHERE h.vehicle_id = m.vehicle_id AND h.role = 'helper') AS helpers
+     FROM vehicle_members m WHERE m.user_id = $1 AND m.role = 'owner'`,
+    [userId],
+  );
+  const orphaned = owned.filter((o) => Number(o.helpers) === 0).length;
+  const handedOver = owned.length - orphaned;
+  if (owned.length > 0 && req.query.force !== "1") {
+    const parts = [];
+    if (handedOver) parts.push(`${handedOver} aracı yardımcılarından birine devredilecek`);
+    if (orphaned) parts.push(`yardımcısı olmayan ${orphaned} aracı tüm kayıtlarıyla silinecek`);
+    return void res.status(409).json({ error: `Bu kullanıcı ${owned.length} aracın sahibi: ${parts.join(", ")}.` });
+  }
+
+  const statements: Statement[] = [];
+  for (const o of owned) {
+    const vehicleId = o.vehicle_id as string;
+    statements.push(
+      { text: "DELETE FROM vehicle_members WHERE vehicle_id = $1 AND user_id = $2", params: [vehicleId, userId] },
+      {
+        text: `UPDATE vehicle_members SET role = 'owner'
+               WHERE vehicle_id = $1 AND user_id = (
+                 SELECT user_id FROM vehicle_members WHERE vehicle_id = $1 AND role = 'helper' ORDER BY added_at LIMIT 1
+               )`,
+        params: [vehicleId],
+      },
+      {
+        text: "DELETE FROM vehicles WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM vehicle_members WHERE vehicle_id = $1)",
+        params: [vehicleId],
+      },
+    );
+  }
+  statements.push({ text: "DELETE FROM users WHERE id = $1", params: [userId] });
+  await transaction(statements);
   res.status(204).end();
 });
 
 // ---- One-time import of data saved in the browser before the server existed ----
 
-api.post("/import", requireAdmin, async (req, res) => {
+api.post("/import", requireUser, async (req, res) => {
   const vehicles: unknown[] = Array.isArray(req.body?.vehicles) ? req.body.vehicles : [];
   const entries: unknown[] = Array.isArray(req.body?.entries) ? req.body.entries : [];
   const now = new Date().toISOString();
+
+  // Imported vehicles join the importer's garage; entries may only land on those or on vehicles
+  // the importer already belongs to (an id that exists under someone else stays untouched).
+  const payloadIds = vehicles.map((v) => (v as Record<string, unknown>)?.id).filter((id): id is string => typeof id === "string");
+  const taken = new Set(
+    (await query("SELECT id FROM vehicles WHERE id = ANY($1::text[])", [payloadIds])).map((r) => r.id as string),
+  );
+  const mine = new Set(
+    (await query("SELECT vehicle_id FROM vehicle_members WHERE user_id = $1", [req.user!.id])).map((r) => r.vehicle_id as string),
+  );
 
   const vehicleStatements: Statement[] = [];
   for (const raw of vehicles) {
     const r = raw as Record<string, unknown>;
     const parsed = parseVehicleInput(r);
-    if (!parsed.ok || typeof r.id !== "string") continue;
+    if (!parsed.ok || typeof r.id !== "string" || taken.has(r.id)) continue;
     vehicleStatements.push(
       insertVehicleStatement(
         { ...parsed.value, id: r.id, createdAt: typeof r.createdAt === "string" ? r.createdAt : now },
         { ignoreExisting: true },
       ),
     );
+    mine.add(r.id);
   }
+  const ownerStatements: Statement[] = [...mine]
+    .filter((id) => payloadIds.includes(id) && !taken.has(id))
+    .map((id) => ({
+      text: "INSERT INTO vehicle_members (vehicle_id, user_id, role, added_at) VALUES ($1, $2, 'owner', $3) ON CONFLICT DO NOTHING",
+      params: [id, req.user!.id, now],
+    }));
 
   const entryStatements: Statement[] = [];
   for (const raw of entries) {
     const r = raw as Record<string, unknown>;
     const parsed = parseEntryInput(r);
-    if (!parsed.ok || typeof r.id !== "string") continue;
+    if (!parsed.ok || typeof r.id !== "string" || !mine.has(parsed.value.vehicleId)) continue;
     entryStatements.push(
       insertEntryStatement({ ...parsed.value, id: r.id, createdAt: now }, req.user!.id, { ignoreExisting: true }),
     );
@@ -567,11 +859,11 @@ api.post("/import", requireAdmin, async (req, res) => {
 
   if (vehicleStatements.length + entryStatements.length === 0) return void res.json({ vehicles: 0, entries: 0 });
 
-  // Already-imported ids and entries without a known vehicle return no row, so they aren't counted.
-  const results = await transaction([...vehicleStatements, ...entryStatements]);
+  // Already-imported ids return no row, so they aren't counted.
+  const results = await transaction([...vehicleStatements, ...ownerStatements, ...entryStatements]);
   const inserted = (rows: Row[][]) => rows.filter((r) => r.length > 0).length;
   res.json({
     vehicles: inserted(results.slice(0, vehicleStatements.length)),
-    entries: inserted(results.slice(vehicleStatements.length)),
+    entries: inserted(results.slice(vehicleStatements.length + ownerStatements.length)),
   });
 });
