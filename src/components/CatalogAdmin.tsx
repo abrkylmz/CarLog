@@ -6,6 +6,7 @@ import type { CatalogEntry, CatalogEntryInput, FuelType, MissingCatalogModel } f
 import { useDialog } from "./DialogProvider";
 import { CancelButton } from "./EntryForm";
 import Modal from "./Modal";
+import ScrollX from "./ScrollX";
 
 /** Admin view of the vehicle catalog, plus hand-entered models that are missing from it. */
 export default function CatalogAdmin() {
@@ -128,7 +129,7 @@ export default function CatalogAdmin() {
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+        <ScrollX className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-100 text-left text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
@@ -179,7 +180,7 @@ export default function CatalogAdmin() {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollX>
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">* Notlu kayıtlar (ör. opsiyonel büyük depo); üzerine gelince görünür.</p>
       </section>
 

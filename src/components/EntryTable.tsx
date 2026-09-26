@@ -2,6 +2,7 @@ import { AlertTriangle, Pencil, Trash2, UserRound } from "lucide-react";
 import type { DerivedEntry } from "../types";
 import { gaugeLabel, PLAUSIBLE_MAX, PLAUSIBLE_MIN } from "../lib/consumption";
 import { CONSUMPTION_KIND_LABELS, formatConsumption, formatDate, formatNumber, formatTL } from "../lib/format";
+import ScrollX from "./ScrollX";
 
 interface Props {
   entries: DerivedEntry[];
@@ -25,7 +26,7 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+    <ScrollX className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-100 text-left text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
@@ -100,7 +101,7 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollX>
   );
 }
 

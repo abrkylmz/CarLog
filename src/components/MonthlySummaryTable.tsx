@@ -1,5 +1,6 @@
 import type { MonthlySummary } from "../types";
 import { CONSUMPTION_KIND_LABELS, formatConsumption, formatMonth, formatNumber, formatTL } from "../lib/format";
+import ScrollX from "./ScrollX";
 
 /** Below this many km a monthly consumption figure is too shaky to lean on. */
 const LOW_DATA_KM = 300;
@@ -14,7 +15,7 @@ export default function MonthlySummaryTable({ summaries }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+    <ScrollX className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-100 text-left text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
@@ -59,6 +60,6 @@ export default function MonthlySummaryTable({ summaries }: Props) {
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollX>
   );
 }
