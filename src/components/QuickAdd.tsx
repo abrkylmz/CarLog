@@ -7,7 +7,6 @@ import EntryForm from "./EntryForm";
 import ExpenseForm from "./ExpenseForm";
 import Modal from "./Modal";
 import { ReminderForm } from "./Reminders";
-import TrPlate from "./TrPlate";
 
 type Kind = "entry" | "expense" | "reminder";
 
@@ -90,7 +89,6 @@ export default function QuickAdd({
                     <span className="block truncate text-sm font-medium">{v.name}</span>
                     <span className="block text-xs text-slate-500 dark:text-slate-400">{FUEL_TYPE_LABELS[v.fuelType]}</span>
                   </span>
-                  {v.plate ? <TrPlate plate={v.plate} size="sm" /> : null}
                   <ChevronRight size={16} className="text-slate-400" />
                 </button>
               </li>

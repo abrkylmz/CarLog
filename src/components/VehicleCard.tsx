@@ -3,7 +3,6 @@ import { formatConsumption, FUEL_TYPE_LABELS, formatDate, formatNumber, formatTL
 import { paths, VEHICLE_TAB_LABELS, type VehicleTab } from "../lib/router";
 import { FUEL_ACCENT } from "../lib/theme";
 import type { Vehicle, VehicleStats } from "../types";
-import TrPlate from "./TrPlate";
 
 interface Props {
   vehicle: Vehicle;
@@ -35,7 +34,6 @@ export default function VehicleCard({ vehicle, stats, alerts }: Props) {
               </p>
             </div>
           </div>
-          {vehicle.plate ? <TrPlate plate={vehicle.plate} size="sm" /> : null}
         </div>
 
         <dl className="mt-4 grid grid-cols-3 gap-2">

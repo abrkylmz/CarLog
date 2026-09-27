@@ -1,7 +1,6 @@
 import { Car, Download, Users } from "lucide-react";
 import { CONSUMPTION_KIND_LABELS, formatConsumption, formatNumber, formatTL, FUEL_TYPE_LABELS } from "../lib/format";
 import type { Vehicle, VehicleStats } from "../types";
-import TrPlate from "./TrPlate";
 
 interface Props {
   vehicle: Vehicle;
@@ -40,15 +39,14 @@ export default function VehicleHero({ vehicle, subtitle, stats, onExport }: Prop
           <p className="truncate text-sm text-white/80">
             {[subtitle, FUEL_TYPE_LABELS[vehicle.fuelType]].filter(Boolean).join(" · ")}
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {vehicle.plate ? <TrPlate plate={vehicle.plate} /> : null}
-            {vehicle.myRole === "helper" ? (
+          {vehicle.myRole === "helper" ? (
+            <div className="mt-2">
               <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs ring-1 ring-white/20">
                 <Users size={12} />
                 Sahibi: {vehicle.ownerName ?? "—"}
               </span>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
         <button
           type="button"

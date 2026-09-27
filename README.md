@@ -38,7 +38,7 @@ Değer seçilen motora aittir; farklı motorlu araçlarda sapma olabilir.
   tanımlıdır; grafik renkleri (yakıt/diğer) temadan bağımsız sabit kalır.
 - **Açık / Koyu / Sistem:** üst çubuktaki düğme sırayla değiştirir; seçim tarayıcıda
   saklanır ve sayfa açılırken yanıp sönme olmadan uygulanır.
-- **Araç vitrini:** araç sayfasının başında renkli kart, TR plaka ve bu ay / ortalama
+- **Araç vitrini:** araç sayfasının başında renkli kart ve bu ay / ortalama
   tüketim / son km özeti.
 - **Telefonda alt gezinme çubuğu:** Özet, Dolumlar, Masraflar, Hatırlatma; diğer
   sekmeler ve Dışa Aktar "Diğer" menüsündedir.
@@ -221,7 +221,7 @@ src/
   components/       VehicleCard, VehicleForm, EntryForm, EntryTable, ExpenseForm, ExpenseList,
                     CategoryBreakdown, MonthlySummaryTable, SpendChart, StatCard, BackLink,
                     Reminders, UpcomingReminders, SharePanel, CatalogAdmin, ExportDialog, Modal,
-                    DialogProvider, LegacyImportBanner, VehicleHero, TrPlate,
+                    DialogProvider, LegacyImportBanner, VehicleHero,
                     VehicleBottomNav, QuickAdd, ThemeToggle, FactoryConsumptionCard,
                     VehicleCarousel
   lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, reminders.ts,
