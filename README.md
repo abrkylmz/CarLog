@@ -12,7 +12,9 @@ isteğe bağlı olarak dolumdan önceki gösterge.
 
 Araç eklerken **Marka → Model → Versiyon (nesil · yıllar · yakıt)** seçilir; yakıt
 seçenekleri ve **fabrika depo hacmi** otomatik gelir (düzenlenebilir). Başlangıç
-kataloğu Türkiye'de yaygın ~70 model/nesildir ([server/catalogSeed.ts](server/catalogSeed.ts));
+kataloğu Türkiye'de yaygın ~140 model/nesildir ([server/catalogSeed.ts](server/catalogSeed.ts)):
+TÜİK'in trafikte en çok bulunan modelleri (Tofaş, R12, R9, eski Clio/Megane/Astra/Focus gibi
+eski nesiller dahil) ve ODMD satış listelerindeki popüler modeller;
 değerler üretici teknik verilerinden (auto-data.net) alınmış, çelişkili olanlar
 ikinci kaynakla doğrulanıp not düşülmüştür. Katalogda olmayan araç "Listede yok"
 ile elle girilir. Yönetici panelinin **Araç Kataloğu** sekmesinde katalog
