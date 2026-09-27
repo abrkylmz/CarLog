@@ -42,6 +42,8 @@ Değer seçilen motora aittir; farklı motorlu araçlarda sapma olabilir.
   tüketim / son km özeti.
 - **Telefonda alt gezinme çubuğu:** Özet, Dolumlar, Masraflar, Hatırlatma; diğer
   sekmeler ve Dışa Aktar "Diğer" menüsündedir.
+- **Kaydırmalı araç kartları:** telefonda Garajım'daki araçlar yana kaydırılarak tek tek gezilir;
+  alttaki noktalar her aracın renginde. Bilgisayarda ızgara olarak kalır.
 - **Hızlı + düğmesi:** her yerden araç → Dolum / Masraf / Hatırlatma seçip kaydetme.
 - **Ana ekrana ekle (PWA):** Safari'de Paylaş → "Ana Ekrana Ekle" ile uygulama simgesiyle
   tam ekran açılır (`public/manifest.webmanifest`, simgeler `public/`). Çevrimdışı
@@ -220,7 +222,8 @@ src/
                     CategoryBreakdown, MonthlySummaryTable, SpendChart, StatCard, BackLink,
                     Reminders, UpcomingReminders, SharePanel, CatalogAdmin, ExportDialog, Modal,
                     DialogProvider, LegacyImportBanner, VehicleHero, TrPlate,
-                    VehicleBottomNav, QuickAdd, ThemeToggle, FactoryConsumptionCard
+                    VehicleBottomNav, QuickAdd, ThemeToggle, FactoryConsumptionCard,
+                    VehicleCarousel
   lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, reminders.ts,
                     export.ts (CSV), legacy.ts, theme.ts (tema modu, yakıt tipi renkleri),
                     router.ts (hash tabanlı yönlendirme)

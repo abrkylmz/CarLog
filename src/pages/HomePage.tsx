@@ -4,10 +4,12 @@ import LegacyImportBanner from "../components/LegacyImportBanner";
 import StatCard from "../components/StatCard";
 import UpcomingReminders from "../components/UpcomingReminders";
 import VehicleCard from "../components/VehicleCard";
+import VehicleCarousel from "../components/VehicleCarousel";
 import { vehicleStats } from "../lib/calc";
 import { formatTL } from "../lib/format";
 import { paths } from "../lib/router";
 import { reminderStatus } from "../lib/reminders";
+import { FUEL_ACCENT } from "../lib/theme";
 import type { Expense, FuelEntry, Reminder, Vehicle } from "../types";
 
 interface Props {
@@ -132,7 +134,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, onRel
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <VehicleCarousel label="Araçlarım" accents={[...owned.map((v) => FUEL_ACCENT[v.fuelType]), undefined]}>
           {owned.map(card)}
           <a
             href={paths.newVehicle}
@@ -141,7 +143,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, onRel
             <Plus size={24} />
             Yeni araç ekle
           </a>
-        </div>
+        </VehicleCarousel>
       </section>
 
       {shared.length > 0 ? (
@@ -150,7 +152,9 @@ export default function HomePage({ vehicles, entries, expenses, reminders, onRel
             <Users size={15} />
             Benimle Paylaşılanlar
           </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{shared.map(card)}</div>
+          <VehicleCarousel label="Benimle Paylaşılanlar" accents={shared.map((v) => FUEL_ACCENT[v.fuelType])}>
+            {shared.map(card)}
+          </VehicleCarousel>
         </section>
       ) : null}
     </>
