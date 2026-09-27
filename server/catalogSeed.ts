@@ -6,10 +6,11 @@
 // Bump CATALOG_SEED_VERSION when adding rows here: rows are inserted once per version, so
 // admin edits aren't overwritten, but a row an admin deleted comes back after a bump.
 import type { CatalogEntry } from "../src/types.ts";
+import { FACTORY_CONSUMPTION } from "./catalogFactory.ts";
 
-export const CATALOG_SEED_VERSION = 2;
+export const CATALOG_SEED_VERSION = 3;
 
-type Seed = Omit<CatalogEntry, "yearTo" | "lpgTankCapacity" | "note"> & {
+type Seed = Omit<CatalogEntry, "yearTo" | "lpgTankCapacity" | "note" | "factoryConsumption"> & {
   yearTo?: number;
   lpgTankCapacity?: number;
   note?: string;
@@ -17,7 +18,7 @@ type Seed = Omit<CatalogEntry, "yearTo" | "lpgTankCapacity" | "note"> & {
 
 const BD: CatalogEntry["fuelTypes"] = ["benzin", "dizel"];
 
-export const CATALOG_SEED: Seed[] = [
+const SEED_ROWS: Seed[] = [
   // Renault
   { id: "renault-clio-4", brand: "Renault", model: "Clio", generation: "IV", yearFrom: 2012, yearTo: 2019, fuelTypes: BD, tankCapacity: 45 },
   { id: "renault-clio-5", brand: "Renault", model: "Clio", generation: "V", yearFrom: 2019, fuelTypes: BD, tankCapacity: 42 },
@@ -191,3 +192,8 @@ export const CATALOG_SEED: Seed[] = [
   { id: "audi-a4-b8", brand: "Audi", model: "A4", generation: "B8", yearFrom: 2007, yearTo: 2015, fuelTypes: BD, tankCapacity: 70, note: "Değer 2.0 TDI için doğrulandı." },
   { id: "audi-a4-b9", brand: "Audi", model: "A4", generation: "B9", yearFrom: 2015, yearTo: 2023, fuelTypes: BD, tankCapacity: 40, note: "Standart depo 40 L; opsiyonel büyük depoyla satılmış olabilir." },
 ];
+
+export const CATALOG_SEED: CatalogEntry[] = SEED_ROWS.map((row) => ({
+  ...row,
+  factoryConsumption: FACTORY_CONSUMPTION[row.id],
+}));

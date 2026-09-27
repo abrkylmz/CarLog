@@ -22,6 +22,13 @@ düzenlenir ve elle girilen marka/modeller (kime ait olduğu gösterilmeden, yal
 sayılarıyla) "Katalogda Olmayan Araçlar" olarak listelenir. Elektrikli araçlar
 şimdilik katalogda yoktur.
 
+**Fabrika tüketimi:** katalogdaki nesillerin çoğunda, her yakıt tipi için Türkiye'de en
+yaygın motorun üretici karma tüketimi ve ölçüm türü (NEDC/WLTP) tutulur
+([server/catalogFactory.ts](server/catalogFactory.ts)). Katalogdan seçilmiş bir aracın
+**Özet** sekmesinde bu değer, aracın ölçülen ortalamasıyla karşılaştırılır. Yorum ölçüm
+türüne göre yapılır: NEDC değerleri gerçekte genelde %20–40, WLTP değerleri %5–15 aşılır.
+Değer seçilen motora aittir; farklı motorlu araçlarda sapma olabilir.
+
 ### Görünüm ve tema
 
 - **Yakıt tipine göre renk:** bir aracın sayfasında tüm uygulama (başlık, düğmeler,
@@ -200,6 +207,7 @@ server/
   api.ts            Uç noktalar (auth, vehicles, catalog, members, invites, entries,
                     expenses, reminders, users, import)
   catalogSeed.ts    Başlangıç araç kataloğu (marka, model, nesil, depo hacmi)
+  catalogFactory.ts Katalog nesillerinin fabrika karma tüketimi (motor, L/100km, NEDC/WLTP)
   auth.ts           Şifre hash'leme, oturumlar, rol ve giriş denemesi kontrolü
   access.ts         Araç bazlı erişim kuralları (sahip / yardımcı)
   db.ts             Postgres bağlantısı (Neon / PGlite), şema ve satır dönüşümleri
@@ -212,7 +220,7 @@ src/
                     CategoryBreakdown, MonthlySummaryTable, SpendChart, StatCard, BackLink,
                     Reminders, UpcomingReminders, SharePanel, CatalogAdmin, ExportDialog, Modal,
                     DialogProvider, LegacyImportBanner, VehicleHero, TrPlate,
-                    VehicleBottomNav, QuickAdd, ThemeToggle
+                    VehicleBottomNav, QuickAdd, ThemeToggle, FactoryConsumptionCard
   lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, reminders.ts,
                     export.ts (CSV), legacy.ts, theme.ts (tema modu, yakıt tipi renkleri),
                     router.ts (hash tabanlı yönlendirme)

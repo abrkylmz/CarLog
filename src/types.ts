@@ -244,9 +244,23 @@ export interface CatalogEntry {
   lpgTankCapacity?: number;
   /** Caveat shown on the form, e.g. an optional larger tank. */
   note?: string;
+  /** Manufacturer combined consumption, one per fuel type, for the most common engine. */
+  factoryConsumption?: FactoryConsumption[];
 }
 
-export type CatalogEntryInput = Omit<CatalogEntry, "id">;
+/** Official test cycle: NEDC figures (before ~2018) run well below real-world use, WLTP less so. */
+export type TestCycle = "NEDC" | "WLTP";
+
+export interface FactoryConsumption {
+  fuelType: FuelType;
+  /** Engine the figure belongs to, e.g. "1.5 dCi 110 HP". */
+  engine: string;
+  /** Combined, L/100km (for hybrids too; LPG in liters of LPG). */
+  lPer100km: number;
+  cycle: TestCycle;
+}
+
+export type CatalogEntryInput = Omit<CatalogEntry, "id" | "factoryConsumption">;
 
 /** Hand-entered vehicles not in the catalog, counted without revealing whose they are. */
 export interface MissingCatalogModel {

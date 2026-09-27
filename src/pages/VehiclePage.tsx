@@ -17,6 +17,7 @@ import StatCard from "../components/StatCard";
 import VehicleBottomNav from "../components/VehicleBottomNav";
 import VehicleHero from "../components/VehicleHero";
 import UpcomingReminders from "../components/UpcomingReminders";
+import FactoryConsumptionCard from "../components/FactoryConsumptionCard";
 import VehicleForm, { catalogVersionLabel } from "../components/VehicleForm";
 import { groupByMonth, vehicleStats, withDerived } from "../lib/calc";
 import {
@@ -189,6 +190,13 @@ export default function VehiclePage({
               hint={`${formatNumber(stats.totalLiters)} L toplam`}
             />
           </section>
+
+          <FactoryConsumptionCard
+            factory={catalog.find((c) => c.id === vehicle.catalogId)?.factoryConsumption}
+            fuelType={vehicle.fuelType}
+            measured={stats.avgConsumptionPer100km}
+            measuredKind={stats.consumptionKind}
+          />
 
           <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <StatCard

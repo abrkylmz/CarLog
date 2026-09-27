@@ -4,6 +4,7 @@ import type {
   CatalogEntry,
   Expense,
   ExpenseCategory,
+  FactoryConsumption,
   FuelEntry,
   FuelEntryInput,
   FuelType,
@@ -141,6 +142,8 @@ const SCHEMA: string[] = [
      note              TEXT
    )`,
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS catalog_id TEXT`,
+  // Manufacturer consumption per fuel type, as JSON (see FactoryConsumption).
+  `ALTER TABLE vehicle_catalog ADD COLUMN IF NOT EXISTS factory_consumption TEXT`,
   `CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS reminders (
      id            TEXT PRIMARY KEY,
@@ -246,6 +249,11 @@ async function seedCatalog(db: Db): Promise<void> {
       const insert = catalogUpsert(entry);
       return { ...insert, text: `${insert.text} ON CONFLICT (id) DO NOTHING` };
     }),
+    // Rows seeded before factory consumption existed get it filled in once; admins can't set it.
+    ...CATALOG_SEED.filter((entry) => entry.factoryConsumption?.length).map((entry) => ({
+      text: "UPDATE vehicle_catalog SET factory_consumption = $2 WHERE id = $1 AND factory_consumption IS NULL",
+      params: [entry.id, JSON.stringify(entry.factoryConsumption)],
+    })),
     {
       text: `INSERT INTO app_meta (key, value) VALUES ('catalog_seed_version', $1)
              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
@@ -256,8 +264,8 @@ async function seedCatalog(db: Db): Promise<void> {
 
 export function catalogUpsert(e: CatalogEntry): Statement {
   return {
-    text: `INSERT INTO vehicle_catalog (id, brand, model, generation, year_from, year_to, fuel_types, tank_capacity, lpg_tank_capacity, note)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    text: `INSERT INTO vehicle_catalog (id, brand, model, generation, year_from, year_to, fuel_types, tank_capacity, lpg_tank_capacity, note, factory_consumption)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     params: [
       e.id,
       e.brand,
@@ -269,6 +277,7 @@ export function catalogUpsert(e: CatalogEntry): Statement {
       e.tankCapacity,
       e.lpgTankCapacity ?? null,
       e.note ?? null,
+      e.factoryConsumption?.length ? JSON.stringify(e.factoryConsumption) : null,
     ],
   };
 }
@@ -285,6 +294,9 @@ export function toCatalogEntry(row: Row): CatalogEntry {
     tankCapacity: Number(row.tank_capacity),
     lpgTankCapacity: row.lpg_tank_capacity == null ? undefined : Number(row.lpg_tank_capacity),
     note: (row.note as string | null) ?? undefined,
+    factoryConsumption: row.factory_consumption
+      ? (JSON.parse(row.factory_consumption as string) as FactoryConsumption[])
+      : undefined,
   };
 }
 
