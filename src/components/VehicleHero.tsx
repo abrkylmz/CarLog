@@ -26,7 +26,7 @@ export default function VehicleHero({ vehicle, subtitle, stats, onExport }: Prop
   ];
 
   return (
-    <section className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500 via-brand-600 to-brand-800 p-4 text-white shadow-lg shadow-brand-900/20 sm:p-5">
+    <section className="rise relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500 via-brand-600 to-brand-800 p-4 text-white shadow-lg shadow-brand-900/20 sm:p-5">
       {/* Soft light blob for depth; purely decorative. */}
       <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
 

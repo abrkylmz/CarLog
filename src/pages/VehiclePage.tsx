@@ -128,7 +128,7 @@ export default function VehiclePage({
     <>
       <BackLink />
 
-      <VehicleHero vehicle={vehicle} subtitle={subtitle} stats={stats} onExport={onExport} />
+      <VehicleHero key={vehicle.id} vehicle={vehicle} subtitle={subtitle} stats={stats} onExport={onExport} />
 
       {/* Horizontal-only tab strip. The outer box draws the baseline (an inset shadow, so the active
           tab's underline covers it) and clips the scroller's extra bottom padding: iOS Safari draws its
@@ -156,6 +156,8 @@ export default function VehiclePage({
         </nav>
       </div>
 
+      {/* Keyed by vehicle and tab so each tab's sections slide in one after another (see .rise-stack). */}
+      <div key={`${vehicle.id}-${tab}`} className="rise-stack">
       {tab === "ozet" && (
         <>
           <UpcomingReminders
@@ -324,6 +326,7 @@ export default function VehiclePage({
           onDelete={onDeleteVehicle}
         />
       )}
+      </div>
 
       <VehicleBottomNav key={vehicle.id} vehicleId={vehicle.id} tab={tab} onExport={onExport} />
 

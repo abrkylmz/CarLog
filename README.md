@@ -43,7 +43,11 @@ Değer seçilen motora aittir; farklı motorlu araçlarda sapma olabilir.
 - **Telefonda alt gezinme çubuğu:** Özet, Dolumlar, Masraflar, Hatırlatma; diğer
   sekmeler ve Dışa Aktar "Diğer" menüsündedir.
 - **Kaydırmalı araç kartları:** telefonda Garajım'daki araçlar yana kaydırılarak tek tek gezilir;
-  alttaki noktalar her aracın renginde. Bilgisayarda ızgara olarak kalır.
+  kartlar kaydırma hızına göre hafifçe eğilir, alttaki gösterge sıvı gibi akar ve aracın rengini
+  alır. Bilgisayarda ızgara olarak kalır.
+- **Yakıt dolumu geçişi:** Garajım'da bir araca dokununca ekran aracın renginde dalgalı bir sıvıyla
+  dolar, sayaç depo hacmine kadar sayar, ardından aracın sayfası açılır ve bölümler sırayla yerine
+  oturur. iPhone'da "Hareketi Azalt" açıksa efektler kapanır.
 - **Hızlı + düğmesi:** her yerden araç → Dolum / Masraf / Hatırlatma seçip kaydetme.
 - **Ana ekrana ekle (PWA):** Safari'de Paylaş → "Ana Ekrana Ekle" ile uygulama simgesiyle
   tam ekran açılır (`public/manifest.webmanifest`, simgeler `public/`). Çevrimdışı
@@ -223,7 +227,7 @@ src/
                     Reminders, UpcomingReminders, SharePanel, CatalogAdmin, ExportDialog, Modal,
                     DialogProvider, LegacyImportBanner, VehicleHero,
                     VehicleBottomNav, QuickAdd, ThemeToggle, FactoryConsumptionCard,
-                    VehicleCarousel
+                    VehicleCarousel, FuelFillTransition
   lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, reminders.ts,
                     export.ts (CSV), legacy.ts, theme.ts (tema modu, yakıt tipi renkleri),
                     router.ts (hash tabanlı yönlendirme)

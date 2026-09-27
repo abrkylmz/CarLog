@@ -2,6 +2,7 @@ import { AlertTriangle, Car, ChevronRight, Clock, Users } from "lucide-react";
 import { formatConsumption, FUEL_TYPE_LABELS, formatDate, formatNumber, formatTL, vehicleSubtitle } from "../lib/format";
 import { paths, VEHICLE_TAB_LABELS, type VehicleTab } from "../lib/router";
 import { FUEL_ACCENT } from "../lib/theme";
+import { openWithFuelFill } from "./FuelFillTransition";
 import type { Vehicle, VehicleStats } from "../types";
 
 interface Props {
@@ -21,7 +22,20 @@ export default function VehicleCard({ vehicle, stats, alerts }: Props) {
       data-accent={FUEL_ACCENT[vehicle.fuelType]}
       className="flex flex-col overflow-hidden rounded-xl border border-t-4 border-slate-200 border-t-brand-500 bg-white shadow-sm transition hover:border-brand-400 hover:shadow-md dark:border-slate-800 dark:border-t-brand-500 dark:bg-slate-900 dark:hover:border-brand-500"
     >
-      <a href={paths.vehicle(vehicle.id)} className="group flex-1 p-4">
+      <a
+        href={paths.vehicle(vehicle.id)}
+        onClick={(e) => {
+          // Keep new-tab and modified clicks as plain links.
+          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          openWithFuelFill({
+            href: paths.vehicle(vehicle.id),
+            accent: FUEL_ACCENT[vehicle.fuelType],
+            tank: vehicle.tankCapacity ?? 50,
+          });
+        }}
+        className="group flex-1 p-4"
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="shrink-0 rounded-lg bg-brand-50 p-2 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300">
