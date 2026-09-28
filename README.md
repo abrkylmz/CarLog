@@ -46,7 +46,15 @@ Değer seçilen motora aittir; farklı motorlu araçlarda sapma olabilir.
   kartlar kaydırma hızına göre hafifçe eğilir, alttaki gösterge sıvı gibi akar ve aracın rengini
   alır. Bilgisayarda ızgara olarak kalır.
 - **Sayfa açılışı:** araç sayfası ve sekmeleri açılırken bölümler sırayla yerine oturur.
-  iPhone'da "Hareketi Azalt" açıksa efektler kapanır.
+- **Canlı sayılar ve grafikler:** özet değerleri sayarak gelir ve yeni kayıttan sonra yeni değere
+  kayar; aylık harcama çubukları alttan yükselir, masraf türü çubukları soldan dolar. Fabrika
+  verisi kartında fark bir ibreyle gösterilir (yeşil: normal, turuncu: yüksek).
+- **Dokunma ve geri bildirim:** düğme ve kartlar basınca hafifçe çöker, bırakınca yaylanır.
+  Kaydetme ve silmeden sonra üstten kısa bir onay bildirimi iner; silinen kayıt listeden kayarak
+  çıkar.
+- **Yükleme ve boş ekranlar:** veriler gelirken sayfanın parlayan taslağı görünür; boş listelerde
+  aracın renginde hareketli küçük bir simge yer alır. Gecikmiş hatırlatma rozetleri hafifçe atar.
+- iPhone'da "Hareketi Azalt" açıksa tüm bu efektler kapanır.
 - **Hızlı + düğmesi:** her yerden araç → Dolum / Masraf / Hatırlatma seçip kaydetme.
 - **Ana ekrana ekle (PWA):** Safari'de Paylaş → "Ana Ekrana Ekle" ile uygulama simgesiyle
   tam ekran açılır (`public/manifest.webmanifest`, simgeler `public/`). Çevrimdışı
@@ -226,9 +234,9 @@ src/
                     Reminders, UpcomingReminders, SharePanel, CatalogAdmin, ExportDialog, Modal,
                     DialogProvider, LegacyImportBanner, VehicleHero,
                     VehicleBottomNav, QuickAdd, ThemeToggle, FactoryConsumptionCard,
-                    VehicleCarousel
+                    VehicleCarousel, Toaster, EmptyState, LoadingSkeleton
   lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, reminders.ts,
-                    export.ts (CSV), legacy.ts, theme.ts (tema modu, yakıt tipi renkleri),
+                    export.ts (CSV), legacy.ts, theme.ts (tema modu, yakıt tipi renkleri), motion.ts (sayaç, silme animasyonu),
                     router.ts (hash tabanlı yönlendirme)
   types.ts          Sunucu ve arayüzün ortak tipleri
   App.tsx           Oturum durumu, veri yükleme ve sayfa seçimi

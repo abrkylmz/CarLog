@@ -1,7 +1,10 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { BarChart3 } from "lucide-react";
 import type { MonthlySummary } from "../types";
+import EmptyState from "./EmptyState";
 import { SERIES_BG, SERIES_COLORS, usePrefersDark } from "../lib/chartColors";
 import { formatMonth, formatTL } from "../lib/format";
+import { prefersReducedMotion } from "../lib/motion";
 
 interface Props {
   summaries: MonthlySummary[];
@@ -18,12 +21,12 @@ export default function SpendChart({ summaries }: Props) {
     .sort((a, b) => (a.month < b.month ? -1 : 1))
     .map((s) => ({ label: formatMonth(s.month), fuel: s.totalCost, other: s.otherCost, total: s.grandTotal }));
   const hasOther = data.some((d) => d.other > 0);
+  // Bars grow up from the axis when the chart appears; other expenses follow the fuel segment.
+  const animate = !prefersReducedMotion();
 
   if (data.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-        Grafik için henüz veri yok.
-      </p>
+      <EmptyState icon={BarChart3} title="Grafik için henüz veri yok" text="İlk dolum veya masrafla aylık harcama burada belirir." />
     );
   }
 
@@ -67,6 +70,9 @@ export default function SpendChart({ summaries }: Props) {
               strokeWidth={hasOther ? 1 : 0}
               radius={hasOther ? 0 : [4, 4, 0, 0]}
               maxBarSize={40}
+              isAnimationActive={animate}
+              animationDuration={900}
+              animationEasing="ease-out"
             />
             {hasOther ? (
               <Bar
@@ -78,6 +84,10 @@ export default function SpendChart({ summaries }: Props) {
                 strokeWidth={1}
                 radius={[4, 4, 0, 0]}
                 maxBarSize={40}
+                isAnimationActive={animate}
+                animationBegin={350}
+                animationDuration={700}
+                animationEasing="ease-out"
               />
             ) : null}
           </BarChart>

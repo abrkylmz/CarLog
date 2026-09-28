@@ -170,15 +170,29 @@ export default function VehiclePage({
             <StatCard
               label="Bu Ay Toplam"
               value={formatTL(thisMonthTotal)}
+              count={{ to: thisMonthTotal, format: formatTL }}
               hint={split(stats.thisMonthCost, stats.thisMonthOtherCost)}
             />
-            <StatCard label="Genel Toplam" value={formatTL(grandTotal)} hint={split(stats.totalCost, stats.otherCostTotal)} />
+            <StatCard
+              label="Genel Toplam"
+              value={formatTL(grandTotal)}
+              count={{ to: grandTotal, format: formatTL }}
+              hint={split(stats.totalCost, stats.otherCostTotal)}
+            />
             <StatCard
               label="Ort. Tüketim"
               value={
                 stats.avgConsumptionPer100km != null
                   ? `${formatConsumption(stats.avgConsumptionPer100km, stats.consumptionKind)} L/100km`
                   : "—"
+              }
+              count={
+                stats.avgConsumptionPer100km != null
+                  ? {
+                      to: stats.avgConsumptionPer100km,
+                      format: (n) => `${formatConsumption(n, stats.consumptionKind)} L/100km`,
+                    }
+                  : undefined
               }
               hint={
                 stats.kmTracked > 0 && stats.consumptionKind
@@ -189,6 +203,7 @@ export default function VehiclePage({
             <StatCard
               label="Ortalama TL/L"
               value={stats.avgPricePerLiter > 0 ? formatNumber(stats.avgPricePerLiter, 2) : "—"}
+              count={stats.avgPricePerLiter > 0 ? { to: stats.avgPricePerLiter, format: (n) => formatNumber(n, 2) } : undefined}
               hint={`${formatNumber(stats.totalLiters)} L toplam`}
             />
           </section>
@@ -204,6 +219,11 @@ export default function VehiclePage({
             <StatCard
               label="Son Kilometre"
               value={stats.latestOdometerKm != null ? `${formatNumber(stats.latestOdometerKm, 0)} km` : "—"}
+              count={
+                stats.latestOdometerKm != null
+                  ? { to: stats.latestOdometerKm, format: (n) => `${formatNumber(n, 0)} km` }
+                  : undefined
+              }
             />
             <StatCard
               label="Son Dolum"
@@ -212,6 +232,7 @@ export default function VehiclePage({
             <StatCard
               label="Diğer Masraflar"
               value={formatTL(stats.otherCostTotal)}
+              count={{ to: stats.otherCostTotal, format: formatTL }}
               hint={stats.expenseCount > 0 ? `${stats.expenseCount} kayıt` : "Henüz masraf yok"}
             />
           </section>
@@ -247,18 +268,30 @@ export default function VehiclePage({
       {tab === "masraflar" && (
         <>
           <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Bu Ay Masraf" value={formatTL(stats.thisMonthOtherCost)} hint="Yakıt hariç" />
+            <StatCard
+              label="Bu Ay Masraf"
+              value={formatTL(stats.thisMonthOtherCost)}
+              count={{ to: stats.thisMonthOtherCost, format: formatTL }}
+              hint="Yakıt hariç"
+            />
             <StatCard
               label="Bu Ay Toplam"
               value={formatTL(thisMonthTotal)}
+              count={{ to: thisMonthTotal, format: formatTL }}
               hint={split(stats.thisMonthCost, stats.thisMonthOtherCost)}
             />
             <StatCard
               label="Toplam Masraf"
               value={formatTL(stats.otherCostTotal)}
+              count={{ to: stats.otherCostTotal, format: formatTL }}
               hint={`${stats.expenseCount} kayıt · yakıt hariç`}
             />
-            <StatCard label="Genel Toplam" value={formatTL(grandTotal)} hint="Yakıt + diğer masraflar" />
+            <StatCard
+              label="Genel Toplam"
+              value={formatTL(grandTotal)}
+              count={{ to: grandTotal, format: formatTL }}
+              hint="Yakıt + diğer masraflar"
+            />
           </section>
 
           <section className="mb-8">

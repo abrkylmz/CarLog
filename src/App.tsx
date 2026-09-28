@@ -3,6 +3,8 @@ import { Fuel, LayoutDashboard, LogOut, ShieldCheck, UserRound } from "lucide-re
 import BackLink from "./components/BackLink";
 import { useDialog } from "./components/DialogProvider";
 import ExportDialog from "./components/ExportDialog";
+import LoadingSkeleton from "./components/LoadingSkeleton";
+import Toaster, { toast } from "./components/Toaster";
 import QuickAdd from "./components/QuickAdd";
 import ThemeToggle from "./components/ThemeToggle";
 import { nextReminderPreview, reminderTitle } from "./components/Reminders";
@@ -10,6 +12,7 @@ import { api, errorMessage, UNAUTHORIZED_EVENT, type AdminSetupState } from "./l
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL, parseAmount } from "./lib/format";
 import { navigate, paths, useHashRoute, type Route } from "./lib/router";
 import { FUEL_ACCENT, usePageAccent } from "./lib/theme";
+import { animateOut, clearLeaving } from "./lib/motion";
 import { AdminAuthPage, UserAuthPage } from "./pages/AuthPage";
 import InvitePage, { InviteNotice } from "./pages/InvitePage";
 import HomePage from "./pages/HomePage";
@@ -53,7 +56,18 @@ export default function App() {
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, checkAuth);
   }, [checkAuth]);
 
-  if (auth.status === "loading") return <CenteredMessage>Yükleniyor…</CenteredMessage>;
+  if (auth.status === "loading") {
+    // Session check: show the page's outline instead of a bare "loading" text.
+    return (
+      <div className="mx-auto max-w-5xl px-4 pb-8 pt-[max(2rem,env(safe-area-inset-top))] sm:px-6">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="skeleton h-9 w-9 !rounded-xl" />
+          <div className="skeleton h-5 w-24" />
+        </div>
+        <LoadingSkeleton />
+      </div>
+    );
+  }
   if (auth.status === "error") {
     return (
       <CenteredMessage>
@@ -141,6 +155,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   async function updateVehicle(id: string, input: VehicleInput) {
     const vehicle = await api.updateVehicle(id, input);
     setVehicles((prev) => prev?.map((v) => (v.id === id ? vehicle : v)) ?? null);
+    toast("Araç bilgileri kaydedildi");
   }
 
   async function deleteVehicle(id: string) {
@@ -159,6 +174,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   async function addEntry(input: FuelEntryInput) {
     const entry = await api.createEntry(input);
     setEntries((prev) => [...prev, entry]);
+    toast("Dolum kaydedildi");
   }
 
   async function deleteEntry(id: string) {
@@ -174,7 +190,10 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     if (!confirmed) return;
     try {
       await api.deleteEntry(id);
+      await animateOut(id);
       setEntries((prev) => prev.filter((e) => e.id !== id));
+      clearLeaving(id);
+      toast("Dolum silindi");
     } catch (err) {
       await showError(err);
     }
@@ -187,21 +206,25 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   async function updateEntry(id: string, input: FuelEntryInput) {
     const entry = await api.updateEntry(id, input);
     setEntries((prev) => prev.map((e) => (e.id === id ? entry : e)));
+    toast("Dolum güncellendi");
   }
 
   async function updateExpense(id: string, input: ExpenseInput) {
     const expense = await api.updateExpense(id, input);
     setExpenses((prev) => prev.map((e) => (e.id === id ? expense : e)));
+    toast("Masraf güncellendi");
   }
 
   async function addReminder(input: ReminderInput) {
     const reminder = await api.createReminder(input);
     setReminders((prev) => [...prev, reminder]);
+    toast("Hatırlatma eklendi");
   }
 
   async function updateReminder(id: string, input: ReminderInput) {
     const reminder = await api.updateReminder(id, input);
     setReminders((prev) => prev.map((r) => (r.id === id ? reminder : r)));
+    toast("Hatırlatma güncellendi");
   }
 
   async function completeReminder(reminder: Reminder, latestKm: number | null) {
@@ -233,6 +256,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
         ...(result.next ? [result.next] : []),
       ]);
       if (result.expense) setExpenses((prev) => [...prev, result.expense!]);
+      toast(result.expense ? "Tamamlandı, masraf eklendi" : "Hatırlatma tamamlandı");
     } catch (err) {
       await showError(err);
     }
@@ -248,7 +272,10 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     if (!confirmed) return;
     try {
       await api.deleteReminder(reminder.id);
+      await animateOut(reminder.id);
       setReminders((prev) => prev.filter((r) => r.id !== reminder.id));
+      clearLeaving(reminder.id);
+      toast("Hatırlatma silindi");
     } catch (err) {
       await showError(err);
     }
@@ -257,6 +284,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   async function addExpense(input: ExpenseInput) {
     const expense = await api.createExpense(input);
     setExpenses((prev) => [...prev, expense]);
+    toast("Masraf kaydedildi");
   }
 
   async function deleteExpense(id: string) {
@@ -272,7 +300,10 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     if (!confirmed) return;
     try {
       await api.deleteExpense(id);
+      await animateOut(id);
       setExpenses((prev) => prev.filter((e) => e.id !== id));
+      clearLeaving(id);
+      toast("Masraf silindi");
     } catch (err) {
       await showError(err);
     }
@@ -288,7 +319,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     page = loadError ? (
       <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
     ) : (
-      <p className="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+      <LoadingSkeleton />
     );
   } else if (route.name === "admin") {
     page = isAdmin ? <UsersPage currentUser={user} /> : <NotAllowed />;
@@ -401,6 +432,8 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       </header>
 
       {page}
+
+      <Toaster />
 
       {showQuickAdd && vehicles ? (
         <QuickAdd

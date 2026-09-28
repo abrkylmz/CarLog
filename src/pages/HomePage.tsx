@@ -97,16 +97,19 @@ export default function HomePage({ vehicles, entries, expenses, reminders, onRel
         <StatCard
           label="Bu Ay Toplam"
           value={formatTL(overall.thisMonthCost + overall.thisMonthOtherCost)}
+          count={{ to: overall.thisMonthCost + overall.thisMonthOtherCost, format: formatTL }}
           hint={split(overall.thisMonthCost, overall.thisMonthOtherCost)}
         />
         <StatCard
           label="Genel Toplam"
           value={formatTL(overall.totalCost + overall.otherCostTotal)}
+          count={{ to: overall.totalCost + overall.otherCostTotal, format: formatTL }}
           hint={split(overall.totalCost, overall.otherCostTotal)}
         />
         <StatCard
           label="Diğer Masraflar"
           value={formatTL(overall.otherCostTotal)}
+          count={{ to: overall.otherCostTotal, format: formatTL }}
           hint={`${overall.expenseCount} kayıt · yakıt hariç`}
         />
         <StatCard label="Araç Sayısı" value={String(vehicles.length)} hint={`${overall.fillCount} dolum`} />

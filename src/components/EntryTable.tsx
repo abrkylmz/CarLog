@@ -1,7 +1,9 @@
-import { AlertTriangle, Pencil, Trash2, UserRound } from "lucide-react";
+import { AlertTriangle, Fuel, Pencil, Trash2, UserRound } from "lucide-react";
 import type { DerivedEntry } from "../types";
 import { gaugeLabel, PLAUSIBLE_MAX, PLAUSIBLE_MIN } from "../lib/consumption";
 import { CONSUMPTION_KIND_LABELS, formatConsumption, formatDate, formatNumber, formatTL } from "../lib/format";
+import { useLeavingIds } from "../lib/motion";
+import EmptyState from "./EmptyState";
 import ScrollX from "./ScrollX";
 
 interface Props {
@@ -15,13 +17,12 @@ interface Props {
 
 export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props) {
   const hasActions = Boolean(onDelete || onEdit);
+  const leaving = useLeavingIds();
   const byDateDesc = [...entries].sort((a, b) => (a.date < b.date ? 1 : -1));
 
   if (byDateDesc.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-        Bu araç için henüz kayıt yok. Yukarıdan ilk yakıt alımını ekleyin.
-      </p>
+      <EmptyState icon={Fuel} title="Henüz dolum yok" text="Yukarıdan ilk yakıt alımını ekleyin." />
     );
   }
 
@@ -45,7 +46,7 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
           {byDateDesc.map((entry) => (
             <tr
               key={entry.id}
-              className="border-b border-slate-100 last:border-0 dark:border-slate-800/60"
+              className={`border-b border-slate-100 last:border-0 dark:border-slate-800/60 ${leaving.has(entry.id) ? "leave-row" : ""}`}
             >
               <td className="px-3 py-2 whitespace-nowrap">
                 {formatDate(entry.date)}

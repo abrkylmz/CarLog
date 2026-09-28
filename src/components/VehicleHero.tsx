@@ -1,6 +1,7 @@
 import { Car, Download, Users } from "lucide-react";
 import { CONSUMPTION_KIND_LABELS, formatConsumption, formatNumber, formatTL, FUEL_TYPE_LABELS } from "../lib/format";
 import type { Vehicle, VehicleStats } from "../types";
+import { CountUp } from "./StatCard";
 
 interface Props {
   vehicle: Vehicle;
@@ -12,8 +13,8 @@ interface Props {
 /** Accent-colored header card of a vehicle page: name, plate and the three figures people check most. */
 export default function VehicleHero({ vehicle, subtitle, stats, onExport }: Props) {
   const thisMonth = stats.thisMonthCost + stats.thisMonthOtherCost;
-  const chips: { label: string; value: string; title?: string }[] = [
-    { label: "Bu ay", value: formatTL(thisMonth) },
+  const chips: { label: string; value: string; title?: string; count?: { to: number; format: (n: number) => string } }[] = [
+    { label: "Bu ay", value: formatTL(thisMonth), count: { to: thisMonth, format: formatTL } },
     {
       label: "Ort. tüketim",
       value:
@@ -21,8 +22,16 @@ export default function VehicleHero({ vehicle, subtitle, stats, onExport }: Prop
           ? `${formatConsumption(stats.avgConsumptionPer100km, stats.consumptionKind)} L/100km`
           : "—",
       title: stats.consumptionKind ? CONSUMPTION_KIND_LABELS[stats.consumptionKind] : undefined,
+      count:
+        stats.avgConsumptionPer100km != null
+          ? { to: stats.avgConsumptionPer100km, format: (n) => `${formatConsumption(n, stats.consumptionKind)} L/100km` }
+          : undefined,
     },
-    { label: "Son km", value: stats.latestOdometerKm != null ? formatNumber(stats.latestOdometerKm, 0) : "—" },
+    {
+      label: "Son km",
+      value: stats.latestOdometerKm != null ? formatNumber(stats.latestOdometerKm, 0) : "—",
+      count: stats.latestOdometerKm != null ? { to: stats.latestOdometerKm, format: (n) => formatNumber(n, 0) } : undefined,
+    },
   ];
 
   return (
@@ -63,7 +72,9 @@ export default function VehicleHero({ vehicle, subtitle, stats, onExport }: Prop
         {chips.map((c) => (
           <div key={c.label} className="min-w-0 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-white/15" title={c.title}>
             <dt className="text-[11px] text-white/75">{c.label}</dt>
-            <dd className="truncate text-sm font-semibold sm:text-base">{c.value}</dd>
+            <dd className="truncate text-sm font-semibold tabular-nums sm:text-base">
+              {c.count ? <CountUp to={c.count.to} format={c.count.format} /> : c.value}
+            </dd>
           </div>
         ))}
       </dl>

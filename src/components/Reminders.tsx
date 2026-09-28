@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { AlertTriangle, CalendarClock, CheckCircle2, Clock, Pencil, Repeat, Trash2, UserRound } from "lucide-react";
+import { AlertTriangle, BellRing, CalendarClock, CheckCircle2, Clock, Pencil, Repeat, Trash2, UserRound } from "lucide-react";
 import { errorMessage } from "../lib/api";
 import { formatDate, formatNumber, REMINDER_KIND_LABELS } from "../lib/format";
 import { reminderStatus, type ReminderLevel, type ReminderStatus } from "../lib/reminders";
 import type { Reminder, ReminderInput, ReminderKind } from "../types";
+import { useLeavingIds } from "../lib/motion";
+import EmptyState from "./EmptyState";
 import { CancelButton } from "./EntryForm";
 
 /** Typical schedules in Turkey, pre-filled when a kind is picked for a new reminder. */
@@ -67,7 +69,9 @@ export function ReminderStatusBadge({ status }: { status: ReminderStatus }) {
   const style = LEVEL_STYLES[status.level];
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${style.className}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${style.className} ${
+        status.level === "overdue" ? "pulse-alert" : ""
+      }`}
     >
       {style.icon}
       {status.level === "planned" || status.level === "done" ? status.text || style.label : status.text}
@@ -260,6 +264,7 @@ interface ListProps {
 const LEVEL_ORDER: Record<ReminderLevel, number> = { overdue: 0, soon: 1, planned: 2, done: 3 };
 
 export function ReminderList({ reminders, latestKm, onComplete, onEdit, canEdit, onDelete }: ListProps) {
+  const leaving = useLeavingIds();
   const active = reminders
     .filter((r) => !r.doneAt)
     .map((r) => ({ reminder: r, status: reminderStatus(r, latestKm) }))
@@ -274,13 +279,18 @@ export function ReminderList({ reminders, latestKm, onComplete, onEdit, canEdit,
   return (
     <>
       {active.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          Bekleyen hatırlatma yok. Yukarıdan muayene, sigorta, bakım gibi tarihleri ekleyin.
-        </p>
+        <EmptyState
+          icon={BellRing}
+          title="Bekleyen hatırlatma yok"
+          text="Yukarıdan muayene, sigorta, bakım gibi tarihleri ekleyin."
+        />
       ) : (
         <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
           {active.map(({ reminder: r, status }) => (
-            <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-sm">
+            <li
+              key={r.id}
+              className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-sm ${leaving.has(r.id) ? "leave-item" : ""}`}
+            >
               <div className="min-w-0 flex-1 basis-56">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium">{reminderTitle(r)}</p>
@@ -346,7 +356,10 @@ export function ReminderList({ reminders, latestKm, onComplete, onEdit, canEdit,
           </summary>
           <ul className="divide-y divide-slate-100 border-t border-slate-100 dark:divide-slate-800 dark:border-slate-800">
             {done.map((r) => (
-              <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <li
+                key={r.id}
+                className={`flex items-center justify-between gap-3 px-4 py-2.5 ${leaving.has(r.id) ? "leave-item" : ""}`}
+              >
                 <div className="min-w-0">
                   <p className="font-medium text-slate-600 dark:text-slate-300">{reminderTitle(r)}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Hedef: {dueText(r)}</p>

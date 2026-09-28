@@ -1,7 +1,9 @@
-import { Pencil, Trash2, UserRound } from "lucide-react";
+import { Pencil, Receipt, Trash2, UserRound } from "lucide-react";
 import { monthKey } from "../lib/calc";
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatMonth, formatTL } from "../lib/format";
 import type { Expense } from "../types";
+import { useLeavingIds } from "../lib/motion";
+import EmptyState from "./EmptyState";
 
 interface Props {
   expenses: Expense[];
@@ -14,11 +16,14 @@ interface Props {
 
 /** Expenses grouped by month (newest first), each month with its subtotal. */
 export default function ExpenseList({ expenses, onDelete, onEdit, canEdit }: Props) {
+  const leaving = useLeavingIds();
   if (expenses.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-        Bu araç için henüz masraf yok. Yukarıdan bakım, sigorta, otopark gibi masrafları ekleyin.
-      </p>
+      <EmptyState
+        icon={Receipt}
+        title="Henüz masraf yok"
+        text="Yukarıdan bakım, sigorta, otopark gibi masrafları ekleyin."
+      />
     );
   }
 
@@ -38,7 +43,10 @@ export default function ExpenseList({ expenses, onDelete, onEdit, canEdit }: Pro
           </header>
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {items.map((expense) => (
-              <li key={expense.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+              <li
+                key={expense.id}
+                className={`flex items-center gap-3 px-4 py-2.5 text-sm ${leaving.has(expense.id) ? "leave-item" : ""}`}
+              >
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{EXPENSE_CATEGORY_LABELS[expense.category]}</p>
                   <p className="flex flex-wrap items-center gap-x-2 text-xs text-slate-500 dark:text-slate-400">

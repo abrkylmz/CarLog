@@ -7,6 +7,11 @@ export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // Adds `scale` so the press effect (index.css) also animates on elements with `transition`.
+      transitionProperty: {
+        DEFAULT:
+          "color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter, scale",
+      },
       colors: {
         // Accent color, re-tinted per vehicle fuel type via CSS variables (see index.css).
         brand: Object.fromEntries([50, 100, 200, 300, 400, 500, 600, 700, 800, 900].map((s) => [s, brandShade(s)])),
