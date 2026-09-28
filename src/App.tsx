@@ -3,7 +3,6 @@ import { Fuel, LayoutDashboard, LogOut, ShieldCheck, UserRound } from "lucide-re
 import BackLink from "./components/BackLink";
 import { useDialog } from "./components/DialogProvider";
 import ExportDialog from "./components/ExportDialog";
-import FuelFillTransition from "./components/FuelFillTransition";
 import QuickAdd from "./components/QuickAdd";
 import ThemeToggle from "./components/ThemeToggle";
 import { nextReminderPreview, reminderTitle } from "./components/Reminders";
@@ -402,8 +401,6 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       </header>
 
       {page}
-
-      <FuelFillTransition />
 
       {showQuickAdd && vehicles ? (
         <QuickAdd
