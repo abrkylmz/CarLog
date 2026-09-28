@@ -19,6 +19,7 @@ import VehicleHero from "../components/VehicleHero";
 import UpcomingReminders from "../components/UpcomingReminders";
 import FactoryConsumptionCard from "../components/FactoryConsumptionCard";
 import InsightsCard from "../components/InsightsCard";
+import NotificationSettings from "../components/NotificationSettings";
 import { vehicleInsights } from "../lib/insights";
 import VehicleForm, { catalogVersionLabel } from "../components/VehicleForm";
 import { groupByMonth, vehicleStats, withDerived } from "../lib/calc";
@@ -325,6 +326,7 @@ export default function VehiclePage({
 
       {tab === "hatirlatmalar" && (
         <>
+          <NotificationSettings />
           <section className="mb-8">
             <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Yeni Hatırlatma</h3>
             <ReminderForm vehicleId={vehicle.id} latestKm={latestKm} onSubmit={onAddReminder} />

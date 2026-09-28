@@ -171,6 +171,22 @@ const SCHEMA: string[] = [
    )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS vehicle_one_owner ON vehicle_members (vehicle_id) WHERE role = 'owner'`,
   `CREATE INDEX IF NOT EXISTS vehicle_members_user ON vehicle_members (user_id)`,
+  // Web push: one row per browser/device that turned reminder notifications on.
+  `CREATE TABLE IF NOT EXISTS push_subscriptions (
+     endpoint   TEXT PRIMARY KEY,
+     user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     p256dh     TEXT NOT NULL,
+     auth       TEXT NOT NULL,
+     created_at TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS push_subscriptions_user ON push_subscriptions (user_id)`,
+  // Which reminder notifications went out (e.g. "d3" = three days before), so each goes once.
+  `CREATE TABLE IF NOT EXISTS push_sent (
+     reminder_id TEXT NOT NULL,
+     stage       TEXT NOT NULL,
+     sent_at     TEXT NOT NULL,
+     PRIMARY KEY (reminder_id, stage)
+   )`,
   // Invite links. Only a hash of the token is stored, so a leaked database can't be used to join.
   `CREATE TABLE IF NOT EXISTS vehicle_invites (
      id         TEXT PRIMARY KEY,

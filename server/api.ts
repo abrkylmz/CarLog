@@ -64,6 +64,7 @@ import {
   parseReminderInput,
   parseVehicleInput,
 } from "./validate.ts";
+import { sendReminderNotifications, sendToUser, vapidKeys } from "./push.ts";
 
 export const api = Router();
 
@@ -817,6 +818,55 @@ api.delete("/reminders/:id", requireUser, async (req, res) => {
   const row = await queryOne("DELETE FROM reminders WHERE id = $1 RETURNING id", [paramId(req)]);
   if (!row) return void res.status(404).json({ error: "Hatırlatma bulunamadı." });
   res.status(204).end();
+});
+
+// ---- Reminder notifications (Web Push) ----------------------------------------
+
+api.get("/push/key", requireUser, async (_req, res) => {
+  res.json({ publicKey: (await vapidKeys()).publicKey });
+});
+
+api.post("/push/subscribe", requireUser, async (req, res) => {
+  const b = (req.body ?? {}) as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
+  const endpoint = typeof b.endpoint === "string" ? b.endpoint : "";
+  const p256dh = typeof b.keys?.p256dh === "string" ? b.keys.p256dh : "";
+  const auth = typeof b.keys?.auth === "string" ? b.keys.auth : "";
+  if (!/^https:\/\/\S+$/.test(endpoint) || endpoint.length > 1000 || !p256dh || !auth || p256dh.length > 200 || auth.length > 100) {
+    return void res.status(400).json({ error: "Geçersiz bildirim aboneliği." });
+  }
+  // A device belongs to whoever signed in on it last.
+  await query(
+    `INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth, created_at) VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
+    [endpoint, req.user!.id, p256dh, auth, new Date().toISOString()],
+  );
+  res.status(204).end();
+});
+
+api.post("/push/unsubscribe", requireUser, async (req, res) => {
+  const endpoint = typeof req.body?.endpoint === "string" ? req.body.endpoint : "";
+  await query("DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2", [endpoint, req.user!.id]);
+  res.status(204).end();
+});
+
+api.post("/push/test", requireUser, async (req, res) => {
+  const sent = await sendToUser(req.user!.id, {
+    title: "CarLog bildirimleri açık",
+    body: "Muayene, sigorta ve diğer hatırlatmalar yaklaşınca buradan haber vereceğiz.",
+    url: "/#/",
+    tag: "test",
+  });
+  res.json({ sent });
+});
+
+// Daily job (Vercel Cron, see vercel.json). With CRON_SECRET set, only Vercel's scheduler may
+// call it; without it, calling it early is harmless because each notification goes out once.
+api.get("/cron/reminders", async (req, res) => {
+  const secret = process.env.CRON_SECRET;
+  if (secret && req.headers.authorization !== `Bearer ${secret}`) {
+    return void res.status(401).json({ error: "Yetkisiz." });
+  }
+  res.json(await sendReminderNotifications());
 });
 
 // ---- Users (admin) ---------------------------------------------------------

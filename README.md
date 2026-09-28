@@ -60,8 +60,25 @@ Değer seçilen motora aittir; farklı motorlu araçlarda sapma olabilir.
 - iPhone'da "Hareketi Azalt" açıksa tüm bu efektler kapanır.
 - **Hızlı + düğmesi:** her yerden araç → Dolum / Masraf / Hatırlatma seçip kaydetme.
 - **Ana ekrana ekle (PWA):** Safari'de Paylaş → "Ana Ekrana Ekle" ile uygulama simgesiyle
-  tam ekran açılır (`public/manifest.webmanifest`, simgeler `public/`). Çevrimdışı
-  çalışma (service worker) yoktur; internet gerekir.
+  tam ekran açılır (`public/manifest.webmanifest`, simgeler `public/`).
+- **Öne Çıkanlar:** aracın Özet sekmesinin başında otomatik yorumlar: geçen ayın aynı
+  dönemine göre harcama, son 3 dolumdaki tüketim eğilimi, son 6 ayın en ucuz yakıtı, son
+  fiyatın ortalamaya göre durumu ve bu ayın en büyük masraf kalemi
+  ([src/lib/insights.ts](src/lib/insights.ts)).
+- **Yıl Özeti:** Garajım'daki banttan açılan, dokunarak geçilen tam ekran hikâyeler (yol, yakıt,
+  harcama, en yoğun ay, en verimli araç, öne çıkanlar) ve paylaşılabilir 1080×1920 özet görseli
+  (`#/yil-ozeti/2026`).
+- **Sayfa geçişleri:** sayfalar iOS'taki gibi kayarak açılır/kapanır, sekmeler arasında yumuşak
+  geçiş (View Transitions; desteklemeyen tarayıcıda anında geçer).
+- **Çevrimdışı çalışma:** service worker ([public/sw.js](public/sw.js)) uygulamayı ve en son
+  görülen verileri saklar; bağlantı yokken de açılır. Çevrimdışı eklenen dolum, masraf ve
+  hatırlatmalar "Bekliyor" olarak görünür ve bağlantı gelince otomatik gönderilir
+  ([src/lib/outbox.ts](src/lib/outbox.ts)). Düzenleme ve silme için bağlantı gerekir (henüz
+  gönderilmemiş kayıtlar hariç).
+- **Bildirimler:** Hatırlatmalar sekmesinden açılır. Tarihli hatırlatmalar için 7, 3 ve 1 gün
+  kala, son gün ve gecikince; km'li hatırlatmalar için 500 km kala ve sınır geçilince, araca
+  erişimi olan herkese bildirim gider (her aşama bir kez). iPhone'da CarLog'un ana ekrana
+  eklenip oradan açılması gerekir (iOS 16.4+).
 
 ### Tüketim (L/100km) nasıl hesaplanır
 
@@ -162,6 +179,12 @@ anahtarı denemesi veya 5 yeni hesaptan sonra ilgili işlem geçici olarak engel
   değişkeninden okunur; tablolar ilk istekte otomatik oluşturulur.
 - `main` dalına yapılan her `git push` Vercel'de otomatik yeni sürüm yayınlar.
   Veritabanı sürümlerden etkilenmez.
+- **Bildirim görevi:** `vercel.json` içindeki Vercel Cron her gün 06:00 UTC'de (09:00 TR)
+  `/api/cron/reminders` adresini çağırır ([server/push.ts](server/push.ts)). Web Push için
+  gereken VAPID anahtarları ilk kullanımda üretilip veritabanında (`app_meta`) saklanır; ek
+  ayar gerekmez. İsteğe bağlı ortam değişkenleri: `CRON_SECRET` (görevi yalnızca Vercel
+  zamanlayıcısı çağırabilsin), `VAPID_SUBJECT` (iletişim adresi, örn. `mailto:siz@ornek.com`),
+  `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (anahtarları kendiniz vermek isterseniz).
 
 ## Yerel geliştirme
 
