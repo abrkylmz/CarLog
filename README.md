@@ -43,8 +43,8 @@ Değer seçilen motora aittir; farklı motorlu araçlarda sapma olabilir.
 - **Telefonda alt gezinme çubuğu:** Özet, Dolumlar, Masraflar, Hatırlatma; diğer
   sekmeler ve Dışa Aktar "Diğer" menüsündedir.
 - **Araç slider'ı:** Garajım'daki araçlar ortalanmış bir odak şeridinde durur. Ortadaki araç tam
-  boyutta ve kendi renginde parlar; yandakiler bir tekerlek çemberi gibi hafifçe eğilip aşağı iner,
-  kırpılır ve rengini kaybeder. Kartların arkasında aktif aracın adı dev, içi boş harflerle daha
+  boyutta ve kendi renginde parlar; iki yanındaki araçlar biraz küçük ve silik görünür (ilk araçta
+  yalnızca sağdaki, sonraki araçlarda her iki komşu). Kartların arkasında aktif aracın adı dev, içi boş harflerle daha
   yavaş kayar. Altta kayan "01 / 05" sayacı, aracın renginde ilerleme çizgisi ve oklar var.
   Bilgisayarda fareyle sürüklenir (imleç "Sürükle" etiketine döner), oklarla veya touchpad ile
   kaydırılır.

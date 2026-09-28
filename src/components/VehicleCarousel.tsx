@@ -12,8 +12,7 @@ interface Props {
 
 /**
  * A centered "focus" slider. The current vehicle sits in the middle at full size with a glow in
- * its fuel color; its neighbours tip down along an arc like the rim of a wheel, get clipped and
- * lose color. Behind the cards the current name runs in huge outline type at a slower pace
+ * its fuel color; the cards on either side are shown slightly smaller and faded. Behind the cards the current name runs in huge outline type at a slower pace
  * (parallax). Below, a rolling "01 / 05" counter and a progress line. On computers the strip is
  * dragged with the mouse behind a "Sürükle" cursor, or moved with the arrows or a touchpad.
  */
@@ -50,21 +49,11 @@ export default function VehicleCarousel({ children, accents, titles, label }: Pr
         }
       });
       all.forEach((slide, i) => {
-        const p = offsets[i];
-        const k = Math.min(1, Math.abs(p));
-        const card = slide.firstElementChild as HTMLElement | null;
-        if (reduce.matches || !multi) {
-          slide.style.transform = "";
-          if (card) card.style.clipPath = "";
-          slide.style.filter = "";
-          slide.style.setProperty("--glow", i === nearest && multi ? "1" : "0");
-          return;
-        }
-        const d = Math.min(1.6, Math.abs(p));
-        slide.style.transform = `translateY(${(d * d * 14).toFixed(1)}px) rotate(${(p * 3.2).toFixed(2)}deg) scale(${(1 - k * 0.06).toFixed(3)})`;
-        // Clip the card, not the slide, so the slide's glow isn't cut off.
-        if (card) card.style.clipPath = `inset(${(k * 7).toFixed(1)}% 0 ${(k * 7).toFixed(1)}% 0 round 12px)`;
-        slide.style.filter = `saturate(${(1 - k * 0.7).toFixed(2)}) brightness(${(1 - k * 0.04).toFixed(3)})`;
+        // k: 0 for the centered card, 1 for its neighbours; they fade out and lose color as it grows.
+        const k = multi ? Math.min(1, Math.abs(offsets[i])) : 0;
+        slide.style.opacity = (1 - k * 0.55).toFixed(3);
+        slide.style.filter = k > 0.01 ? `saturate(${(1 - k * 0.6).toFixed(2)})` : "";
+        slide.style.transform = reduce.matches || k < 0.01 ? "" : `scale(${(1 - k * 0.08).toFixed(3)})`;
         slide.style.setProperty("--glow", (1 - k).toFixed(2));
       });
       setActive(nearest);
@@ -195,7 +184,7 @@ export default function VehicleCarousel({ children, accents, titles, label }: Pr
       data-accent={accents[active]}
       className={`relative ${
         multi
-          ? "[--slide:82%] [--title:clamp(3.5rem,11vw,7rem)] sm:[--slide:56%] lg:[--slide:40%]"
+          ? "[--slide:72%] [--title:clamp(3.5rem,11vw,7rem)] sm:[--slide:56%] lg:[--slide:40%]"
           : "[--slide:100%] sm:[--slide:50%] lg:[--slide:33.333%]"
       }`}
     >
