@@ -13,6 +13,42 @@ export function monthKey(dateIso: string): string {
   return dateIso.slice(0, 7);
 }
 
+const DAY_MS = 86_400_000;
+const dayNumber = (iso: string) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))) / DAY_MS;
+const isoOfDay = (day: number) => new Date(day * DAY_MS).toISOString().slice(0, 10);
+
+/**
+ * km driven per month ("YYYY-MM" → km) for one vehicle, from its odometer readings. The distance
+ * between two readings is spread evenly over the days between them, so a stretch from 25 January
+ * to 10 February counts partly toward each month. Fill-ups without a reading are skipped, and so
+ * are readings that don't move forward (a typo would otherwise produce negative km).
+ */
+export function monthlyKm(entries: FuelEntry[]): Map<string, number> {
+  const readings = entries
+    .filter((e): e is FuelEntry & { odometerKm: number } => e.odometerKm != null)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.odometerKm - b.odometerKm);
+  const km = new Map<string, number>();
+  const add = (month: string, value: number) => km.set(month, (km.get(month) ?? 0) + value);
+
+  let prev: (typeof readings)[number] | null = null;
+  for (const r of readings) {
+    if (prev && r.odometerKm > prev.odometerKm) {
+      const distance = r.odometerKm - prev.odometerKm;
+      const from = dayNumber(prev.date);
+      const to = dayNumber(r.date);
+      if (to <= from) {
+        add(monthKey(r.date), distance);
+      } else {
+        // Each day after the previous reading up to this one gets an equal share.
+        const perDay = distance / (to - from);
+        for (let day = from + 1; day <= to; day++) add(monthKey(isoOfDay(day)), perDay);
+      }
+    }
+    if (!prev || r.odometerKm > prev.odometerKm) prev = r;
+  }
+  return km;
+}
+
 /**
  * Monthly totals for one vehicle, newest first; months with only non-fuel expenses are included too.
  * A measured stretch counts toward the month of the fill-up that closes it. When the vehicle has no

@@ -7,9 +7,11 @@ const LOW_DATA_KM = 300;
 
 interface Props {
   summaries: MonthlySummary[];
+  /** km driven per month (see monthlyKm), spread over the days between odometer readings. */
+  kmByMonth?: Map<string, number>;
 }
 
-export default function MonthlySummaryTable({ summaries }: Props) {
+export default function MonthlySummaryTable({ summaries, kmByMonth }: Props) {
   if (summaries.length === 0) {
     return null;
   }
@@ -20,6 +22,7 @@ export default function MonthlySummaryTable({ summaries }: Props) {
         <thead>
           <tr className="border-b border-slate-200 bg-slate-100 text-left text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
             <th className="px-3 py-2 font-medium">Ay</th>
+            <th className="px-3 py-2 font-medium">Km</th>
             <th className="px-3 py-2 font-medium">Dolum</th>
             <th className="px-3 py-2 font-medium">Litre</th>
             <th className="px-3 py-2 font-medium">Yakıt</th>
@@ -35,6 +38,9 @@ export default function MonthlySummaryTable({ summaries }: Props) {
             return (
               <tr key={s.month} className="border-b border-slate-100 last:border-0 dark:border-slate-800/60">
                 <td className="px-3 py-2 font-medium capitalize whitespace-nowrap">{formatMonth(s.month)}</td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  {(kmByMonth?.get(s.month) ?? 0) >= 1 ? `${formatNumber(kmByMonth!.get(s.month)!, 0)} km` : "—"}
+                </td>
                 <td className="px-3 py-2">{s.fillCount}</td>
                 <td className="px-3 py-2 whitespace-nowrap">{hasFuel ? `${formatNumber(s.totalLiters)} L` : "—"}</td>
                 <td className="px-3 py-2 whitespace-nowrap">{formatTL(s.totalCost)}</td>

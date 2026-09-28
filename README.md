@@ -66,6 +66,10 @@ Değer seçilen motora aittir; farklı motorlu araçlarda sapma olabilir.
 - **Hızlı + düğmesi:** her yerden araç → Dolum / Masraf / Hatırlatma seçip kaydetme.
 - **Ana ekrana ekle (PWA):** Safari'de Paylaş → "Ana Ekrana Ekle" ile uygulama simgesiyle
   tam ekran açılır (`public/manifest.webmanifest`, simgeler `public/`).
+- **Aylık kilometre:** Özet ve Aylık Rapor sekmelerinde her ay kaç km yapıldığı ("Ocak 2026 —
+  1.240 km") çubuklarla, toplam ve aylık ortalamayla gösterilir; aylık tabloda da Km sütunu vardır.
+  İki kilometre kaydı arasındaki yol aradaki günlere eşit dağıtılarak aylara bölünür
+  (`monthlyKm`, [src/lib/calc.ts](src/lib/calc.ts)).
 - **Öne Çıkanlar:** aracın Özet sekmesinin başında otomatik yorumlar: geçen ayın aynı
   dönemine göre harcama, son 3 dolumdaki tüketim eğilimi, son 6 ayın en ucuz yakıtı, son
   fiyatın ortalamaya göre durumu ve bu ayın en büyük masraf kalemi

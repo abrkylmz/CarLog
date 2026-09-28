@@ -22,7 +22,8 @@ import InsightsCard from "../components/InsightsCard";
 import NotificationSettings from "../components/NotificationSettings";
 import { vehicleInsights } from "../lib/insights";
 import VehicleForm, { catalogVersionLabel } from "../components/VehicleForm";
-import { groupByMonth, vehicleStats, withDerived } from "../lib/calc";
+import { groupByMonth, monthlyKm, vehicleStats, withDerived } from "../lib/calc";
+import MonthlyKmCard from "../components/MonthlyKmCard";
 import {
   CONSUMPTION_KIND_LABELS,
   formatConsumption,
@@ -122,6 +123,7 @@ export default function VehiclePage({
   const summaries = useMemo(() => groupByMonth(entries, expenses, tank), [entries, expenses, tank]);
   const stats = useMemo(() => vehicleStats(entries, expenses, tank), [entries, expenses, tank]);
   const insights = useMemo(() => vehicleInsights(entries, expenses, tank), [entries, expenses, tank]);
+  const kmByMonth = useMemo(() => monthlyKm(entries), [entries]);
   const thisMonthTotal = stats.thisMonthCost + stats.thisMonthOtherCost;
   const grandTotal = stats.totalCost + stats.otherCostTotal;
   const split = (fuel: number, other: number) => `Yakıt ${formatTL(fuel)} · Diğer ${formatTL(other)}`;
@@ -242,6 +244,8 @@ export default function VehiclePage({
             />
           </section>
 
+          <MonthlyKmCard km={kmByMonth} />
+
           <section>
             <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Aylık Harcama</h3>
             <SpendChart summaries={summaries} />
@@ -350,7 +354,8 @@ export default function VehiclePage({
           <div className="mb-4">
             <SpendChart summaries={summaries} />
           </div>
-          <MonthlySummaryTable summaries={summaries} />
+          <MonthlyKmCard km={kmByMonth} />
+          <MonthlySummaryTable summaries={summaries} kmByMonth={kmByMonth} />
         </section>
       )}
 
