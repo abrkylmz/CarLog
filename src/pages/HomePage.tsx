@@ -5,6 +5,8 @@ import StatCard from "../components/StatCard";
 import UpcomingReminders from "../components/UpcomingReminders";
 import VehicleCard from "../components/VehicleCard";
 import VehicleCarousel from "../components/VehicleCarousel";
+import WrappedBanner from "../components/WrappedBanner";
+import { wrappedYear } from "../lib/wrapped";
 import { vehicleStats } from "../lib/calc";
 import { formatTL } from "../lib/format";
 import { paths } from "../lib/router";
@@ -54,6 +56,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, onRel
   }, [reminders, latestKmByVehicle]);
   const split = (fuel: number, other: number) => `Yakıt ${formatTL(fuel)} · Diğer ${formatTL(other)}`;
   const banner = <LegacyImportBanner onImported={onReload} />;
+  const year = wrappedYear(entries);
   const owned = vehicles.filter((v) => v.myRole === "owner");
   const shared = vehicles.filter((v) => v.myRole !== "owner");
   const card = (vehicle: Vehicle) => (
@@ -92,6 +95,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, onRel
   return (
     <>
       {banner}
+      {year != null ? <WrappedBanner year={year} inProgress={year === new Date().getFullYear()} /> : null}
       <UpcomingReminders reminders={reminders} vehicles={vehicles} latestKmByVehicle={latestKmByVehicle} />
       <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard

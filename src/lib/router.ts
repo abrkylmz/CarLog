@@ -18,7 +18,8 @@ export type Route =
   | { name: "new-vehicle" }
   | { name: "admin" }
   | { name: "invite"; token: string }
-  | { name: "vehicle"; id: string; tab: VehicleTab };
+  | { name: "vehicle"; id: string; tab: VehicleTab }
+  | { name: "wrapped"; year: number };
 
 export const paths = {
   home: "#/",
@@ -26,12 +27,14 @@ export const paths = {
   admin: "#/admin",
   invite: (token: string) => `#/davet/${encodeURIComponent(token)}`,
   vehicle: (id: string, tab: VehicleTab = "ozet") => `#/arac/${encodeURIComponent(id)}/${tab}`,
+  wrapped: (year: number) => `#/yil-ozeti/${year}`,
 };
 
 export function parseHash(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (parts[0] === "arac-ekle") return { name: "new-vehicle" };
   if (parts[0] === "admin") return { name: "admin" };
+  if (parts[0] === "yil-ozeti" && /^\d{4}$/.test(parts[1] ?? "")) return { name: "wrapped", year: Number(parts[1]) };
   if (parts[0] === "davet" && parts[1]) return { name: "invite", token: decodeURIComponent(parts[1]) };
   if (parts[0] === "arac" && parts[1]) {
     const tab = VEHICLE_TABS.find((t) => t === parts[2]) ?? "ozet";

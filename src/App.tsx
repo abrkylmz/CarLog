@@ -4,6 +4,8 @@ import BackLink from "./components/BackLink";
 import { useDialog } from "./components/DialogProvider";
 import ExportDialog from "./components/ExportDialog";
 import LoadingSkeleton from "./components/LoadingSkeleton";
+import WrappedStories from "./components/WrappedStories";
+import { yearSummary } from "./lib/wrapped";
 import Toaster, { toast } from "./components/Toaster";
 import QuickAdd from "./components/QuickAdd";
 import ThemeToggle from "./components/ThemeToggle";
@@ -374,6 +376,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       </>
     );
   } else {
+    // Home; the year-in-review opens on top of it.
     page = (
       <HomePage
         vehicles={vehicles}
@@ -385,6 +388,9 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       />
     );
   }
+
+  const wrapped =
+    route.name === "wrapped" && vehicles ? yearSummary(route.year, vehicles, entries, expenses) : null;
 
   return (
     <div
@@ -434,6 +440,10 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       {page}
 
       <Toaster />
+
+      {wrapped && wrapped.fillCount > 0 ? (
+        <WrappedStories summary={wrapped} userName={user.username} onClose={() => navigate(paths.home)} />
+      ) : null}
 
       {showQuickAdd && vehicles ? (
         <QuickAdd
