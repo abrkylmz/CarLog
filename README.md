@@ -42,10 +42,12 @@ Değer seçilen motora aittir; farklı motorlu araçlarda sapma olabilir.
   tüketim / son km özeti.
 - **Telefonda alt gezinme çubuğu:** Özet, Dolumlar, Masraflar, Hatırlatma; diğer
   sekmeler ve Dışa Aktar "Diğer" menüsündedir.
-- **Kaydırmalı araç kartları:** Garajım'daki araçlar yana kaydırılan bir şeritte durur (telefonda
-  bir, tablette iki, geniş ekranda üç kart). Kartlar kaydırma hızına göre hafifçe eğilir, alttaki
-  gösterge sıvı gibi akar ve aracın rengini alır. Bilgisayarda fareyle sürüklenebilir, yan oklarla
-  veya touchpad ile kaydırılabilir; tüm kartlar sığıyorsa oklar ve noktalar gizlenir.
+- **Araç slider'ı:** Garajım'daki araçlar ortalanmış bir odak şeridinde durur. Ortadaki araç tam
+  boyutta ve kendi renginde parlar; yandakiler bir tekerlek çemberi gibi hafifçe eğilip aşağı iner,
+  kırpılır ve rengini kaybeder. Kartların arkasında aktif aracın adı dev, içi boş harflerle daha
+  yavaş kayar. Altta kayan "01 / 05" sayacı, aracın renginde ilerleme çizgisi ve oklar var.
+  Bilgisayarda fareyle sürüklenir (imleç "Sürükle" etiketine döner), oklarla veya touchpad ile
+  kaydırılır.
 - **Sayfa açılışı:** araç sayfası ve sekmeleri açılırken bölümler sırayla yerine oturur.
 - **Canlı sayılar ve grafikler:** özet değerleri sayarak gelir ve yeni kayıttan sonra yeni değere
   kayar; aylık harcama çubukları alttan yükselir, masraf türü çubukları soldan dolar. Fabrika

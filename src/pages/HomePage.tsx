@@ -137,7 +137,11 @@ export default function HomePage({ vehicles, entries, expenses, reminders, onRel
           </div>
         </div>
 
-        <VehicleCarousel label="Araçlarım" accents={[...owned.map((v) => FUEL_ACCENT[v.fuelType]), undefined]}>
+        <VehicleCarousel
+          label="Araçlarım"
+          accents={[...owned.map((v) => FUEL_ACCENT[v.fuelType]), undefined]}
+          titles={[...owned.map((v) => v.name), "Yeni araç"]}
+        >
           {owned.map(card)}
           <a
             href={paths.newVehicle}
@@ -155,7 +159,11 @@ export default function HomePage({ vehicles, entries, expenses, reminders, onRel
             <Users size={15} />
             Benimle Paylaşılanlar
           </h2>
-          <VehicleCarousel label="Benimle Paylaşılanlar" accents={shared.map((v) => FUEL_ACCENT[v.fuelType])}>
+          <VehicleCarousel
+            label="Benimle Paylaşılanlar"
+            accents={shared.map((v) => FUEL_ACCENT[v.fuelType])}
+            titles={shared.map((v) => v.name)}
+          >
             {shared.map(card)}
           </VehicleCarousel>
         </section>

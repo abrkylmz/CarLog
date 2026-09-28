@@ -183,7 +183,21 @@ summary:active {
 }
 .grow-x { transform-origin: left; animation: grow-x 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
+/* ---- Vehicle slider ---- */
+@keyframes title-in {
+  from { opacity: 0; transform: translateY(35%); }
+}
+@keyframes roll-in {
+  from { transform: translateY(100%); }
+}
+.slider-title { animation: title-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.roll-in { animation: roll-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.slider-cursor { opacity: 0; scale: 0.3; transition: opacity 0.25s, scale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.slider-cursor[data-visible] { opacity: 1; scale: 1; }
+.slider-cursor[data-visible][data-pressed] { scale: 0.78; }
+
 @media (prefers-reduced-motion: reduce) {
+  .slider-title, .roll-in { animation: none; }
   button:not(:disabled):active, a[href]:active, [role="button"]:active, summary:active { scale: none; }
   .toast, .toast-leave, .leave-row, .leave-item, .skeleton, .pulse-alert, .float, .spin-slow, .grow-x { animation: none; }
   .toast-check { stroke-dashoffset: 0; animation: none; }
