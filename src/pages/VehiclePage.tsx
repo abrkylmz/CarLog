@@ -244,7 +244,7 @@ export default function VehiclePage({
             />
           </section>
 
-          <MonthlyKmCard km={kmByMonth} />
+          <MonthlyKmCard km={kmByMonth} summaries={summaries} />
 
           <section>
             <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Aylık Harcama</h3>
@@ -354,7 +354,7 @@ export default function VehiclePage({
           <div className="mb-4">
             <SpendChart summaries={summaries} />
           </div>
-          <MonthlyKmCard km={kmByMonth} />
+          <MonthlyKmCard km={kmByMonth} summaries={summaries} />
           <MonthlySummaryTable summaries={summaries} kmByMonth={kmByMonth} />
         </section>
       )}
