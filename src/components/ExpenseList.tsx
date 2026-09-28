@@ -4,6 +4,7 @@ import { EXPENSE_CATEGORY_LABELS, formatDate, formatMonth, formatTL } from "../l
 import type { Expense } from "../types";
 import { useLeavingIds } from "../lib/motion";
 import EmptyState from "./EmptyState";
+import PendingBadge from "./PendingBadge";
 
 interface Props {
   expenses: Expense[];
@@ -51,6 +52,7 @@ export default function ExpenseList({ expenses, onDelete, onEdit, canEdit }: Pro
                   <p className="font-medium">{EXPENSE_CATEGORY_LABELS[expense.category]}</p>
                   <p className="flex flex-wrap items-center gap-x-2 text-xs text-slate-500 dark:text-slate-400">
                     <span>{formatDate(expense.date)}</span>
+                    <PendingBadge id={expense.id} />
                     {expense.note ? <span className="truncate">· {expense.note}</span> : null}
                     <span
                       className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500"

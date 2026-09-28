@@ -6,6 +6,7 @@ import { reminderStatus, type ReminderLevel, type ReminderStatus } from "../lib/
 import type { Reminder, ReminderInput, ReminderKind } from "../types";
 import { useLeavingIds } from "../lib/motion";
 import EmptyState from "./EmptyState";
+import PendingBadge from "./PendingBadge";
 import { CancelButton } from "./EntryForm";
 
 /** Typical schedules in Turkey, pre-filled when a kind is picked for a new reminder. */
@@ -294,6 +295,7 @@ export function ReminderList({ reminders, latestKm, onComplete, onEdit, canEdit,
               <div className="min-w-0 flex-1 basis-56">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium">{reminderTitle(r)}</p>
+                  <PendingBadge id={r.id} />
                   <ReminderStatusBadge status={status} />
                 </div>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-500 dark:text-slate-400">

@@ -35,6 +35,7 @@ export default function VehicleBottomNav({
   return (
     <>
       <nav
+        style={{ viewTransitionName: "tab-bar" }}
         aria-label="Araç sekmeleri"
         className="fixed inset-x-0 bottom-0 z-30 flex border-t border-slate-200 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/90 sm:hidden"
       >

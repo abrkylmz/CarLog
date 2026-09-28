@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 export const VEHICLE_TABS = ["ozet", "dolumlar", "masraflar", "hatirlatmalar", "aylik", "paylasim", "bilgiler"] as const;
 export type VehicleTab = (typeof VEHICLE_TABS)[number];
@@ -47,14 +48,45 @@ export function navigate(path: string): void {
   window.location.hash = path;
 }
 
-/** Hash-based routing so the browser back button works without server-side routes. */
+/** How deep a page sits: the garage is 0, pages opened from it are 1. */
+function depth(route: Route): number {
+  return route.name === "home" ? 0 : 1;
+}
+
+/**
+ * Hash-based routing so the browser back button works without server-side routes.
+ * Page changes animate like a native app where the browser supports view transitions: going
+ * deeper slides the new page in from the right, going back slides it in from the left, and
+ * switching tabs of the same vehicle cross-fades. The year-in-review overlay has its own motion.
+ */
 export function useHashRoute(): Route {
   const [route, setRoute] = useState<Route>(() => parseHash(window.location.hash));
+  const current = useRef(route);
 
   useEffect(() => {
     function onHashChange() {
-      setRoute(parseHash(window.location.hash));
-      window.scrollTo(0, 0);
+      const next = parseHash(window.location.hash);
+      const prev = current.current;
+      current.current = next;
+      const apply = () => {
+        setRoute(next);
+        window.scrollTo(0, 0);
+      };
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const overlay = next.name === "wrapped" || prev.name === "wrapped";
+      if (!document.startViewTransition || reduce || overlay) {
+        apply();
+        return;
+      }
+      const sameVehicle = prev.name === "vehicle" && next.name === "vehicle" && prev.id === next.id;
+      document.documentElement.dataset.nav = sameVehicle
+        ? "tab"
+        : depth(next) > depth(prev)
+          ? "forward"
+          : depth(next) < depth(prev)
+            ? "back"
+            : "tab";
+      document.startViewTransition(() => flushSync(apply));
     }
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);

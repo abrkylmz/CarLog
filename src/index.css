@@ -183,6 +183,23 @@ summary:active {
 }
 .grow-x { transform-origin: left; animation: grow-x 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
+/* ---- Page transitions (view transitions, see useHashRoute) ----
+   The header and the phone tab bar stay put; the page slides like an iOS navigation push/pop. */
+@keyframes vt-in-right { from { transform: translateX(28%); opacity: 0; } }
+@keyframes vt-out-left { to { transform: translateX(-12%); opacity: 0; } }
+@keyframes vt-in-left { from { transform: translateX(-12%); opacity: 0; } }
+@keyframes vt-out-right { to { transform: translateX(28%); opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+@keyframes vt-fade-out { to { opacity: 0; } }
+::view-transition-old(root),
+::view-transition-new(root) { animation-duration: 0.34s; animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1); }
+:root[data-nav="forward"]::view-transition-new(root) { animation-name: vt-in-right; }
+:root[data-nav="forward"]::view-transition-old(root) { animation-name: vt-out-left; }
+:root[data-nav="back"]::view-transition-new(root) { animation-name: vt-in-left; }
+:root[data-nav="back"]::view-transition-old(root) { animation-name: vt-out-right; }
+:root[data-nav="tab"]::view-transition-new(root) { animation: vt-fade-in 0.2s ease-out; }
+:root[data-nav="tab"]::view-transition-old(root) { animation: vt-fade-out 0.15s ease-in; }
+
 /* ---- Vehicle slider ---- */
 @keyframes title-in {
   from { opacity: 0; transform: translateY(35%); }

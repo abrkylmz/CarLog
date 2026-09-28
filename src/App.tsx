@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Fuel, LayoutDashboard, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import BackLink from "./components/BackLink";
 import { useDialog } from "./components/DialogProvider";
@@ -15,6 +15,10 @@ import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL, parseAmount } from "./li
 import { navigate, paths, useHashRoute, type Route } from "./lib/router";
 import { FUEL_ACCENT, usePageAccent } from "./lib/theme";
 import { animateOut, clearLeaving } from "./lib/motion";
+import { dropFromOutbox, enqueue, isOfflineError, isPending, readOutbox, replaceInOutbox } from "./lib/outbox";
+import OnlineStatus from "./components/OnlineStatus";
+
+const OFFLINE_SAVED = "Çevrimdışı kaydedildi";
 import { AdminAuthPage, UserAuthPage } from "./pages/AuthPage";
 import InvitePage, { InviteNotice } from "./pages/InvitePage";
 import HomePage from "./pages/HomePage";
@@ -98,6 +102,8 @@ export default function App() {
       route={route}
       onLogout={async () => {
         await api.logout().catch(() => undefined);
+        // Forget this account's saved data in the offline cache.
+        navigator.serviceWorker?.controller?.postMessage({ type: "clear-data" });
         // Send each role back to the login panel it came from.
         navigate(auth.user.role === "admin" ? paths.admin : paths.home);
         checkAuth();
@@ -120,6 +126,13 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   const showError = (err: unknown) =>
     dialog.alert({ title: "İşlem tamamlanamadı", message: errorMessage(err), tone: "danger" });
 
+  // A record added offline, shown in the lists until the server gives it a real id.
+  const placeholder = useCallback(
+    <T,>(input: unknown, id: string) =>
+      ({ ...(input as object), id, createdBy: user.username, createdById: user.id, createdAt: new Date().toISOString() }) as T,
+    [user.id, user.username],
+  );
+
   const reload = useCallback(async () => {
     try {
       const [v, e, x, r] = await Promise.all([
@@ -130,10 +143,14 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       ]);
       // The catalog is optional: without it the vehicle form falls back to manual entry.
       api.listCatalog().then(setCatalog, () => undefined);
+      // Keep records that are still waiting to be sent.
+      const pending = readOutbox(user.id);
+      const waiting = <T,>(kind: string) =>
+        pending.filter((item) => item.kind === kind).map((item) => placeholder<T>(item.input, item.localId));
       setVehicles(v);
-      setEntries(e);
-      setExpenses(x);
-      setReminders(r);
+      setEntries([...e, ...waiting<FuelEntry>("entry")]);
+      setExpenses([...x, ...waiting<Expense>("expense")]);
+      setReminders([...r, ...waiting<Reminder>("reminder")]);
       setLoadError(null);
     } catch (err) {
       setLoadError(errorMessage(err));
@@ -174,9 +191,16 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   }
 
   async function addEntry(input: FuelEntryInput) {
-    const entry = await api.createEntry(input);
-    setEntries((prev) => [...prev, entry]);
-    toast("Dolum kaydedildi");
+    try {
+      const entry = await api.createEntry(input);
+      setEntries((prev) => [...prev, entry]);
+      toast("Dolum kaydedildi");
+    } catch (err) {
+      if (!isOfflineError(err)) throw err;
+      const id = enqueue("entry", input, user.id);
+      setEntries((prev) => [...prev, placeholder<FuelEntry>(input, id)]);
+      toast(OFFLINE_SAVED);
+    }
   }
 
   async function deleteEntry(id: string) {
@@ -191,7 +215,8 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     });
     if (!confirmed) return;
     try {
-      await api.deleteEntry(id);
+      if (isPending(id)) dropFromOutbox(id);
+      else await api.deleteEntry(id);
       await animateOut(id);
       setEntries((prev) => prev.filter((e) => e.id !== id));
       clearLeaving(id);
@@ -201,29 +226,98 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     }
   }
 
+  // Send records that were added offline, as soon as there is a connection again.
+  const flushing = useRef(false);
+  const flushOutbox = useCallback(async () => {
+    const items = readOutbox(user.id);
+    if (flushing.current || !navigator.onLine || items.length === 0) return;
+    flushing.current = true;
+    let sent = 0;
+    try {
+      for (const item of items) {
+        try {
+          if (item.kind === "entry") {
+            const saved = await api.createEntry(item.input as FuelEntryInput);
+            setEntries((prev) => prev.map((e) => (e.id === item.localId ? saved : e)));
+          } else if (item.kind === "expense") {
+            const saved = await api.createExpense(item.input as ExpenseInput);
+            setExpenses((prev) => prev.map((e) => (e.id === item.localId ? saved : e)));
+          } else {
+            const saved = await api.createReminder(item.input as ReminderInput);
+            setReminders((prev) => prev.map((r) => (r.id === item.localId ? saved : r)));
+          }
+          dropFromOutbox(item.localId);
+          sent++;
+        } catch (err) {
+          if (isOfflineError(err)) break;
+          // The server refused it (e.g. the vehicle is gone): drop it and say why.
+          dropFromOutbox(item.localId);
+          setEntries((prev) => prev.filter((e) => e.id !== item.localId));
+          setExpenses((prev) => prev.filter((e) => e.id !== item.localId));
+          setReminders((prev) => prev.filter((r) => r.id !== item.localId));
+          await dialog.alert({ title: "Bekleyen kayıt gönderilemedi", message: errorMessage(err), tone: "danger" });
+        }
+      }
+    } finally {
+      flushing.current = false;
+    }
+    if (sent) toast(sent === 1 ? "Bekleyen kayıt gönderildi" : `${sent} bekleyen kayıt gönderildi`);
+  }, [user.id, dialog]);
+  useEffect(() => {
+    void flushOutbox();
+    const onOnline = () => void flushOutbox();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [flushOutbox]);
+
   // Per vehicle: the owner may edit or delete any record there, helpers only their own.
   const canEditIn = (vehicle: Vehicle) => (record: { createdById: string | null }) =>
     vehicle.myRole === "owner" || record.createdById === user.id;
 
   async function updateEntry(id: string, input: FuelEntryInput) {
+    if (isPending(id)) {
+      replaceInOutbox(id, input);
+      setEntries((prev) => prev.map((e) => (e.id === id ? placeholder<FuelEntry>(input, id) : e)));
+      toast("Dolum güncellendi");
+      return;
+    }
     const entry = await api.updateEntry(id, input);
     setEntries((prev) => prev.map((e) => (e.id === id ? entry : e)));
     toast("Dolum güncellendi");
   }
 
   async function updateExpense(id: string, input: ExpenseInput) {
+    if (isPending(id)) {
+      replaceInOutbox(id, input);
+      setExpenses((prev) => prev.map((e) => (e.id === id ? placeholder<Expense>(input, id) : e)));
+      toast("Masraf güncellendi");
+      return;
+    }
     const expense = await api.updateExpense(id, input);
     setExpenses((prev) => prev.map((e) => (e.id === id ? expense : e)));
     toast("Masraf güncellendi");
   }
 
   async function addReminder(input: ReminderInput) {
-    const reminder = await api.createReminder(input);
-    setReminders((prev) => [...prev, reminder]);
-    toast("Hatırlatma eklendi");
+    try {
+      const reminder = await api.createReminder(input);
+      setReminders((prev) => [...prev, reminder]);
+      toast("Hatırlatma eklendi");
+    } catch (err) {
+      if (!isOfflineError(err)) throw err;
+      const id = enqueue("reminder", input, user.id);
+      setReminders((prev) => [...prev, placeholder<Reminder>(input, id)]);
+      toast(OFFLINE_SAVED);
+    }
   }
 
   async function updateReminder(id: string, input: ReminderInput) {
+    if (isPending(id)) {
+      replaceInOutbox(id, input);
+      setReminders((prev) => prev.map((r) => (r.id === id ? placeholder<Reminder>(input, id) : r)));
+      toast("Hatırlatma güncellendi");
+      return;
+    }
     const reminder = await api.updateReminder(id, input);
     setReminders((prev) => prev.map((r) => (r.id === id ? reminder : r)));
     toast("Hatırlatma güncellendi");
@@ -273,7 +367,8 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     });
     if (!confirmed) return;
     try {
-      await api.deleteReminder(reminder.id);
+      if (isPending(reminder.id)) dropFromOutbox(reminder.id);
+      else await api.deleteReminder(reminder.id);
       await animateOut(reminder.id);
       setReminders((prev) => prev.filter((r) => r.id !== reminder.id));
       clearLeaving(reminder.id);
@@ -284,9 +379,16 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   }
 
   async function addExpense(input: ExpenseInput) {
-    const expense = await api.createExpense(input);
-    setExpenses((prev) => [...prev, expense]);
-    toast("Masraf kaydedildi");
+    try {
+      const expense = await api.createExpense(input);
+      setExpenses((prev) => [...prev, expense]);
+      toast("Masraf kaydedildi");
+    } catch (err) {
+      if (!isOfflineError(err)) throw err;
+      const id = enqueue("expense", input, user.id);
+      setExpenses((prev) => [...prev, placeholder<Expense>(input, id)]);
+      toast(OFFLINE_SAVED);
+    }
   }
 
   async function deleteExpense(id: string) {
@@ -301,7 +403,8 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     });
     if (!confirmed) return;
     try {
-      await api.deleteExpense(id);
+      if (isPending(id)) dropFromOutbox(id);
+      else await api.deleteExpense(id);
       await animateOut(id);
       setExpenses((prev) => prev.filter((e) => e.id !== id));
       clearLeaving(id);
@@ -399,7 +502,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
         currentVehicle ? "pb-40 sm:pb-24" : showQuickAdd ? "pb-28 sm:pb-24" : "pb-8"
       }`}
     >
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-3 [view-transition-name:app-header]">
         <a href={paths.home} className="inline-flex items-center gap-2">
           <div className="rounded-lg bg-brand-600 p-2 text-white">
             <Fuel size={20} />
@@ -440,6 +543,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       {page}
 
       <Toaster />
+      <OnlineStatus pending={[...entries, ...expenses, ...reminders].filter((r) => isPending(r.id)).length} />
 
       {wrapped && wrapped.fillCount > 0 ? (
         <WrappedStories summary={wrapped} userName={user.username} onClose={() => navigate(paths.home)} />

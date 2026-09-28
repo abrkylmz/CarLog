@@ -4,6 +4,7 @@ import { gaugeLabel, PLAUSIBLE_MAX, PLAUSIBLE_MIN } from "../lib/consumption";
 import { CONSUMPTION_KIND_LABELS, formatConsumption, formatDate, formatNumber, formatTL } from "../lib/format";
 import { useLeavingIds } from "../lib/motion";
 import EmptyState from "./EmptyState";
+import PendingBadge from "./PendingBadge";
 import ScrollX from "./ScrollX";
 
 interface Props {
@@ -49,7 +50,7 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
               className={`border-b border-slate-100 last:border-0 dark:border-slate-800/60 ${leaving.has(entry.id) ? "leave-row" : ""}`}
             >
               <td className="px-3 py-2 whitespace-nowrap">
-                {formatDate(entry.date)}
+                {formatDate(entry.date)} <PendingBadge id={entry.id} />
                 <span
                   className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500"
                   title="Kaydı ekleyen"
