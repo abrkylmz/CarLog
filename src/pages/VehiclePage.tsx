@@ -18,6 +18,8 @@ import VehicleBottomNav from "../components/VehicleBottomNav";
 import VehicleHero from "../components/VehicleHero";
 import UpcomingReminders from "../components/UpcomingReminders";
 import FactoryConsumptionCard from "../components/FactoryConsumptionCard";
+import InsightsCard from "../components/InsightsCard";
+import { vehicleInsights } from "../lib/insights";
 import VehicleForm, { catalogVersionLabel } from "../components/VehicleForm";
 import { groupByMonth, vehicleStats, withDerived } from "../lib/calc";
 import {
@@ -118,6 +120,7 @@ export default function VehiclePage({
   const derived = useMemo(() => withDerived(entries, tank), [entries, tank]);
   const summaries = useMemo(() => groupByMonth(entries, expenses, tank), [entries, expenses, tank]);
   const stats = useMemo(() => vehicleStats(entries, expenses, tank), [entries, expenses, tank]);
+  const insights = useMemo(() => vehicleInsights(entries, expenses, tank), [entries, expenses, tank]);
   const thisMonthTotal = stats.thisMonthCost + stats.thisMonthOtherCost;
   const grandTotal = stats.totalCost + stats.otherCostTotal;
   const split = (fuel: number, other: number) => `Yakıt ${formatTL(fuel)} · Diğer ${formatTL(other)}`;
@@ -160,6 +163,7 @@ export default function VehiclePage({
       <div key={`${vehicle.id}-${tab}`} className="rise-stack">
       {tab === "ozet" && (
         <>
+          <InsightsCard insights={insights} />
           <UpcomingReminders
             reminders={reminders}
             vehicles={[vehicle]}
