@@ -1,4 +1,4 @@
-import { Children, useEffect, useRef, useState } from "react";
+import { Children, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Props {
@@ -18,7 +18,9 @@ interface Props {
  */
 export default function VehicleCarousel({ children, accents, titles, label }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const regionRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
+  const titleTextRef = useRef<HTMLParagraphElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
@@ -30,6 +32,7 @@ export default function VehicleCarousel({ children, accents, titles, label }: Pr
     if (!el) return;
     const slides = () => [...el.children] as HTMLElement[];
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const phone = window.matchMedia("(max-width: 639px)");
     let frame = 0;
 
     // Each card's distance from the center, in cards (0 = centered, ±1 = next door).
@@ -60,8 +63,12 @@ export default function VehicleCarousel({ children, accents, titles, label }: Pr
       const max = el.scrollWidth - el.clientWidth;
       const progress = max > 1 ? el.scrollLeft / max : 1;
       if (progressRef.current) progressRef.current.style.transform = `scaleX(${Math.max(0.04, progress)})`;
-      // The backdrop title drifts at 30% of the scroll speed.
-      if (titleRef.current && !reduce.matches) titleRef.current.style.transform = `translateX(${(-el.scrollLeft * 0.3).toFixed(1)}px)`;
+      // On wider screens the backdrop title drifts at 30% of the scroll speed; on phones it stays
+      // centered and fitted (see the layout effect below).
+      if (titleRef.current) {
+        titleRef.current.style.transform =
+          reduce.matches || phone.matches ? "" : `translateX(${(-el.scrollLeft * 0.3).toFixed(1)}px)`;
+      }
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(paint);
@@ -172,6 +179,23 @@ export default function VehicleCarousel({ children, accents, titles, label }: Pr
     };
   }, [multi]);
 
+  // Phones: size the backdrop title so the whole name fits the screen width (22–56px).
+  useLayoutEffect(() => {
+    const region = regionRef.current;
+    if (!region || !multi) return;
+    const fit = () => {
+      const text = titleTextRef.current;
+      if (!text || !window.matchMedia("(max-width: 639px)").matches) return;
+      const current = parseFloat(getComputedStyle(text).fontSize);
+      const size = Math.max(22, Math.min(56, (current * region.clientWidth * 0.94) / Math.max(1, text.scrollWidth)));
+      region.style.setProperty("--title-fit", `${size.toFixed(1)}px`);
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(region);
+    return () => observer.disconnect();
+  }, [active, multi, titles]);
+
   const step = (direction: 1 | -1) =>
     ref.current && scrollToSlide(ref.current, Math.max(0, Math.min(count - 1, active + direction)));
   const two = (n: number) => String(n).padStart(2, "0");
@@ -181,20 +205,24 @@ export default function VehicleCarousel({ children, accents, titles, label }: Pr
       role="region"
       aria-roledescription="carousel"
       aria-label={label}
+      ref={regionRef}
       data-accent={accents[active]}
       className={`relative ${
         multi
-          ? "[--slide:72%] [--title:clamp(3.5rem,11vw,7rem)] sm:[--slide:56%] lg:[--slide:40%]"
+          ? "[--overlap:1] [--slide:72%] [--title:var(--title-fit,2.5rem)] sm:[--overlap:0.6] sm:[--slide:56%] sm:[--title:clamp(3.5rem,11vw,7rem)] lg:[--slide:40%]"
           : "[--slide:100%] sm:[--slide:50%] lg:[--slide:33.333%]"
       }`}
     >
       {/* Backdrop title, tucked behind the top of the cards. */}
       {multi ? (
         <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[var(--title)] overflow-hidden">
-          <div ref={titleRef} className="will-change-transform">
+          <div ref={titleRef} className="text-center will-change-transform sm:text-left">
+            {/* Phones: centered and fitted, fully above the cards. Wider: left-aligned, tucked
+                behind the cards' top edge and drifting with the scroll. */}
             <p
               key={active}
-              className="slider-title whitespace-nowrap pl-[6%] text-[length:var(--title)] font-black uppercase leading-none tracking-tight text-transparent [-webkit-text-stroke:1.5px_rgb(var(--brand-500)/0.35)] dark:[-webkit-text-stroke:1.5px_rgb(var(--brand-400)/0.3)]"
+              ref={titleTextRef}
+              className="slider-title inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[length:var(--title)] sm:max-w-none sm:pl-[6%] font-black uppercase leading-none tracking-tight text-transparent [-webkit-text-stroke:1.5px_rgb(var(--brand-500)/0.35)] dark:[-webkit-text-stroke:1.5px_rgb(var(--brand-400)/0.3)]"
             >
               {titles[active]}
             </p>
@@ -203,7 +231,7 @@ export default function VehicleCarousel({ children, accents, titles, label }: Pr
       ) : null}
 
       {/* The cards start 60% of the way down the title, so they tuck over its lower part. */}
-      <div className={`relative -mx-4 overflow-hidden sm:-mx-2 ${multi ? "pt-[calc(var(--title)*0.6)]" : ""}`}>
+      <div className={`relative -mx-4 overflow-hidden sm:-mx-2 ${multi ? "pt-[calc(var(--title)*var(--overlap))]" : ""}`}>
         <div
           ref={ref}
           className={`-mb-5 flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-9 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
