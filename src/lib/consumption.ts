@@ -19,7 +19,8 @@ function plausible(liters: number, km: number): boolean {
 /**
  * Works out fuel consumption for one vehicle's fill-ups without assuming every fill-up is full.
  *
- * Fill-ups are ordered by odometer. For each stretch of driving the best available method wins:
+ * Fill-ups are ordered by odometer (see orderFillUps; ones without a km reading only add their
+ * liters). For each stretch of driving the best available method wins:
  * 1. exact — between two full fill-ups: every liter bought in between (partial fills included)
  *    was burned over that distance, whatever the tank held along the way;
  * 2. gauge — fill-up to fill-up, from the tank capacity and the gauge reading before filling:
@@ -31,18 +32,22 @@ export function analyzeConsumption(
   entries: FuelEntry[],
   tankCapacity?: number,
 ): { derived: DerivedEntry[]; segments: ConsumptionSegment[] } {
-  const sorted = [...entries].sort(
-    (a, b) => a.odometerKm - b.odometerKm || a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt),
-  );
-  const derived: DerivedEntry[] = sorted.map((e, i) => ({
-    ...e,
-    kmSinceLast: i > 0 ? e.odometerKm - sorted[i - 1].odometerKm : null,
-    consumptionPer100km: null,
-    consumptionKind: null,
-    consumptionKm: null,
-    suspicious: false,
-    awaitingFull: false,
-  }));
+  const sorted = orderFillUps(entries);
+  // km of the nearest earlier fill-up that has one.
+  let lastKm: number | null = null;
+  const derived: DerivedEntry[] = sorted.map((e) => {
+    const kmSinceLast = e.odometerKm != null && lastKm != null ? e.odometerKm - lastKm : null;
+    if (e.odometerKm != null) lastKm = e.odometerKm;
+    return {
+      ...e,
+      kmSinceLast,
+      consumptionPer100km: null,
+      consumptionKind: null,
+      consumptionKm: null,
+      suspicious: false,
+      awaitingFull: false,
+    };
+  });
   const segments: ConsumptionSegment[] = [];
   const cap = tankCapacity && tankCapacity > 0 ? tankCapacity : null;
 
@@ -57,12 +62,14 @@ export function analyzeConsumption(
   }
 
   // 1. Exact: full-to-full stretches. Remember which fill-to-fill gaps they cover.
+  // Only full fill-ups with a km reading can open or close a stretch; fill-ups without one still
+  // add their liters to the stretch they fall in.
   const coveredGap = new Set<number>(); // gap i = between fill i-1 and fill i
   let lastFull: number | null = null;
   sorted.forEach((e, i) => {
-    if (e.isFull !== true) return;
+    if (e.isFull !== true || e.odometerKm == null) return;
     if (lastFull != null) {
-      const km = e.odometerKm - sorted[lastFull].odometerKm;
+      const km = e.odometerKm - sorted[lastFull].odometerKm!;
       if (km > 0) {
         let liters = 0;
         for (let j = lastFull + 1; j <= i; j++) {
@@ -87,7 +94,10 @@ export function analyzeConsumption(
       e.gaugeBefore != null ? e.gaugeBefore * cap : e.isFull ? Math.max(0, cap - e.liters) : null;
     for (let i = 1; i < sorted.length; i++) {
       if (coveredGap.has(i)) continue;
-      const km = sorted[i].odometerKm - sorted[i - 1].odometerKm;
+      const from = sorted[i - 1].odometerKm;
+      const to = sorted[i].odometerKm;
+      if (from == null || to == null) continue;
+      const km = to - from;
       const a = after(sorted[i - 1]);
       const b = before(sorted[i]);
       if (km <= 0 || a == null || b == null || a - b <= 0) continue;
@@ -96,13 +106,17 @@ export function analyzeConsumption(
     }
   }
 
-  // 3. Rough: nothing measurable at all, so estimate over the whole distance.
-  if (segments.length === 0 && sorted.length >= 2) {
-    const km = sorted[sorted.length - 1].odometerKm - sorted[0].odometerKm;
-    const liters = sorted.slice(1).reduce((t, e) => t + e.liters, 0);
+  // 3. Rough: nothing measurable at all, so estimate over the whole distance between the first
+  // and the last km reading (liters bought after the first one, up to the last one).
+  const withKm = sorted.map((e, i) => (e.odometerKm != null ? i : -1)).filter((i) => i >= 0);
+  if (segments.length === 0 && withKm.length >= 2) {
+    const first = withKm[0];
+    const last = withKm[withKm.length - 1];
+    const km = sorted[last].odometerKm! - sorted[first].odometerKm!;
+    const liters = sorted.slice(first + 1, last + 1).reduce((t, e) => t + e.liters, 0);
     if (km > 0) {
       segments.push({
-        endDate: sorted[sorted.length - 1].date,
+        endDate: sorted[last].date,
         km,
         liters,
         kind: "rough",
@@ -112,6 +126,27 @@ export function analyzeConsumption(
   }
 
   return { derived, segments };
+}
+
+/**
+ * Fill-ups in driving order: those with a km reading by odometer (so a mistyped date doesn't
+ * break the distance math); each one without a reading goes right after the last fill-up with a
+ * reading dated on or before it.
+ */
+export function orderFillUps<T extends FuelEntry>(entries: T[]): T[] {
+  const byDate = (a: T, b: T) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt);
+  const withKm = entries
+    .filter((e) => e.odometerKm != null)
+    .sort((a, b) => a.odometerKm! - b.odometerKm! || byDate(a, b));
+  const withoutKm = entries.filter((e) => e.odometerKm == null).sort(byDate);
+  const ordered: T[] = [];
+  let j = 0;
+  for (const e of withKm) {
+    while (j < withoutKm.length && withoutKm[j].date < e.date) ordered.push(withoutKm[j++]);
+    ordered.push(e);
+  }
+  while (j < withoutKm.length) ordered.push(withoutKm[j++]);
+  return ordered;
 }
 
 /** L/100km over trustworthy stretches (suspicious ones left out), with the weakest method used. */
@@ -156,28 +191,34 @@ const LONG_GAP_KM = 2000;
  * Returns human-readable warnings; empty when everything looks consistent.
  */
 export function fillUpWarnings(
-  input: { date: string; odometerKm: number; liters: number },
+  input: { date: string; odometerKm: number | null; liters: number },
   others: FuelEntry[],
   tankCapacity?: number,
 ): string[] {
   const warnings: string[] = [];
-  const earlier = others
-    .filter((o) => o.date <= input.date)
-    .sort((a, b) => b.date.localeCompare(a.date) || b.odometerKm - a.odometerKm)[0];
-  const later = others
-    .filter((o) => o.date > input.date)
-    .sort((a, b) => a.date.localeCompare(b.date) || a.odometerKm - b.odometerKm)[0];
   const km = (n: number) => n.toLocaleString("tr-TR");
 
-  if (earlier && input.odometerKm <= earlier.odometerKm) {
-    warnings.push(`Kilometre, ${earlier.date.split("-").reverse().join(".")} tarihli dolumdaki ${km(earlier.odometerKm)} km'den büyük olmalı.`);
-  } else if (earlier && input.odometerKm - earlier.odometerKm > LONG_GAP_KM) {
-    warnings.push(
-      `Önceki dolumdan bu yana ${km(input.odometerKm - earlier.odometerKm)} km geçmiş; arada girilmemiş bir dolum olabilir.`,
-    );
-  }
-  if (later && input.odometerKm >= later.odometerKm) {
-    warnings.push(`Kilometre, ${later.date.split("-").reverse().join(".")} tarihli sonraki dolumdaki ${km(later.odometerKm)} km'den küçük olmalı.`);
+  // km checks only when this fill-up has a reading, against the ones that have one too.
+  const reading = input.odometerKm;
+  if (reading != null) {
+    const withKm = others.filter((o): o is FuelEntry & { odometerKm: number } => o.odometerKm != null);
+    const earlier = withKm
+      .filter((o) => o.date <= input.date)
+      .sort((a, b) => b.date.localeCompare(a.date) || b.odometerKm - a.odometerKm)[0];
+    const later = withKm
+      .filter((o) => o.date > input.date)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.odometerKm - b.odometerKm)[0];
+
+    if (earlier && reading <= earlier.odometerKm) {
+      warnings.push(`Kilometre, ${earlier.date.split("-").reverse().join(".")} tarihli dolumdaki ${km(earlier.odometerKm)} km'den büyük olmalı.`);
+    } else if (earlier && reading - earlier.odometerKm > LONG_GAP_KM) {
+      warnings.push(
+        `Önceki dolumdan bu yana ${km(reading - earlier.odometerKm)} km geçmiş; arada girilmemiş bir dolum olabilir.`,
+      );
+    }
+    if (later && reading >= later.odometerKm) {
+      warnings.push(`Kilometre, ${later.date.split("-").reverse().join(".")} tarihli sonraki dolumdaki ${km(later.odometerKm)} km'den küçük olmalı.`);
+    }
   }
   if (tankCapacity && input.liters > tankCapacity * 1.05) {
     warnings.push(`${km(input.liters)} L, aracın ${km(tankCapacity)} L'lik deposundan fazla.`);

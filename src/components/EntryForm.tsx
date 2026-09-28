@@ -37,7 +37,7 @@ export default function EntryForm({
 }: Props) {
   const dialog = useDialog();
   const [date, setDate] = useState(initial?.date ?? todayIso());
-  const [odometerKm, setOdometerKm] = useState(initial ? String(initial.odometerKm) : "");
+  const [odometerKm, setOdometerKm] = useState(initial?.odometerKm != null ? String(initial.odometerKm) : "");
   const [liters, setLiters] = useState(initial ? String(initial.liters) : "");
   const [pricePerLiter, setPricePerLiter] = useState(initial ? String(Number(initial.pricePerLiter.toFixed(3))) : "");
   const [totalCost, setTotalCost] = useState(initial ? String(initial.totalCost) : "");
@@ -90,12 +90,13 @@ export default function EntryForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const km = parse(odometerKm);
+    // km is optional: without it the fill-up still counts for spending and liters.
+    const km = odometerKm.trim() ? parse(odometerKm) : null;
     const l = parse(liters);
     const p = parse(pricePerLiter);
     const t = parse(totalCost);
 
-    if (km <= 0) return setError("Kilometre değeri girin.");
+    if (km != null && !(km > 0)) return setError("Geçerli bir kilometre girin ya da alanı boş bırakın.");
     if (l <= 0) return setError("Litre değeri girin.");
     if (t <= 0) return setError("Tutar değeri girin.");
 
@@ -158,7 +159,7 @@ export default function EntryForm({
         />
       </Field>
 
-      <Field label="Kilometre (km)">
+      <Field label="Kilometre (opsiyonel)">
         <input
           type="number"
           inputMode="decimal"
@@ -166,8 +167,11 @@ export default function EntryForm({
           value={odometerKm}
           onChange={(e) => setOdometerKm(e.target.value)}
           className="input"
-          required
+          aria-describedby="km-hint"
         />
+        <span id="km-hint" className="mt-1 block text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+          Boş bırakılırsa harcamaya sayılır, tüketim hesabı km'li dolumlardan yapılır.
+        </span>
       </Field>
 
       <Field label="Litre Fiyatı (TL/L)">

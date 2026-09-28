@@ -4,9 +4,14 @@ Araç yakıt giderlerini takip etmek için basit bir React + Node.js uygulaması
 Birden fazla araç eklenebilir; ana ekrandaki (Garajım) araç kutusuna tıklayınca o
 aracın Özet, Dolumlar, Aylık Rapor ve Araç Bilgileri sekmeleri açılır.
 
-Her dolumda kaydedilenler: tarih, kilometre, litre fiyatı (TL), toplam tutar (TL),
+Her dolumda kaydedilenler: tarih, kilometre (opsiyonel), litre fiyatı (TL), toplam tutar (TL),
 litre (tutar ÷ fiyat olarak otomatik hesaplanır) ve **depo fullendi mi**; fullenmediyse
 isteğe bağlı olarak dolumdan önceki gösterge.
+
+Kilometresi girilmeyen dolum harcamalara, litre toplamlarına ve raporlara sayılır. Tüketim
+hesabında mesafe km'li dolumlardan alınır: km'siz dolum ölçüm noktası olmaz, ama litresi
+içine düştüğü iki km'li dolum arasındaki yakıta eklenir. Tabloda km yerine "—", tüketim
+sütununda "km yok" görünür.
 
 ### Araç kataloğu
 

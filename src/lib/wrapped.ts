@@ -70,12 +70,16 @@ export function yearSummary(
   let topVehicle: YearSummary["topVehicle"] = null;
   let mostEfficient: YearSummary["mostEfficient"] = null;
   for (const v of vehicles) {
-    const own = entries.filter((e) => e.vehicleId === v.id).sort((a, b) => a.odometerKm - b.odometerKm);
-    const ofYear = own.filter((e) => inYear(e.date));
-    if (ofYear.length === 0) continue;
-    const before = own.filter((e) => e.date < `${y}-01-01`);
-    const from = before.length ? before[before.length - 1].odometerKm : ofYear[0].odometerKm;
-    const driven = Math.max(0, ofYear[ofYear.length - 1].odometerKm - from);
+    const own = entries.filter((e) => e.vehicleId === v.id);
+    // km come from fill-ups with a reading only.
+    const readings = own
+      .filter((e): e is FuelEntry & { odometerKm: number } => e.odometerKm != null)
+      .sort((a, b) => a.odometerKm - b.odometerKm);
+    const ofYear = readings.filter((e) => inYear(e.date));
+    if (!own.some((e) => inYear(e.date))) continue;
+    const before = readings.filter((e) => e.date < `${y}-01-01`);
+    const from = before.length ? before[before.length - 1].odometerKm : ofYear[0]?.odometerKm;
+    const driven = ofYear.length && from != null ? Math.max(0, ofYear[ofYear.length - 1].odometerKm - from) : 0;
     km += driven;
     if (!topVehicle || driven > topVehicle.km) topVehicle = { name: v.name, km: driven };
 

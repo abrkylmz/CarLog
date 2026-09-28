@@ -57,7 +57,10 @@ export default function QuickAdd({
   }
 
   const vehicleEntries = vehicle ? entries.filter((e) => e.vehicleId === vehicle.id) : [];
-  const latestKm = vehicleEntries.reduce<number | null>((max, e) => (max == null || e.odometerKm > max ? e.odometerKm : max), null);
+  const latestKm = vehicleEntries.reduce<number | null>(
+    (max, e) => (e.odometerKm != null && (max == null || e.odometerKm > max) ? e.odometerKm : max),
+    null,
+  );
 
   return (
     <>

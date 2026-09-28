@@ -62,7 +62,15 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
                   ) : null}
                 </span>
               </td>
-              <td className="px-3 py-2 whitespace-nowrap">{formatNumber(entry.odometerKm, 0)}</td>
+              <td className="px-3 py-2 whitespace-nowrap">
+                {entry.odometerKm != null ? (
+                  formatNumber(entry.odometerKm, 0)
+                ) : (
+                  <span className="text-slate-400 dark:text-slate-500" title="Kilometre girilmedi">
+                    —
+                  </span>
+                )}
+              </td>
               <td className="px-3 py-2 whitespace-nowrap">{formatNumber(entry.liters)}</td>
               <td className="px-3 py-2 whitespace-nowrap">{formatNumber(entry.pricePerLiter, 2)}</td>
               <td className="px-3 py-2 whitespace-nowrap font-medium">{formatTL(entry.totalCost)}</td>
@@ -139,6 +147,13 @@ function ConsumptionCell({ entry }: { entry: DerivedEntry }) {
       );
     }
     return <span title={basis}>{value}</span>;
+  }
+  if (entry.odometerKm == null) {
+    return (
+      <span className="text-xs" title="Kilometre girilmediği için bu dolumda ölçülemez; litresi km'li dolumlar arasındaki hesaba katılır">
+        km yok
+      </span>
+    );
   }
   if (entry.awaitingFull) {
     return (

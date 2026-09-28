@@ -64,7 +64,8 @@ export interface FuelEntry {
   vehicleId: string;
   /** ISO date string, e.g. "2026-03-14" */
   date: string;
-  odometerKm: number;
+  /** Odometer reading; null when it wasn't entered (then the fill-up only adds its liters). */
+  odometerKm: number | null;
   liters: number;
   pricePerLiter: number;
   totalCost: number;

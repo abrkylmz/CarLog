@@ -127,6 +127,8 @@ const SCHEMA: string[] = [
   `ALTER TABLE entries ADD COLUMN IF NOT EXISTS is_full BOOLEAN`,
   `ALTER TABLE entries ADD COLUMN IF NOT EXISTS gauge_before DOUBLE PRECISION`,
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS tank_capacity DOUBLE PRECISION`,
+  // The odometer reading became optional (a fill-up can be logged without it).
+  `ALTER TABLE entries ALTER COLUMN odometer_km DROP NOT NULL`,
   // Vehicle catalog (brand → model → generation → fuel, with factory tank size). catalog_id on
   // vehicles has no foreign key so it can be added to existing tables; deletes clear it by hand.
   `CREATE TABLE IF NOT EXISTS vehicle_catalog (
@@ -378,7 +380,7 @@ export function toEntry(row: Row): FuelEntry {
     id: row.id as string,
     vehicleId: row.vehicle_id as string,
     date: row.date as string,
-    odometerKm: Number(row.odometer_km),
+    odometerKm: row.odometer_km == null ? null : Number(row.odometer_km),
     liters: Number(row.liters),
     pricePerLiter: Number(row.price_per_liter),
     totalCost: Number(row.total_cost),

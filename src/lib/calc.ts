@@ -105,7 +105,10 @@ export function vehicleStats(entries: FuelEntry[], expenses: Expense[] = [], tan
     kmTracked: average.km,
     unknownFillCount: entries.filter((e) => e.isFull == null).length,
     suspiciousCount: segments.filter((seg) => seg.suspicious).length,
-    latestOdometerKm: derived.length > 0 ? derived[derived.length - 1].odometerKm : null,
+    latestOdometerKm: derived.reduce<number | null>(
+      (max, e) => (e.odometerKm != null && (max == null || e.odometerKm > max) ? e.odometerKm : max),
+      null,
+    ),
     lastFillDate: entries.reduce<string | null>((latest, e) => (latest && latest > e.date ? latest : e.date), null),
   };
 }

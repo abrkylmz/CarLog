@@ -86,10 +86,11 @@ export function parseEntryInput(body: unknown): Result<FuelEntryInput> {
     return { ok: false, error: "Geçerli bir tarih girin." };
   }
 
-  const odometerKm = positiveNumber(b.odometerKm);
+  // The odometer reading is optional; when given it must be a positive number.
+  const odometerKm = b.odometerKm == null ? null : positiveNumber(b.odometerKm);
   const liters = positiveNumber(b.liters);
   const totalCost = positiveNumber(b.totalCost);
-  if (odometerKm == null) return { ok: false, error: "Kilometre değeri girin." };
+  if (b.odometerKm != null && odometerKm == null) return { ok: false, error: "Geçerli bir kilometre girin." };
   if (liters == null) return { ok: false, error: "Litre değeri girin." };
   if (totalCost == null) return { ok: false, error: "Tutar değeri girin." };
 
