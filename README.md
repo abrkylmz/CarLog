@@ -1,279 +1,86 @@
 # CarLog
 
-Araç yakıt giderlerini takip etmek için basit bir React + Node.js uygulaması.
-Birden fazla araç eklenebilir; ana ekrandaki (Garajım) araç kutusuna tıklayınca o
-aracın Özet, Dolumlar, Aylık Rapor ve Araç Bilgileri sekmeleri açılır.
+CarLog, aracınızın yakıt ve bakım giderlerini tek yerde tutan, Türkçe bir araç takip
+uygulamasıdır. Her dolumu, masrafı ve yaklaşan işi kaydeder; bunlardan aracınızın gerçek
+yakıt tüketimini, aylık kilometresini ve size ne kadara mal olduğunu çıkarır. Telefonda
+uygulama gibi çalışır, bilgisayardan da aynı hesapla kullanılır.
 
-Her dolumda kaydedilenler: tarih, kilometre (opsiyonel), litre fiyatı (TL), toplam tutar (TL),
-litre (tutar ÷ fiyat olarak otomatik hesaplanır) ve **depo fullendi mi**; fullenmediyse
-isteğe bağlı olarak dolumdan önceki gösterge.
+## Neler yapabilirsiniz
 
-Kilometresi girilmeyen dolum harcamalara, litre toplamlarına ve raporlara sayılır. Tüketim
-hesabında mesafe km'li dolumlardan alınır: km'siz dolum ölçüm noktası olmaz, ama litresi
-içine düştüğü iki km'li dolum arasındaki yakıta eklenir. Tabloda km yerine "—", tüketim
-sütununda "km yok" görünür.
+### Garajım
+Birden fazla araç eklenebilir. Ana ekrandaki kaydırılabilir şeritte ortadaki araç öne çıkar,
+yanındakiler silik görünür. Her araç kendi yakıt tipinin renginde gösterilir: hibrit mavi,
+benzin lacivert, dizel grafit, LPG mor. Aracın sayfası açıldığında uygulama da o renge bürünür.
 
 ### Araç kataloğu
+Araç eklerken **Marka → Model → Versiyon** seçilir. Türkiye'de yaygın 140'ı aşkın model ve
+nesil katalogda hazırdır; yakıt tipi ve fabrika depo hacmi kendiliğinden gelir. Katalogdaki
+çoğu araç için üreticinin açıkladığı karma tüketim de tutulur. Özet sekmesi bu değeri sizin
+ölçtüğünüz tüketimle karşılaştırır ve farkı bir ibreyle gösterir. Katalogda olmayan araçlar
+elle girilebilir.
 
-Araç eklerken **Marka → Model → Versiyon (nesil · yıllar · yakıt)** seçilir; yakıt
-seçenekleri ve **fabrika depo hacmi** otomatik gelir (düzenlenebilir). Başlangıç
-kataloğu Türkiye'de yaygın ~140 model/nesildir ([server/catalogSeed.ts](server/catalogSeed.ts)):
-TÜİK'in trafikte en çok bulunan modelleri (Tofaş, R12, R9, eski Clio/Megane/Astra/Focus gibi
-eski nesiller dahil) ve ODMD satış listelerindeki popüler modeller;
-değerler üretici teknik verilerinden (auto-data.net) alınmış, çelişkili olanlar
-ikinci kaynakla doğrulanıp not düşülmüştür. Katalogda olmayan araç "Listede yok"
-ile elle girilir. Yönetici panelinin **Araç Kataloğu** sekmesinde katalog
-düzenlenir ve elle girilen marka/modeller (kime ait olduğu gösterilmeden, yalnızca
-sayılarıyla) "Katalogda Olmayan Araçlar" olarak listelenir. Elektrikli araçlar
-şimdilik katalogda yoktur.
+### Dolumlar ve gerçek tüketim
+Her dolumda tarih, kilometre, litre fiyatı ve tutar girilir; litre otomatik hesaplanır.
+Deponun fullenip fullenmediği ve gösterge seviyesi de kaydedilebilir. Kilometre girmeden de
+dolum eklenebilir.
 
-**Fabrika tüketimi:** katalogdaki nesillerin çoğunda, her yakıt tipi için Türkiye'de en
-yaygın motorun üretici karma tüketimi ve ölçüm türü (NEDC/WLTP) tutulur
-([server/catalogFactory.ts](server/catalogFactory.ts)). Katalogdan seçilmiş bir aracın
-**Özet** sekmesinde bu değer, aracın ölçülen ortalamasıyla karşılaştırılır. Yorum ölçüm
-türüne göre yapılır: NEDC değerleri gerçekte genelde %20–40, WLTP değerleri %5–15 aşılır.
-Değer seçilen motora aittir; farklı motorlu araçlarda sapma olabilir.
+Tüketim (L/100km), eldeki en güvenilir yöntemle hesaplanır:
+- **Kesin:** iki full dolum arasında alınan tüm yakıt, aradaki km'ye bölünür.
+- **Göstergeye göre:** depo hacmi biliniyorsa kısmi dolumlar da ölçülür.
+- **Kaba tahmin:** ikisi de yoksa toplam litre toplam km'ye bölünür.
 
-### Görünüm ve tema
+Mantıksız çıkan değerler işaretlenir ve ortalamaya katılmaz. Önceki dolumdan küçük km veya
+depodan fazla litre gibi hatalı girişlerde kayıt sırasında uyarı çıkar.
 
-- **Yakıt tipine göre renk:** bir aracın sayfasında tüm uygulama (başlık, düğmeler,
-  sekmeler) o aracın yakıt tipinin renginde olur — Hibrit: elektrik mavisi, Benzin:
-  lacivert, Dizel: grafit, LPG / Benzin + LPG: mor. Garajım'daki kartlar da kendi
-  renklerini taşır. Renkler `src/index.css` içindeki `[data-accent]` paletlerinde
-  tanımlıdır; grafik renkleri (yakıt/diğer) temadan bağımsız sabit kalır.
-- **Açık / Koyu / Sistem:** üst çubuktaki düğme sırayla değiştirir; seçim tarayıcıda
-  saklanır ve sayfa açılırken yanıp sönme olmadan uygulanır.
-- **Araç vitrini:** araç sayfasının başında renkli kart ve bu ay / ortalama
-  tüketim / son km özeti.
-- **Telefonda alt gezinme çubuğu:** Özet, Dolumlar, Masraflar, Hatırlatma; diğer
-  sekmeler ve Dışa Aktar "Diğer" menüsündedir.
-- **Araç slider'ı:** Garajım'daki araçlar ortalanmış bir odak şeridinde durur. Ortadaki araç tam
-  boyutta ve kendi renginde parlar; iki yanındaki araçlar biraz küçük ve silik görünür (ilk araçta
-  yalnızca sağdaki, sonraki araçlarda her iki komşu). Aktif aracın adı dev, içi boş harflerle yazılır: telefonda ekrana
-  sığacak boyutta ortalanır, geniş ekranda kartların arkasında daha yavaş kayar. Altta kayan "01 / 05" sayacı, aracın renginde ilerleme çizgisi ve oklar var.
-  Bilgisayarda fareyle sürüklenir (imleç "Sürükle" etiketine döner), oklarla veya touchpad ile
-  kaydırılır.
-- **Sayfa açılışı:** araç sayfası ve sekmeleri açılırken bölümler sırayla yerine oturur.
-- **Canlı sayılar ve grafikler:** özet değerleri sayarak gelir ve yeni kayıttan sonra yeni değere
-  kayar; aylık harcama çubukları alttan yükselir, masraf türü çubukları soldan dolar. Fabrika
-  verisi kartında fark bir ibreyle gösterilir (yeşil: normal, turuncu: yüksek).
-- **Dokunma ve geri bildirim:** düğme ve kartlar basınca hafifçe çöker, bırakınca yaylanır.
-  Kaydetme ve silmeden sonra üstten kısa bir onay bildirimi iner; silinen kayıt listeden kayarak
-  çıkar.
-- **Yükleme ve boş ekranlar:** veriler gelirken sayfanın parlayan taslağı görünür; boş listelerde
-  aracın renginde hareketli küçük bir simge yer alır. Gecikmiş hatırlatma rozetleri hafifçe atar.
-- iPhone'da "Hareketi Azalt" açıksa tüm bu efektler kapanır.
-- **Hızlı + düğmesi:** her yerden araç → Dolum / Masraf / Hatırlatma seçip kaydetme.
-- **Ana ekrana ekle (PWA):** Safari'de Paylaş → "Ana Ekrana Ekle" ile uygulama simgesiyle
-  tam ekran açılır (`public/manifest.webmanifest`, simgeler `public/`).
-- **Aylık kilometre ve yakıt ortalaması:** Özet ve Aylık Rapor sekmelerinde her ay kaç km
-  yapıldığı ve o ayın yakıt ortalaması ("Ocak 2026 — 1.240 km · 6,4 L/100km") çubuklarla, toplam
-  ve aylık ortalamayla gösterilir; aylık tabloda da Km sütunu vardır. İki kilometre kaydı
-  arasındaki yol aradaki günlere eşit dağıtılarak aylara bölünür (`monthlyKm`,
-  [src/lib/calc.ts](src/lib/calc.ts)); yakıt ortalaması o ay kapanan ölçümlerden hesaplanır.
-- **Öne Çıkanlar:** aracın Özet sekmesinin başında otomatik yorumlar: geçen ayın aynı
-  dönemine göre harcama, son 3 dolumdaki tüketim eğilimi, son 6 ayın en ucuz yakıtı, son
-  fiyatın ortalamaya göre durumu ve bu ayın en büyük masraf kalemi
-  ([src/lib/insights.ts](src/lib/insights.ts)).
-- **Yıl Özeti:** Garajım'daki banttan açılan, dokunarak geçilen tam ekran hikâyeler (yol, yakıt,
-  harcama, en yoğun ay, en verimli araç, öne çıkanlar) ve paylaşılabilir 1080×1920 özet görseli
-  (`#/yil-ozeti/2026`).
-- **Sayfa geçişleri:** sayfalar iOS'taki gibi kayarak açılır/kapanır, sekmeler arasında yumuşak
-  geçiş (View Transitions; desteklemeyen tarayıcıda anında geçer).
-- **Çevrimdışı çalışma:** service worker ([public/sw.js](public/sw.js)) uygulamayı ve en son
-  görülen verileri saklar; bağlantı yokken de açılır. Çevrimdışı eklenen dolum, masraf ve
-  hatırlatmalar "Bekliyor" olarak görünür ve bağlantı gelince otomatik gönderilir
-  ([src/lib/outbox.ts](src/lib/outbox.ts)). Düzenleme ve silme için bağlantı gerekir (henüz
-  gönderilmemiş kayıtlar hariç).
-- **Bildirimler:** Hatırlatmalar sekmesinden açılır. Tarihli hatırlatmalar için 7, 3 ve 1 gün
-  kala, son gün ve gecikince; km'li hatırlatmalar için 500 km kala ve sınır geçilince, araca
-  erişimi olan herkese bildirim gider (her aşama bir kez). iPhone'da CarLog'un ana ekrana
-  eklenip oradan açılması gerekir (iOS 16.4+).
+### Masraflar
+Bakım, lastik, sigorta, kasko, MTV, muayene, otopark, köprü/otoyol, yıkama ve ceza gibi
+yakıt dışı giderler ayrı tutulur. Aylara göre listelenir ve türlere göre dağılımı gösterilir.
+Toplamlar yakıt ve diğer masrafları hem ayrı ayrı hem birlikte verir.
 
-### Tüketim (L/100km) nasıl hesaplanır
+### Özet ve raporlar
+- **Özet:** bu ayın harcaması, ortalama tüketim, son kilometre ve aylık harcama grafiği.
+- **Öne Çıkanlar:** verilerinizden çıkan kısa yorumlar. Örneğin bu ayın geçen aya göre
+  durumu, son dolumlardaki tüketim eğilimi ve en ucuz yakıtı ne zaman aldığınız.
+- **Aylık kilometre ve yakıt ortalaması:** her ay kaç km yaptığınız ve o ayın L/100km değeri.
+- **Aylık rapor:** ay ay dolum sayısı, litre, yakıt ve diğer giderler, ortalama litre fiyatı.
+- **Yıl Özeti:** yılın yolunu, yakıtını, harcamasını ve en yoğun ayını anlatan tam ekran
+  hikâyeler. Sonunda paylaşılabilir bir özet görseli oluşturulur.
+- **Dışa aktar:** seçilen araç ve dönemin kayıtları Excel'de açılan bir dosyaya indirilir.
 
-Depo her seferinde fullenmeyebileceği için her aralıkta eldeki en güvenilir yöntem
-kullanılır ([src/lib/consumption.ts](src/lib/consumption.ts)):
+### Hatırlatmalar ve bildirimler
+Muayene, sigorta, kasko, bakım, MTV veya lastik değişimi gibi işler tarihe ya da kilometreye
+göre planlanır ve istenirse her N ayda veya N km'de tekrarlanır. Tamamlanan iş masraf olarak
+kaydedilir, sıradaki hatırlatma kendiliğinden kurulur. Bildirimler açıldığında telefona
+7, 3 ve 1 gün kala, son gün ve süre geçtiğinde; kilometrede ise 500 km kala uyarı gelir.
 
-1. **Kesin (full–full):** iki full dolum arasında alınan tüm yakıt (aradaki yarım
-   dolumlar dahil) ÷ aradaki km. Ara ara fullemek yeterlidir.
-2. **~ Göstergeye göre tahmini:** aracın depo hacmi girilmişse kısmi dolumlar dolumdan
-   doluma hesaplanır: önceki dolumdan sonra depodaki yakıt − bu dolumdan önce kalan
-   (gösterge × depo hacmi).
-3. **~ Kaba tahmin:** ikisi de yoksa toplam litre ÷ toplam km (bir depo kadar sapabilir).
+### Aracı paylaşma
+Bir aracı eşiniz, aileniz veya iş arkadaşlarınızla paylaşabilirsiniz. Davet linki gönderilir
+ya da kullanıcı adıyla eklenir. Yardımcılar kayıt ekleyebilir ve kendi kayıtlarını
+düzenleyebilir. Aracı silme ve paylaşımı yönetme yetkisi yalnızca sahibindedir. Her kaydın
+altında onu kimin eklediği görünür.
 
-2–30 L/100km dışındaki aralıklar ⚠ ile işaretlenir ve ortalamalara katılmaz (genelde
-girilmemiş dolum veya yanlış km). Aylık raporda bir aralık, onu kapatan dolumun ayına
-sayılır; 300 km'den az veriye dayanan aylar "az veri" olarak işaretlenir. Kayıt
-sırasında önceki dolumdan küçük km, 2.000 km'yi aşan boşluk veya depo hacminden
-fazla litre için uyarı verilir. Bu özellikten önce girilmiş dolumlar "?" olarak
-görünür ve tek tıkla "full" işaretlenebilir.
+### Telefonda uygulama gibi
+- Safari'de **Paylaş → Ana Ekrana Ekle** ile kendi simgesiyle tam ekran açılır.
+- Sayfalar iOS'taki gibi kayarak geçer. Sayılar sayarak gelir, grafikler dolarak açılır.
+- İnternet yokken de açılır. Çevrimdışı eklenen kayıtlar bağlantı gelince kendiliğinden
+  gönderilir.
+- Açık, koyu ve sistem teması vardır. Telefondaki "Hareketi Azalt" ayarına uyulur.
 
-Yakıt dışındaki masraflar (bakım, lastik, sigorta/kasko, MTV, muayene, otopark,
-köprü/otoyol, yıkama, ceza, diğer) aracın **Masraflar** sekmesinde ayrı tutulur:
-aylara göre gruplanmış liste, ay ara toplamları ve türlere göre dağılım. Özet,
-Aylık Rapor, grafik ve ana ekrandaki toplamlar yakıt + diğer masrafları birlikte
-(**Genel Toplam**) ve ayrı ayrı gösterir.
+### Hesaplar ve güvenlik
+Her kullanıcı yalnızca kendi araçlarını ve kendisiyle paylaşılanları görür. Yöneticiler
+ayrı bir panelden hesapları ve araç kataloğunu yönetir, ama kullanıcıların araçlarını
+göremez. Şifreler hash'lenerek saklanır ve art arda hatalı giriş denemeleri engellenir.
 
-**Hatırlatmalar** sekmesinde muayene, sigorta, kasko, bakım, MTV, lastik, egzoz
-gibi işler tarih ve/veya kilometreye göre planlanır; isteğe bağlı olarak her N
-ayda / N km'de tekrarlanır. "Tamamlandı" denince sıradaki hatırlatma otomatik
-kurulur, girilen tutar masraf olarak eklenir. Gecikmiş ve yaklaşan (30 gün /
-1.000 km) hatırlatmalar ana ekranda ve araç kutularında görünür.
+## Kullanılan teknolojiler
 
-Dolum, masraf ve hatırlatmalar sonradan **düzenlenebilir**; düzenlenen kayıtta
-"düzenlendi" notu ve düzenleyen kişi görünür. **Dışa Aktar** (ana ekran ve araç
-sayfası) seçilen araç, içerik ve dönem için Excel'de doğrudan açılan bir CSV
-indirir (UTF-8 BOM, `;` ayırıcı, virgüllü ondalık).
-
-## Kullanıcılar ve yetkiler
-
-- **Kullanıcı paneli** (ana sayfa): *Giriş Yap* ve *Hesap Oluştur* sekmeleri.
-  Kayıt olan herkes normal **kullanıcı** olur.
-- **Yönetici paneli** (`/#/admin`): yöneticiler yalnızca buradan, kullanıcılar
-  yalnızca ana sayfadan giriş yapar. Giriş sonrası üst menüdeki **Yönetici
-  Paneli**'nden kullanıcı eklenir (yönetici dahil), şifre değiştirilir, kullanıcı
-  silinir.
-- **Yönetici** yalnızca hesapları yönetir; başkalarının araçlarını göremez. Kendi
-  araçları için o da sıradan bir kullanıcıdır.
-
-### Araç sahipliği ve paylaşım
-
-Her kullanıcı yalnızca **sahibi olduğu** ve **kendisiyle paylaşılan** araçları görür
-(ana ekranda "Araçlarım" ve "Benimle Paylaşılanlar"). Aracı ekleyen kişi sahibidir.
-
-| | Sahip | Yardımcı |
-|---|---|---|
-| Aracı ve kayıtlarını görür | ✔ | ✔ |
-| Dolum, masraf, hatırlatma ekler; hatırlatma tamamlar | ✔ | ✔ |
-| Kayıt düzenler ve siler | hepsini | kendi eklediklerini |
-| Aracı siler, araç bilgilerini değiştirir | ✔ | – |
-| Paylaşımı yönetir (davet, çıkarma) | ✔ | – (yalnızca ayrılabilir) |
-
-Sahip, aracın **Paylaşım** sekmesinden:
-- **Davet linki** oluşturur (7 gün geçerli, çok kullanımlık, iptal edilebilir) ve
-  Paylaş/Kopyala ile gönderir. Linki açan kişi giriş yapar ya da hesap açar, daveti
-  kabul edince yardımcı olur. Veritabanında linkin yalnızca özeti (SHA-256) tutulur.
-- Hesabı olan birini **kullanıcı adıyla** doğrudan ekler, yardımcıları çıkarır.
-
-Tüm kurallar sunucuda uygulanır ([server/access.ts](server/access.ts)); erişimi
-olmayan bir araç "bulunamadı" yanıtı verir. Her kaydın altında onu **kimin
-eklediği** (ve düzenlendiyse kimin düzenlediği) görünür.
-
-Bir kullanıcı silinirse sahibi olduğu araçlar en eski yardımcısına devredilir;
-yardımcısı olmayan araçlar kayıtlarıyla silinir (yönetici panelinde önce uyarı çıkar).
-
-Paylaşımdan önceki veriler ilk açılışta otomatik düzenlenir: sahipsiz araçlar en
-eski yöneticiye verilir, o araçlara kayıt girmiş herkes yardımcı olur.
-
-### İlk yönetici
-
-Herkese açık bir "admin oluştur" ekranı yoktur. İlk yönetici iki yoldan biriyle gelir:
-
-1. Eski verileri taşımak (`npm run migrate:sqlite`, aşağıda) — eski yönetici hesabı da taşınır.
-2. Vercel'de **Settings → Environment Variables** altına `ADMIN_SETUP_KEY` adında
-   uzun, gizli bir değer ekleyip yeniden yayınlamak. Ardından `/#/admin`
-   sayfasında bu anahtarla ilk yönetici oluşturulur. Hiç yönetici yokken ve anahtar
-   doğruysa çalışır; ilk yöneticiden sonra kapanır. İşiniz bitince değişkeni silebilirsiniz.
-
-Şifreler scrypt ile hash'lenerek saklanır; oturum 30 gün geçerli bir HttpOnly
-çerezde tutulur. Aynı IP'den 15 dakikada 10 hatalı giriş, 5 hatalı kurulum
-anahtarı denemesi veya 5 yeni hesaptan sonra ilgili işlem geçici olarak engellenir.
-
-## Canlı ortam (Vercel)
-
-- Arayüz Vite ile `dist/` klasörüne derlenir; `/api/*` istekleri
-  [`api/index.ts`](api/index.ts) sunucusuz fonksiyonuna gider (bkz. [`vercel.json`](vercel.json)).
-- Veriler Vercel projesine **Storage** sekmesinden bağlanan **Neon Postgres**
-  veritabanında tutulur. Bağlantı `DATABASE_URL` (veya `POSTGRES_URL`) ortam
-  değişkeninden okunur; tablolar ilk istekte otomatik oluşturulur.
-- `main` dalına yapılan her `git push` Vercel'de otomatik yeni sürüm yayınlar.
-  Veritabanı sürümlerden etkilenmez.
-- **Bildirim görevi:** `vercel.json` içindeki Vercel Cron her gün 06:00 UTC'de (09:00 TR)
-  `/api/cron/reminders` adresini çağırır ([server/push.ts](server/push.ts)). Web Push için
-  gereken VAPID anahtarları ilk kullanımda üretilip veritabanında (`app_meta`) saklanır; ek
-  ayar gerekmez. İsteğe bağlı ortam değişkenleri: `CRON_SECRET` (görevi yalnızca Vercel
-  zamanlayıcısı çağırabilsin), `VAPID_SUBJECT` (iletişim adresi, örn. `mailto:siz@ornek.com`),
-  `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (anahtarları kendiniz vermek isterseniz).
-
-## Yerel geliştirme
-
-Node **22.18+** gerekir (yerleşik TypeScript desteği için).
-
-```bash
-npm install
-npm run dev        # http://localhost:5173 (sunucu + arayüz tek komutta)
-npm run build      # tip kontrolü + arayüzü dist/ klasörüne derler
-```
-
-`DATABASE_URL` tanımlı değilse yerel geliştirme, `data/pglite` klasöründe
-çalışan gömülü bir Postgres (PGlite) kullanır; canlı verilere dokunmaz.
-Sunucu kodunu (`server/`) değiştirdikten sonra `npm run dev`'i yeniden başlatın;
-arayüz değişiklikleri anında yansır.
-
-### `.env.local` ile canlı veritabanına bağlanmak
-
-Proje kökünde `.env.local` dosyası varsa (git'e eklenmez) `npm run dev`,
-`npm start` ve `npm run migrate:sqlite` içindeki değişkenleri kullanır:
-
-```
-DATABASE_URL=postgresql://...
-```
-
-**Dikkat:** Bu dosya varken yereldeki her işlem canlı veritabanında yapılır.
-İşiniz bitince dosyayı silin.
-
-### Eski SQLite verisini taşımak
-
-Sunucunun ilk sürümü verileri `data/carlog.db` dosyasında tutuyordu. Bu dosyadaki
-kullanıcılar (şifreleriyle), araçlar ve dolumlar tek komutla Postgres'e taşınır:
-
-```bash
-npm run migrate:sqlite
-```
-
-Hedef `DATABASE_URL` (varsa `.env.local`'dan) ya da yerel PGlite'tır. Komut tekrar
-çalıştırılabilir; hedefte zaten bulunan kayıtlar atlanır.
-
-Sunucudan da eski, tarayıcının `localStorage`'ında tutulan kayıtlar için admin'e
-ana ekranda **Sunucuya Aktar** kutusu gösterilir (yalnızca o kayıtların bulunduğu
-adreste, ör. `localhost:5173`).
-
-## Stack
-
-React 18, TypeScript (strict), Vite, Tailwind CSS, Recharts, Lucide icons;
-sunucuda Express 5, Neon Postgres (`@neondatabase/serverless`), yerelde PGlite.
-
-## Proje yapısı
-
-```
-public/             PWA manifest ve uygulama simgeleri
-api/
-  index.ts          Vercel fonksiyonu; server/app.ts'i dışa açar
-server/
-  app.ts            /api Express uygulaması (Vercel ve yerel sunucu ortak)
-  index.ts          Yerel sunucu; geliştirmede Vite'ı ara katman olarak çalıştırır
-  api.ts            Uç noktalar (auth, vehicles, catalog, members, invites, entries,
-                    expenses, reminders, users, import)
-  catalogSeed.ts    Başlangıç araç kataloğu (marka, model, nesil, depo hacmi)
-  catalogFactory.ts Katalog nesillerinin fabrika karma tüketimi (motor, L/100km, NEDC/WLTP)
-  auth.ts           Şifre hash'leme, oturumlar, rol ve giriş denemesi kontrolü
-  access.ts         Araç bazlı erişim kuralları (sahip / yardımcı)
-  db.ts             Postgres bağlantısı (Neon / PGlite), şema ve satır dönüşümleri
-  validate.ts       Gelen verinin doğrulanması
-  migrate-sqlite.ts Eski data/carlog.db verisini Postgres'e taşır
-src/
-  pages/            AuthPage, HomePage (Garajım), NewVehiclePage, VehiclePage, UsersPage,
-                    InvitePage (davet linki)
-  components/       VehicleCard, VehicleForm, EntryForm, EntryTable, ExpenseForm, ExpenseList,
-                    CategoryBreakdown, MonthlySummaryTable, SpendChart, StatCard, BackLink,
-                    Reminders, UpcomingReminders, SharePanel, CatalogAdmin, ExportDialog, Modal,
-                    DialogProvider, LegacyImportBanner, VehicleHero,
-                    VehicleBottomNav, QuickAdd, ThemeToggle, FactoryConsumptionCard,
-                    VehicleCarousel, Toaster, EmptyState, LoadingSkeleton
-  lib/              api.ts (sunucu istemcisi), calc.ts, format.ts, chartColors.ts, reminders.ts,
-                    export.ts (CSV), legacy.ts, theme.ts (tema modu, yakıt tipi renkleri), motion.ts (sayaç, silme animasyonu),
-                    router.ts (hash tabanlı yönlendirme)
-  types.ts          Sunucu ve arayüzün ortak tipleri
-  App.tsx           Oturum durumu, veri yükleme ve sayfa seçimi
-```
+| Katman | Teknoloji |
+|---|---|
+| Arayüz | React 18, TypeScript, Vite |
+| Tasarım | Tailwind CSS, Lucide ikonları |
+| Grafikler | Recharts |
+| Sunucu | Node.js, Express 5 |
+| Veritabanı | Neon Postgres (canlı), PGlite (yerel geliştirme) |
+| Bildirimler | Web Push (`web-push`, VAPID), Vercel Cron |
+| Çevrimdışı | Service Worker, PWA manifest |
+| Animasyon | View Transitions API, CSS animasyonları |
+| Yayın | Vercel |
