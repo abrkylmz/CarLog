@@ -227,7 +227,7 @@ export function parseCredentials(body: unknown): Result<{ username: string; pass
 }
 
 export function checkPassword(password: unknown): string | null {
-  if (typeof password !== "string" || password.length < 6) return "Şifre en az 6 karakter olmalı.";
+  if (typeof password !== "string" || password.length < 8) return "Şifre en az 8 karakter olmalı.";
   if (password.length > 200) return "Şifre çok uzun.";
   return null;
 }

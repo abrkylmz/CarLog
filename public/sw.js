@@ -1,6 +1,6 @@
 // CarLog service worker: opens instantly and without a connection, and shows reminder
 // notifications. Bump VERSION when the caching rules change.
-const VERSION = "carlog-v1";
+const VERSION = "carlog-v2";
 const SHELL = `${VERSION}-shell`;
 const ASSETS = `${VERSION}-assets`;
 const API = `${VERSION}-api`;
@@ -9,7 +9,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(SHELL)
-      .then((cache) => cache.addAll(["/", "/manifest.webmanifest", "/icon-192.png", "/icon.svg"]))
+      .then((cache) => cache.addAll(["/", "/theme-init.js", "/manifest.webmanifest", "/icon-192.png", "/icon.svg"]))
       .then(() => self.skipWaiting()),
   );
 });

@@ -32,8 +32,8 @@ export default function UsersPage({ currentUser }: Props) {
       input: {
         label: "Yeni şifre",
         type: "password",
-        placeholder: "En az 6 karakter",
-        validate: (value) => (value.length < 6 ? "Şifre en az 6 karakter olmalı." : null),
+        placeholder: "En az 8 karakter",
+        validate: (value) => (value.length < 8 ? "Şifre en az 8 karakter olmalı." : null),
       },
     });
     if (password == null) return;
@@ -227,7 +227,7 @@ function NewUserForm({ onCreated }: { onCreated: (user: User) => void }) {
         <input
           type="password"
           autoComplete="new-password"
-          placeholder="En az 6 karakter"
+          placeholder="En az 8 karakter"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="input"

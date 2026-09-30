@@ -27,12 +27,13 @@ import {
   destroySession,
   hashPassword,
   isThrottled,
+  overLimit,
   purgeExpired,
   recordAttempt,
   requireAdmin,
   requireUser,
   secretsMatch,
-  verifyPassword,
+  verifyLogin,
 } from "./auth.ts";
 import {
   accessibleVehicles,
@@ -67,6 +68,22 @@ import {
 import { sendReminderNotifications, sendToUser, vapidKeys } from "./push.ts";
 
 export const api = Router();
+
+const TOO_MANY_REQUESTS = "Çok fazla istek gönderildi. Biraz sonra tekrar deneyin.";
+
+/** Answers 429 once `key` has been used more than `max` times in 15 minutes. */
+async function limited(res: Response, key: string, max: number): Promise<boolean> {
+  if (!(await overLimit(key, max))) return false;
+  res.status(429).json({ error: TOO_MANY_REQUESTS });
+  return true;
+}
+
+// Every signed-in change counts toward a per-account ceiling, so one account can't flood the
+// database. Generous enough for sending a long offline queue at once.
+api.use(async (req, res, next) => {
+  if (req.method !== "GET" && req.user && (await limited(res, `write:${req.user.id}`, 300))) return;
+  next();
+});
 
 function paramId(req: Request): string {
   return String(req.params.id);
@@ -205,16 +222,20 @@ api.post("/auth/register", async (req, res) => {
 
 /** `panel` keeps the two login screens apart: admins sign in only on the admin panel, users only on the main one. */
 api.post("/auth/login", async (req, res) => {
-  const throttleKey = `login:${req.ip ?? "unknown"}`;
-  if (await isThrottled(throttleKey, 10)) return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
-
-  const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
-  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  const username = typeof req.body?.username === "string" ? req.body.username.trim().slice(0, 64) : "";
+  const password = typeof req.body?.password === "string" ? req.body.password.slice(0, 200) : "";
   const panel = req.body?.panel === "admin" ? "admin" : "user";
-  const row = await queryOne("SELECT * FROM users WHERE lower(username) = lower($1)", [username]);
+  // Per address, and per account so that guesses spread over many addresses still stop.
+  const throttleKey = `login:${req.ip ?? "unknown"}`;
+  const accountKey = `login-user:${username.toLowerCase()}`;
+  if ((await isThrottled(throttleKey, 10)) || (await isThrottled(accountKey, 20))) {
+    return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
+  }
 
-  if (!row || !(await verifyPassword(password, row.password_hash as string))) {
+  const row = await queryOne("SELECT * FROM users WHERE lower(username) = lower($1)", [username]);
+  if (!(await verifyLogin(password, (row?.password_hash as string | undefined) ?? null)) || !row) {
     await recordAttempt(throttleKey);
+    await recordAttempt(accountKey);
     return void res.status(401).json({ error: "Kullanıcı adı veya şifre hatalı." });
   }
   if (panel === "admin" && row.role !== "admin") {
@@ -414,6 +435,7 @@ api.get("/vehicles/:id/members", requireUser, async (req, res) => {
 /** Adds an existing account as a helper by username. */
 api.post("/vehicles/:id/members", requireUser, async (req, res) => {
   if (!(await guardVehicle(req, res, "owner"))) return;
+  if (await limited(res, `member-add:${req.user!.id}`, 20)) return;
   const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
   const user = await queryOne("SELECT id FROM users WHERE lower(username) = lower($1)", [username]);
   if (!user) return void res.status(404).json({ error: "Bu kullanıcı adıyla bir hesap yok." });
@@ -518,6 +540,7 @@ async function findInvite(token: string) {
 
 /** Public: what the link is for, shown before the visitor signs in or registers. */
 api.get("/invites/:token", async (req, res) => {
+  if (await limited(res, `invite:${req.ip ?? "unknown"}`, 60)) return;
   const invite = await findInvite(String(req.params.token));
   if (!invite) return void res.status(404).json({ error: INVALID_INVITE });
   const preview: InvitePreview = {
@@ -530,6 +553,7 @@ api.get("/invites/:token", async (req, res) => {
 });
 
 api.post("/invites/:token/accept", requireUser, async (req, res) => {
+  if (await limited(res, `invite:${req.ip ?? "unknown"}`, 60)) return;
   const invite = await findInvite(String(req.params.token));
   if (!invite) return void res.status(404).json({ error: INVALID_INVITE });
   const vehicleId = invite.vehicle_id as string;
@@ -826,12 +850,32 @@ api.get("/push/key", requireUser, async (_req, res) => {
   res.json({ publicKey: (await vapidKeys()).publicKey });
 });
 
+// The browsers' push services. The server sends notifications to whatever address a device
+// registers, so anything else (an internal address, someone else's server) is refused.
+const PUSH_HOSTS = [
+  /^fcm\.googleapis\.com$/,
+  /^android\.googleapis\.com$/,
+  /^updates\.push\.services\.mozilla\.com$/,
+  /^web\.push\.apple\.com$/,
+  /^[a-z0-9-]+\.push\.apple\.com$/,
+  /^[a-z0-9-]+\.notify\.windows\.com$/,
+];
+
+function isPushService(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint);
+    return url.protocol === "https:" && !url.port && PUSH_HOSTS.some((host) => host.test(url.hostname));
+  } catch {
+    return false;
+  }
+}
+
 api.post("/push/subscribe", requireUser, async (req, res) => {
   const b = (req.body ?? {}) as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
   const endpoint = typeof b.endpoint === "string" ? b.endpoint : "";
   const p256dh = typeof b.keys?.p256dh === "string" ? b.keys.p256dh : "";
   const auth = typeof b.keys?.auth === "string" ? b.keys.auth : "";
-  if (!/^https:\/\/\S+$/.test(endpoint) || endpoint.length > 1000 || !p256dh || !auth || p256dh.length > 200 || auth.length > 100) {
+  if (!isPushService(endpoint) || endpoint.length > 1000 || !p256dh || !auth || p256dh.length > 200 || auth.length > 100) {
     return void res.status(400).json({ error: "Geçersiz bildirim aboneliği." });
   }
   // A device belongs to whoever signed in on it last.
@@ -850,6 +894,7 @@ api.post("/push/unsubscribe", requireUser, async (req, res) => {
 });
 
 api.post("/push/test", requireUser, async (req, res) => {
+  if (await limited(res, `push-test:${req.user!.id}`, 5)) return;
   const sent = await sendToUser(req.user!.id, {
     title: "CarLog bildirimleri açık",
     body: "Muayene, sigorta ve diğer hatırlatmalar yaklaşınca buradan haber vereceğiz.",
@@ -859,11 +904,15 @@ api.post("/push/test", requireUser, async (req, res) => {
   res.json({ sent });
 });
 
-// Daily job (Vercel Cron, see vercel.json). With CRON_SECRET set, only Vercel's scheduler may
-// call it; without it, calling it early is harmless because each notification goes out once.
+// Daily job (Vercel Cron, see vercel.json). Only Vercel's scheduler may call it: it sends
+// CRON_SECRET as a bearer token. Without that variable the job stays switched off.
 api.get("/cron/reminders", async (req, res) => {
-  const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.authorization !== `Bearer ${secret}`) {
+  const secret = process.env.CRON_SECRET?.trim();
+  if (!secret) {
+    console.error("cron/reminders: CRON_SECRET is not set; the reminder job is disabled.");
+    return void res.status(503).json({ error: "Görev kapalı." });
+  }
+  if (!secretsMatch(req.headers.authorization ?? "", `Bearer ${secret}`)) {
     return void res.status(401).json({ error: "Yetkisiz." });
   }
   res.json(await sendReminderNotifications());

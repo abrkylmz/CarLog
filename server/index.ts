@@ -1,5 +1,5 @@
 // Local server: `npm run dev` (with Vite) or `npm start` (serves dist/). On Vercel, api/index.ts is used instead.
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
 import { join } from "node:path";
@@ -28,6 +28,14 @@ if (isDev) {
     console.error('dist/ bulunamadı. Önce "npm run build" çalıştırın ya da geliştirme için "npm run dev" kullanın.');
     process.exit(1);
   }
+  // Same security headers as on Vercel (vercel.json), so `npm start` behaves like the live site.
+  const { headers } = JSON.parse(readFileSync(join(ROOT, "vercel.json"), "utf8")) as {
+    headers: { headers: { key: string; value: string }[] }[];
+  };
+  app.use((_req, res, next) => {
+    for (const h of headers[0].headers) res.setHeader(h.key, h.value);
+    next();
+  });
   app.use(express.static(dist));
 }
 

@@ -204,7 +204,7 @@ function CredentialsForm({
         <input
           type="password"
           autoComplete={confirmPassword ? "new-password" : "current-password"}
-          placeholder={confirmPassword ? "En az 6 karakter" : undefined}
+          placeholder={confirmPassword ? "En az 8 karakter" : undefined}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="input"

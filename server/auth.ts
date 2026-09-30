@@ -1,4 +1,4 @@
-import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import type { NextFunction, Request, Response } from "express";
 import type { User } from "../src/types.ts";
@@ -15,6 +15,16 @@ export async function hashPassword(password: string): Promise<string> {
   return `${salt.toString("hex")}:${hash.toString("hex")}`;
 }
 
+// Checked against when the username doesn't exist, so a wrong username takes as long as a wrong
+// password and the response time doesn't reveal which accounts exist.
+const DUMMY_HASH = `${"0".repeat(32)}:${"0".repeat(128)}`;
+
+/** Like verifyPassword, but also spends the hashing time when there is no such account. */
+export async function verifyLogin(password: string, stored: string | null): Promise<boolean> {
+  const ok = await verifyPassword(password, stored ?? DUMMY_HASH);
+  return ok && stored != null;
+}
+
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [saltHex, hashHex] = stored.split(":");
   if (!saltHex || !hashHex) return false;
@@ -23,11 +33,17 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return timingSafeEqual(actual, expected);
 }
 
+// Only a hash of each session token is stored, so a leaked copy of the database can't be used to
+// sign in as anyone.
+function sessionKey(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 export async function createSession(res: Response, userId: string): Promise<void> {
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
   await query("INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)", [
-    token,
+    sessionKey(token),
     userId,
     expiresAt.toISOString(),
   ]);
@@ -43,7 +59,7 @@ export async function createSession(res: Response, userId: string): Promise<void
 
 export async function destroySession(req: Request, res: Response): Promise<void> {
   const token = readSessionToken(req);
-  if (token) await query("DELETE FROM sessions WHERE token = $1", [token]);
+  if (token) await query("DELETE FROM sessions WHERE token = $1", [sessionKey(token)]);
   res.clearCookie(SESSION_COOKIE, { path: "/" });
 }
 
@@ -70,7 +86,7 @@ export async function loadUser(req: Request, _res: Response, next: NextFunction)
     const row = await queryOne(
       `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token = $1 AND s.expires_at > now()`,
-      [token],
+      [sessionKey(token)],
     );
     if (row) req.user = toUser(row);
   }
@@ -118,6 +134,23 @@ export async function recordAttempt(key: string): Promise<void> {
                        ELSE now() + interval '15 minutes' END`,
     [key],
   );
+}
+
+/**
+ * Counts one request against `key` and says whether it went over `max` in the current 15-minute
+ * window. Counting and checking happen in one statement, so parallel requests can't slip past.
+ */
+export async function overLimit(key: string, max: number): Promise<boolean> {
+  const row = await queryOne(
+    `INSERT INTO login_attempts (ip, count, reset_at) VALUES ($1, 1, now() + interval '15 minutes')
+     ON CONFLICT (ip) DO UPDATE SET
+       count    = CASE WHEN login_attempts.reset_at > now() THEN login_attempts.count + 1 ELSE 1 END,
+       reset_at = CASE WHEN login_attempts.reset_at > now() THEN login_attempts.reset_at
+                       ELSE now() + interval '15 minutes' END
+     RETURNING count`,
+    [key],
+  );
+  return Number(row?.count ?? 0) > max;
 }
 
 export async function clearAttempts(key: string): Promise<void> {
