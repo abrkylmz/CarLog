@@ -5,6 +5,7 @@ import { paths, VEHICLE_TAB_LABELS, type VehicleTab } from "../lib/router";
 import { FUEL_ACCENT } from "../lib/theme";
 import type { Vehicle, VehicleStats } from "../types";
 import CarArt from "./CarArt";
+import { openQuickAdd } from "./QuickAdd";
 
 interface Props {
   vehicle: Vehicle;
@@ -96,12 +97,13 @@ export default function VehicleCard({ vehicle, stats, alerts, spend }: Props) {
       <Sparkline values={spend} />
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <a
-          href={paths.vehicle(vehicle.id, "dolumlar")}
+        <button
+          type="button"
+          onClick={() => openQuickAdd("entry", vehicle.id)}
           className="rounded-lg bg-brand-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-sm shadow-brand-900/20 transition hover:bg-brand-700"
         >
           Yakıt Ekle
-        </a>
+        </button>
         <a
           href={paths.vehicle(vehicle.id)}
           className="rounded-lg bg-slate-100 px-3 py-2 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"

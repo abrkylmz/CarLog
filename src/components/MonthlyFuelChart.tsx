@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatTL } from "../lib/format";
 import { prefersReducedMotion } from "../lib/motion";
+import { YearSelect } from "./TopBar";
 
 const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
 const compact = new Intl.NumberFormat("tr-TR", { notation: "compact", maximumFractionDigits: 1 });
@@ -12,10 +13,13 @@ interface Props {
   values: number[];
   /** Month (0–11) drawn strongest: the current one, or the latest with data. */
   highlight: number | null;
+  /** When given, the card carries its own year picker. */
+  years?: number[];
+  onYearChange?: (year: number) => void;
 }
 
 /** The year's fuel spend month by month; the highlighted month (or the hovered one) stands out. */
-export default function MonthlyFuelChart({ year, values, highlight }: Props) {
+export default function MonthlyFuelChart({ year, values, highlight, years, onYearChange }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const data = values.map((value, i) => ({ month: MONTHS[i], value, i }));
   const strong = hover ?? highlight;
@@ -23,12 +27,17 @@ export default function MonthlyFuelChart({ year, values, highlight }: Props) {
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
-      <div className="mb-2 flex items-baseline justify-between gap-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="text-lg font-bold tracking-tight">Aylık Yakıt Gideri</h2>
-        <span className="text-sm text-slate-500 dark:text-slate-400">
-          {year} · <b className="font-semibold text-slate-700 tabular-nums dark:text-slate-200">{formatTL(total).replace(",00", "")}</b>
-        </span>
+        {years && onYearChange ? (
+          <YearSelect years={years} value={year} onChange={onYearChange} />
+        ) : null}
       </div>
+      <p className="-mt-1 mb-1 text-sm text-slate-500 dark:text-slate-400">
+        <span>
+          {year} toplamı · <b className="font-semibold text-slate-700 tabular-nums dark:text-slate-200">{formatTL(total).replace(",00", "")}</b>
+        </span>
+      </p>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart

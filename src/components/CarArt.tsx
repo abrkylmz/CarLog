@@ -2,7 +2,10 @@
  * A side-view car drawing painted in the surrounding accent color (the vehicle's fuel type, see
  * data-accent in index.css). Stands in for a photo on the dashboard cards and the hero.
  */
-export default function CarArt({ className = "" }: { className?: string }) {
+export default function CarArt({ className = "", light = false }: { className?: string; light?: boolean }) {
+  // light: a white car, for drawing on top of an accent-colored background.
+  const body = light ? "fill-slate-50" : "fill-brand-500";
+  const sill = light ? "fill-slate-300" : "fill-brand-700/60";
   return (
     <svg viewBox="0 0 260 104" className={className} aria-hidden>
       {/* Ground shadow */}
@@ -11,12 +14,12 @@ export default function CarArt({ className = "" }: { className?: string }) {
       {/* Body */}
       <path
         d="M20 72 C20 62 25 57 38 55 L78 50 C92 37 108 28 132 27 L160 27 C180 27 196 35 211 48 L229 52 C242 55 248 61 248 70 L248 77 C248 80 246 82 243 82 L222 82 A24 24 0 0 0 174 82 L92 82 A24 24 0 0 0 44 82 L25 82 C22 82 20 80 20 77 Z"
-        className="fill-brand-500"
+        className={body}
       />
       {/* Lower sill, a shade darker */}
-      <path d="M24 72 L246 70 L248 77 C248 80 246 82 243 82 L222 82 A24 24 0 0 0 174 82 L92 82 A24 24 0 0 0 44 82 L25 82 C22 82 20 80 20 77 Z" className="fill-brand-700/60" />
+      <path d="M24 72 L246 70 L248 77 C248 80 246 82 243 82 L222 82 A24 24 0 0 0 174 82 L92 82 A24 24 0 0 0 44 82 L25 82 C22 82 20 80 20 77 Z" className={sill} />
       {/* Shoulder highlight */}
-      <path d="M40 58 C90 52 170 50 226 55" fill="none" strokeWidth="2" strokeLinecap="round" className="stroke-white/35" />
+      <path d="M40 58 C90 52 170 50 226 55" fill="none" strokeWidth="2" strokeLinecap="round" className={light ? "stroke-white" : "stroke-white/35"} />
 
       {/* Windows */}
       <path d="M88 50 C99 40 111 33 130 32 L148 32 L148 50 Z" className="fill-slate-800/85 dark:fill-slate-950/85" />

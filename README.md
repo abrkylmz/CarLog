@@ -46,7 +46,10 @@ yakıt dışı giderler ayrı tutulur. Aylara göre listelenir ve türlere göre
 Toplamlar yakıt ve diğer masrafları hem ayrı ayrı hem birlikte verir.
 
 ### Özet ve raporlar
-- **Özet:** bu ayın harcaması, ortalama tüketim, son kilometre ve aylık harcama grafiği.
+- **Özet:** aracın üst kartında bu ay, ortalama tüketim, son km ve son dolum. Altında hızlı
+  işlemler (yakıt, masraf, hatırlatma ekleme ve rapor), yaklaşan hatırlatmalar, değişimiyle ve
+  küçük grafiğiyle bu ayın harcaması, toplam, tüketim ve litre fiyatı, son dolumlar ve aylık
+  yakıt gideri.
 - **Öne Çıkanlar:** verilerinizden çıkan kısa yorumlar. Örneğin bu ayın geçen aya göre
   durumu, son dolumlardaki tüketim eğilimi ve en ucuz yakıtı ne zaman aldığınız.
 - **Aylık kilometre ve yakıt ortalaması:** her ay kaç km yaptığınız ve o ayın L/100km değeri.

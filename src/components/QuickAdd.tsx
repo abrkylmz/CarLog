@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, Car, ChevronRight, Fuel, Plus, Receipt } from "lucide-react";
 import { FUEL_ACCENT } from "../lib/theme";
 import { FUEL_TYPE_LABELS } from "../lib/format";
@@ -8,7 +8,15 @@ import ExpenseForm from "./ExpenseForm";
 import Modal from "./Modal";
 import { ReminderForm } from "./Reminders";
 
-type Kind = "entry" | "expense" | "reminder";
+export type QuickAddKind = "entry" | "expense" | "reminder";
+type Kind = QuickAddKind;
+
+const OPEN_EVENT = "carlog:quick-add";
+
+/** Opens the add form for `vehicleId` straight away, e.g. from a "Yakıt Ekle" button. */
+export function openQuickAdd(kind: QuickAddKind, vehicleId: string): void {
+  window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: { kind, vehicleId } }));
+}
 
 interface Props {
   vehicles: Vehicle[];
@@ -43,6 +51,17 @@ export default function QuickAdd({
   const [kind, setKind] = useState<Kind | null>(null);
   const vehicle = vehicles.find((v) => v.id === vehicleId);
   const accent = vehicle ? FUEL_ACCENT[vehicle.fuelType] : undefined;
+
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const { kind: k, vehicleId: id } = (e as CustomEvent<{ kind: Kind; vehicleId: string }>).detail;
+      setVehicleId(id);
+      setKind(k);
+      setOpen(true);
+    };
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_EVENT, onOpen);
+  }, []);
 
   function start() {
     // Skip choosing when the vehicle is obvious.

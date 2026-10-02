@@ -11,10 +11,12 @@ interface Props {
   latestKmByVehicle: Map<string, number | null>;
   /** Hide the vehicle name when every reminder belongs to the same vehicle. */
   showVehicle?: boolean;
+  /** "banner": the warm, highlighted look used on a vehicle summary. */
+  variant?: "list" | "banner";
 }
 
 /** Overdue and due-soon reminders, most urgent first; renders nothing when all is calm. */
-export default function UpcomingReminders({ reminders, vehicles, latestKmByVehicle, showVehicle = true }: Props) {
+export default function UpcomingReminders({ reminders, vehicles, latestKmByVehicle, showVehicle = true, variant = "list" }: Props) {
   const vehicleName = new Map(vehicles.map((v) => [v.id, v.name]));
   const urgent = reminders
     .filter((r) => !r.doneAt && vehicleName.has(r.vehicleId))
@@ -25,12 +27,28 @@ export default function UpcomingReminders({ reminders, vehicles, latestKmByVehic
   if (urgent.length === 0) return null;
 
   return (
-    <section className="mb-6">
-      <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300">
+    <section
+      className={
+        variant === "banner"
+          ? "mb-6 rounded-2xl border border-amber-200 bg-amber-50/70 p-3 sm:p-4 dark:border-amber-900/60 dark:bg-amber-950/20"
+          : "mb-6"
+      }
+    >
+      <h2
+        className={`mb-3 flex items-center gap-1.5 text-sm font-semibold ${
+          variant === "banner" ? "text-amber-800 dark:text-amber-300" : "text-slate-600 dark:text-slate-300"
+        }`}
+      >
         <Bell size={15} />
         Yaklaşan Hatırlatmalar
       </h2>
-      <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
+      <ul
+        className={`divide-y overflow-hidden rounded-xl ${
+          variant === "banner"
+            ? "divide-amber-100 bg-white/70 dark:divide-amber-900/40 dark:bg-slate-900/60"
+            : "divide-slate-100 border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900"
+        }`}
+      >
         {urgent.map(({ reminder: r, status }) => (
           <li key={r.id}>
             <a

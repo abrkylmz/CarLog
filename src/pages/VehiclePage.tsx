@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { BarChart3, Droplet, Fuel, Pencil, Tag, Trash2 } from "lucide-react";
+import MonthlyFuelChart from "../components/MonthlyFuelChart";
+import QuickActions from "../components/QuickActions";
+import RecentEntries from "../components/RecentEntries";
+import TrendStat from "../components/TrendStat";
+import { CountUp } from "../components/StatCard";
+import { dashboard, dataYears } from "../lib/dashboard";
+import { vehicleTrends } from "../lib/trends";
 import BackLink from "../components/BackLink";
 import CategoryBreakdown from "../components/CategoryBreakdown";
 import { useDialog } from "../components/DialogProvider";
@@ -28,7 +35,6 @@ import {
   CONSUMPTION_KIND_LABELS,
   formatConsumption,
   FUEL_TYPE_LABELS,
-  formatDate,
   formatNumber,
   formatTL,
   vehicleSubtitle,
@@ -124,6 +130,13 @@ export default function VehiclePage({
   const stats = useMemo(() => vehicleStats(entries, expenses, tank), [entries, expenses, tank]);
   const insights = useMemo(() => vehicleInsights(entries, expenses, tank), [entries, expenses, tank]);
   const kmByMonth = useMemo(() => monthlyKm(entries), [entries]);
+  const trends = useMemo(() => vehicleTrends(entries, expenses, summaries, tank), [entries, expenses, summaries, tank]);
+  const years = useMemo(() => dataYears(entries, expenses), [entries, expenses]);
+  const [chartYear, setChartYear] = useState(() => new Date().getFullYear());
+  const monthlyFuel = useMemo(
+    () => dashboard(chartYear, [vehicle], entries, expenses).monthlyFuel,
+    [chartYear, vehicle, entries, expenses],
+  );
   const thisMonthTotal = stats.thisMonthCost + stats.thisMonthOtherCost;
   const grandTotal = stats.totalCost + stats.otherCostTotal;
   const split = (fuel: number, other: number) => `Yakıt ${formatTL(fuel)} · Diğer ${formatTL(other)}`;
@@ -166,52 +179,94 @@ export default function VehiclePage({
       <div key={`${vehicle.id}-${tab}`} className="rise-stack">
       {tab === "ozet" && (
         <>
-          <InsightsCard insights={insights} />
+          <div className={`mb-6 grid gap-4 ${insights.length ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" : ""}`}>
+            <InsightsCard insights={insights} />
+            <QuickActions vehicleId={vehicle.id} />
+          </div>
+
           <UpcomingReminders
             reminders={reminders}
             vehicles={[vehicle]}
             latestKmByVehicle={new Map([[vehicle.id, latestKm]])}
             showVehicle={false}
+            variant="banner"
           />
-          <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard
+
+          <section className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+            <TrendStat
+              icon={Fuel}
+              tone="emerald"
               label="Bu Ay Toplam"
-              value={formatTL(thisMonthTotal)}
-              count={{ to: thisMonthTotal, format: formatTL }}
+              value={<CountUp to={thisMonthTotal} format={formatTL} />}
               hint={split(stats.thisMonthCost, stats.thisMonthOtherCost)}
+              change={trends.thisMonthChange}
+              changeTitle="Geçen ayın aynı dönemine göre"
+              lowerIsBetter
+              history={trends.monthlySpend}
             />
-            <StatCard
+            <TrendStat
+              icon={BarChart3}
+              tone="brand"
               label="Genel Toplam"
-              value={formatTL(grandTotal)}
-              count={{ to: grandTotal, format: formatTL }}
+              value={<CountUp to={grandTotal} format={formatTL} />}
               hint={split(stats.totalCost, stats.otherCostTotal)}
+              history={trends.monthlySpend}
+              historyAs="bars"
             />
-            <StatCard
-              label="Ort. Tüketim"
+            <TrendStat
+              icon={Droplet}
+              tone="rose"
+              label="Ortalama Tüketim"
               value={
-                stats.avgConsumptionPer100km != null
-                  ? `${formatConsumption(stats.avgConsumptionPer100km, stats.consumptionKind)} L/100km`
-                  : "—"
-              }
-              count={
-                stats.avgConsumptionPer100km != null
-                  ? {
-                      to: stats.avgConsumptionPer100km,
-                      format: (n) => `${formatConsumption(n, stats.consumptionKind)} L/100km`,
-                    }
-                  : undefined
+                stats.avgConsumptionPer100km != null ? (
+                  <CountUp to={stats.avgConsumptionPer100km} format={(n) => `${formatConsumption(n, stats.consumptionKind)} L/100km`} />
+                ) : (
+                  "—"
+                )
               }
               hint={
                 stats.kmTracked > 0 && stats.consumptionKind
-                  ? `${formatNumber(stats.kmTracked, 0)} km · ${CONSUMPTION_KIND_LABELS[stats.consumptionKind]}`
-                  : undefined
+                  ? `Tüm zamanlar · ${formatNumber(stats.kmTracked, 0)} km · ${CONSUMPTION_KIND_LABELS[stats.consumptionKind]}`
+                  : "Henüz ölçülmedi"
               }
+              change={trends.consumptionChange}
+              changeTitle="Son 90 gün, tüm zamanların ortalamasına göre"
+              lowerIsBetter
+              history={trends.monthlyConsumption}
             />
-            <StatCard
-              label="Ortalama TL/L"
-              value={stats.avgPricePerLiter > 0 ? formatNumber(stats.avgPricePerLiter, 2) : "—"}
-              count={stats.avgPricePerLiter > 0 ? { to: stats.avgPricePerLiter, format: (n) => formatNumber(n, 2) } : undefined}
-              hint={`${formatNumber(stats.totalLiters)} L toplam`}
+            <TrendStat
+              icon={Tag}
+              tone="violet"
+              label="Ortalama Tutar (Litre)"
+              value={
+                (trends.recentPrice ?? stats.avgPricePerLiter) > 0 ? (
+                  <CountUp to={trends.recentPrice ?? stats.avgPricePerLiter} format={(n) => `${formatNumber(n, 2)} TL`} />
+                ) : (
+                  "—"
+                )
+              }
+              hint={trends.recentPrice != null ? "Son 6 ay ortalaması" : `${formatNumber(stats.totalLiters)} L toplam`}
+              change={trends.priceChange}
+              changeTitle="Önceki 6 aya göre"
+              lowerIsBetter
+              history={trends.monthlyPrice}
+            />
+          </section>
+
+          <section className="mb-6 grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+            <RecentEntries vehicles={[vehicle]} entries={entries} single />
+            <MonthlyFuelChart
+              year={chartYear}
+              values={monthlyFuel}
+              highlight={
+                chartYear === new Date().getFullYear() && monthlyFuel[new Date().getMonth()] > 0
+                  ? new Date().getMonth()
+                  : Math.max(-1, ...monthlyFuel.map((v, i) => (v > 0 ? i : -1))) >= 0
+                    ? Math.max(...monthlyFuel.map((v, i) => (v > 0 ? i : -1)))
+                    : null
+              }
+              years={years}
+              onYearChange={setChartYear}
             />
           </section>
 
@@ -222,34 +277,7 @@ export default function VehiclePage({
             measuredKind={stats.consumptionKind}
           />
 
-          <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <StatCard
-              label="Son Kilometre"
-              value={stats.latestOdometerKm != null ? `${formatNumber(stats.latestOdometerKm, 0)} km` : "—"}
-              count={
-                stats.latestOdometerKm != null
-                  ? { to: stats.latestOdometerKm, format: (n) => `${formatNumber(n, 0)} km` }
-                  : undefined
-              }
-            />
-            <StatCard
-              label="Son Dolum"
-              value={stats.lastFillDate ? formatDate(stats.lastFillDate) : "—"}
-            />
-            <StatCard
-              label="Diğer Masraflar"
-              value={formatTL(stats.otherCostTotal)}
-              count={{ to: stats.otherCostTotal, format: formatTL }}
-              hint={stats.expenseCount > 0 ? `${stats.expenseCount} kayıt` : "Henüz masraf yok"}
-            />
-          </section>
-
           <MonthlyKmCard km={kmByMonth} summaries={summaries} />
-
-          <section>
-            <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Aylık Harcama</h3>
-            <SpendChart summaries={summaries} />
-          </section>
         </>
       )}
 

@@ -1,4 +1,4 @@
-import { Download, Fuel, Home, LayoutDashboard, Play, Plus } from "lucide-react";
+import { Car, Download, Fuel, Home, LayoutDashboard, Play, Plus } from "lucide-react";
 import { paths, VEHICLE_TAB_LABELS, VEHICLE_TABS, type Route } from "../lib/router";
 import { FUEL_ACCENT } from "../lib/theme";
 import type { User, Vehicle } from "../types";
@@ -52,7 +52,7 @@ export default function AppSidebar({ user, route, vehicles, wrappedYear, onExpor
           return (
             <div key={v.id} data-accent={FUEL_ACCENT[v.fuelType]}>
               <a href={paths.vehicle(v.id)} className={`${item} ${isOpen ? current : idle}`}>
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-brand-500 ring-4 ring-brand-500/15" />
+                <Car size={19} className="shrink-0 text-brand-500" />
                 <span className="truncate">{v.name}</span>
               </a>
               {isOpen && route.name === "vehicle" ? (
