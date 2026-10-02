@@ -147,7 +147,7 @@ export default function VehiclePage({
     <>
       <BackLink />
 
-      <VehicleHero key={vehicle.id} vehicle={vehicle} subtitle={subtitle} stats={stats} onExport={onExport} />
+      <VehicleHero key={`hero-${vehicle.id}`} vehicle={vehicle} subtitle={subtitle} stats={stats} onExport={onExport} />
 
       {/* Horizontal-only tab strip. The outer box draws the baseline (an inset shadow, so the active
           tab's underline covers it) and clips the scroller's extra bottom padding: iOS Safari draws its
@@ -400,7 +400,7 @@ export default function VehiclePage({
       )}
       </div>
 
-      <VehicleBottomNav key={vehicle.id} vehicleId={vehicle.id} tab={tab} onExport={onExport} />
+      <VehicleBottomNav key={`nav-${vehicle.id}`} vehicleId={vehicle.id} tab={tab} onExport={onExport} />
 
       {editingEntry ? (
         <Modal title="Dolumu Düzenle" onClose={() => setEditingEntry(null)} width="max-w-2xl">
