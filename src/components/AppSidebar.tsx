@@ -99,12 +99,18 @@ export default function AppSidebar({ user, route, vehicles, wrappedYear, onExpor
       {wrappedYear != null ? (
         <a
           href={paths.wrapped(wrappedYear)}
-          className="group relative mt-4 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-4 text-white shadow-lg shadow-violet-900/20"
+          className="group relative mt-4 overflow-hidden rounded-2xl bg-gradient-to-br from-brand-900 via-brand-700 to-brand-500 p-4 text-white shadow-lg shadow-brand-900/20"
         >
-          <span aria-hidden className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/20 blur-2xl" />
+          {/* Same evening landscape as the home page hero. */}
+          <span aria-hidden className="absolute -bottom-6 -right-6 h-24 w-40 rounded-full bg-amber-300/30 blur-2xl" />
+          <svg aria-hidden viewBox="0 0 240 120" preserveAspectRatio="none" className="absolute inset-x-0 bottom-0 h-3/5 w-full">
+            <path d="M0 80 L30 58 L58 70 L92 40 L126 66 L160 48 L196 68 L240 44 L240 120 L0 120 Z" className="fill-white/[0.08]" />
+            <path d="M0 98 L44 80 L86 92 L130 74 L176 94 L214 80 L240 88 L240 120 L0 120 Z" className="fill-slate-950/20" />
+            <path d="M0 120 L0 110 C70 104 170 104 240 110 L240 120 Z" className="fill-slate-950/30" />
+          </svg>
           <span className="relative flex items-center justify-between">
             <span className="text-2xl font-black tracking-tighter tabular-nums">{wrappedYear}</span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-violet-700 transition group-hover:scale-110">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-brand-700 shadow-md transition group-hover:scale-110">
               <Play size={14} className="translate-x-px" fill="currentColor" />
             </span>
           </span>
