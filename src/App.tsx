@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Fuel, LayoutDashboard, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fuel } from "lucide-react";
+import AppSidebar from "./components/AppSidebar";
+import { ReminderBell, SearchBox, UserMenu, YearSelect } from "./components/TopBar";
+import { dataYears } from "./lib/dashboard";
 import BackLink from "./components/BackLink";
 import { useDialog } from "./components/DialogProvider";
 import ExportDialog from "./components/ExportDialog";
 import LoadingSkeleton from "./components/LoadingSkeleton";
 import WrappedStories from "./components/WrappedStories";
-import { yearSummary } from "./lib/wrapped";
+import { wrappedYear, yearSummary } from "./lib/wrapped";
 import Toaster, { toast } from "./components/Toaster";
 import QuickAdd from "./components/QuickAdd";
 import ThemeToggle from "./components/ThemeToggle";
@@ -414,6 +417,17 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     }
   }
 
+  // Dashboard year (top bar), and each vehicle's highest odometer reading (reminder bell).
+  const years = useMemo(() => dataYears(entries, expenses), [entries, expenses]);
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const latestKmByVehicle = useMemo(() => {
+    const km = new Map<string, number | null>();
+    for (const e of entries) {
+      if (e.odometerKm != null && e.odometerKm > (km.get(e.vehicleId) ?? -1)) km.set(e.vehicleId, e.odometerKm);
+    }
+    return km;
+  }, [entries]);
+
   const currentVehicle = route.name === "vehicle" ? vehicles?.find((v) => v.id === route.id) : undefined;
   // Inside a vehicle the whole app (header included) takes that vehicle's fuel-type color.
   usePageAccent(currentVehicle ? FUEL_ACCENT[currentVehicle.fuelType] : null);
@@ -486,6 +500,9 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
         entries={entries}
         expenses={expenses}
         reminders={reminders}
+        year={year}
+        years={years}
+        onYearChange={setYear}
         onReload={reload}
         onExport={() => setExportFor("")}
       />
@@ -495,48 +512,45 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   const wrapped =
     route.name === "wrapped" && vehicles ? yearSummary(route.year, vehicles, entries, expenses) : null;
 
+  const isHome = route.name === "home";
+
   return (
-    <div
-      className={`mx-auto max-w-5xl px-4 pt-[max(2rem,env(safe-area-inset-top))] sm:px-6 ${
-        // Room for the floating + button and, on vehicle pages, the phone tab bar.
-        currentVehicle ? "pb-40 sm:pb-24" : showQuickAdd ? "pb-28 sm:pb-24" : "pb-8"
-      }`}
-    >
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3 [view-transition-name:app-header]">
-        <a href={paths.home} className="inline-flex items-center gap-2">
+    <div className="lg:flex">
+      <AppSidebar
+        user={user}
+        route={route}
+        vehicles={vehicles ?? []}
+        wrappedYear={wrappedYear(entries)}
+        onExport={() => setExportFor("")}
+      />
+      <div
+        className={`mx-auto w-full min-w-0 flex-1 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 lg:px-8 lg:pt-6 ${
+          isHome ? "max-w-[96rem]" : "max-w-5xl lg:max-w-6xl"
+        } ${
+          // Room for the floating + button and, on vehicle pages, the phone tab bar.
+          currentVehicle ? "pb-40 sm:pb-24" : showQuickAdd ? "pb-28 sm:pb-24" : "pb-8"
+        }`}
+      >
+      <header className="relative z-30 mb-6 flex items-center justify-between gap-3 [view-transition-name:app-header]">
+        <a href={paths.home} className="inline-flex shrink-0 items-center gap-2 lg:hidden">
           <div className="rounded-lg bg-brand-600 p-2 text-white">
             <Fuel size={20} />
           </div>
           <h1 className="text-xl font-semibold tracking-tight">CarLog</h1>
-          <span className="hidden text-sm text-slate-500 dark:text-slate-400 sm:inline">Yakıt gideri takibi</span>
         </a>
+        <div className="hidden min-w-0 flex-1 md:block">
+          {vehicles ? <SearchBox vehicles={vehicles} entries={entries} expenses={expenses} reminders={reminders} /> : null}
+        </div>
 
-        <div className="flex items-center gap-1 text-sm">
-          <span
-            className="mr-1 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-            title={isAdmin ? "Yönetici" : "Kullanıcı"}
-          >
-            {isAdmin ? <ShieldCheck size={14} /> : <UserRound size={14} />}
-            {user.username}
-          </span>
-          {isAdmin ? (
-            <a
-              href={paths.admin}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              <LayoutDashboard size={16} />
-              <span className="hidden sm:inline">Yönetici Paneli</span>
-            </a>
+        <div className="flex items-center gap-1 sm:gap-2">
+          {isHome && vehicles?.length ? (
+            <div className="hidden sm:block">
+              <YearSelect years={years} value={year} onChange={setYear} />
+            </div>
           ) : null}
-          <ThemeToggle />
-          <button
-            type="button"
-            onClick={onLogout}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            <LogOut size={16} />
-            <span className="hidden sm:inline">Çıkış</span>
-          </button>
+          <ThemeToggle className="h-9 w-9 justify-center rounded-xl px-0 [&>span]:hidden [&>svg]:h-[19px] [&>svg]:w-[19px]" />
+          {vehicles ? <ReminderBell vehicles={vehicles} reminders={reminders} latestKmByVehicle={latestKmByVehicle} /> : null}
+          <UserMenu user={user} onLogout={onLogout} />
         </div>
       </header>
 
@@ -571,6 +585,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
           onClose={() => setExportFor(undefined)}
         />
       ) : null}
+      </div>
     </div>
   );
 }

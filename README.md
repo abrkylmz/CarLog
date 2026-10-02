@@ -7,10 +7,18 @@ uygulama gibi çalışır, bilgisayardan da aynı hesapla kullanılır.
 
 ## Neler yapabilirsiniz
 
-### Garajım
-Birden fazla araç eklenebilir. Ana ekrandaki kaydırılabilir şeritte ortadaki araç öne çıkar,
-yanındakiler silik görünür. Her araç kendi yakıt tipinin renginde gösterilir: hibrit mavi,
-benzin lacivert, dizel grafit, LPG mor. Aracın sayfası açıldığında uygulama da o renge bürünür.
+### Ana sayfa
+Ana sayfa, seçilen yılın özetini veren bir panodur. Üstte o yıl tüm araçlarla ne kadar yakıt
+harcandığı yazar. Altında bu ayın harcaması, yılın toplamı, ortalama tüketim ve toplam
+kilometre yer alır; değişimler geçen aya ya da geçen yıla göre okla gösterilir. Araç
+kartlarında aracın çizimi, tüketimi, kilometresi, bu ayki harcaması ve son 12 ayın grafiği
+bulunur. En altta son yakıt kayıtları ve aylık yakıt gideri grafiği vardır.
+
+Bilgisayarda solda araçlar arasında geçilen bir menü, üstte araç, kayıt ve masraf arama,
+yıl seçimi ve hatırlatma zili bulunur. Telefonda araçlar kaydırılabilir bir şeritte durur:
+ortadaki araç öne çıkar, yanındakiler silik görünür. Her araç kendi yakıt tipinin renginde
+gösterilir (hibrit mavi, benzin lacivert, dizel grafit, LPG mor). Aracın sayfası açıldığında
+uygulama da o renge bürünür.
 
 ### Araç kataloğu
 Araç eklerken **Marka → Model → Versiyon** seçilir. Türkiye'de yaygın 140'ı aşkın model ve

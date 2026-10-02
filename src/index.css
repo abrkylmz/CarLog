@@ -243,3 +243,12 @@ summary:active {
   .toast, .toast-leave, .leave-row, .leave-item, .skeleton, .pulse-alert, .float, .spin-slow, .grow-x { animation: none; }
   .toast-check { stroke-dashoffset: 0; animation: none; }
 }
+
+/* ---- Dropdowns (search results, menus, the reminder bell) drop in from their trigger ---- */
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+}
+.pop-in { animation: pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both; transform-origin: top right; }
+@media (prefers-reduced-motion: reduce) {
+  .pop-in { animation: none; }
+}
