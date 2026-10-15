@@ -1,5 +1,5 @@
 import type { Expense, FuelEntry } from "../types";
-import { analyzeConsumption } from "./consumption";
+import { analyzeConsumption, measuredFillUps } from "./consumption";
 import { EXPENSE_CATEGORY_LABELS, formatNumber } from "./format";
 
 export type InsightKind = "spending" | "consumption" | "cheapest" | "price" | "category";
@@ -86,7 +86,8 @@ export function vehicleInsights(
 
   // 3. Cheapest fuel in the last six months, and 4. the last price against the usual one.
   const sixMonthsAgo = iso(new Date(today.getFullYear(), today.getMonth() - 6, today.getDate()));
-  const recentFills = entries.filter((e) => e.date >= sixMonthsAgo && e.pricePerLiter > 0).sort((a, b) => a.date.localeCompare(b.date));
+  // An LPG car's petrol fill-ups would always lose to LPG on price, so compare like with like.
+  const recentFills = measuredFillUps(entries).filter((e) => e.date >= sixMonthsAgo && e.pricePerLiter > 0).sort((a, b) => a.date.localeCompare(b.date));
   if (recentFills.length >= 3) {
     const cheapest = recentFills.reduce((best, e) => (e.pricePerLiter < best.pricePerLiter ? e : best));
     const latest = recentFills[recentFills.length - 1];

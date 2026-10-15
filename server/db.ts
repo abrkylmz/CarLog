@@ -146,6 +146,11 @@ const SCHEMA: string[] = [
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS catalog_id TEXT`,
   // When the user last used the app (signed in or opened it with a live session), for admins.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ`,
+  // Benzin + LPG vehicles: which fuel a fill-up was ('benzin' | 'lpg').
+  `ALTER TABLE entries ADD COLUMN IF NOT EXISTS fuel TEXT`,
+  // Odometer typed in without a fill-up, so km-based reminders keep up.
+  `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS odometer_km DOUBLE PRECISION`,
+  `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS odometer_at TEXT`,
   // Manufacturer consumption per fuel type, as JSON (see FactoryConsumption).
   `ALTER TABLE vehicle_catalog ADD COLUMN IF NOT EXISTS factory_consumption TEXT`,
   `CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -269,7 +274,7 @@ async function seedCatalog(db: Db): Promise<void> {
       const insert = catalogUpsert(entry);
       return { ...insert, text: `${insert.text} ON CONFLICT (id) DO NOTHING` };
     }),
-    // Rows seeded before factory consumption existed get it filled in once; admins can't set it.
+    // Rows seeded before factory consumption existed get it filled in once (never over an admin's edit).
     ...CATALOG_SEED.filter((entry) => entry.factoryConsumption?.length).map((entry) => ({
       text: "UPDATE vehicle_catalog SET factory_consumption = $2 WHERE id = $1 AND factory_consumption IS NULL",
       params: [entry.id, JSON.stringify(entry.factoryConsumption)],
@@ -357,6 +362,8 @@ export function toVehicle(row: Row): Vehicle {
     fuelType: row.fuel_type as FuelType,
     tankCapacity: row.tank_capacity == null ? undefined : Number(row.tank_capacity),
     catalogId: (row.catalog_id as string | null) ?? undefined,
+    odometerKm: row.odometer_km == null ? undefined : Number(row.odometer_km),
+    odometerAt: (row.odometer_at as string | null) ?? undefined,
     createdAt: row.created_at as string,
     myRole: (row.my_role as VehicleRole | undefined) ?? undefined,
     ownerName: row.owner_name === undefined ? undefined : ((row.owner_name as string | null) ?? null),
@@ -388,6 +395,7 @@ export function toEntry(row: Row): FuelEntry {
     totalCost: Number(row.total_cost),
     isFull: row.is_full == null ? null : Boolean(row.is_full),
     gaugeBefore: row.gauge_before == null ? undefined : Number(row.gauge_before),
+    fuel: row.fuel === "benzin" || row.fuel === "lpg" ? row.fuel : undefined,
     note: (row.note as string | null) ?? undefined,
     ...audit(row),
   };
@@ -486,9 +494,9 @@ export function insertEntryStatement(
 ): Statement {
   return {
     text: `INSERT INTO entries (id, vehicle_id, date, odometer_km, liters, price_per_liter, total_cost, note, created_by, created_at,
-                               is_full, gauge_before)
+                               is_full, gauge_before, fuel)
            SELECT $1::text, $2::text, $3::text, $4::float8, $5::float8, $6::float8, $7::float8,
-                  $8::text, $9::text, $10::text, $11::boolean, $12::float8
+                  $8::text, $9::text, $10::text, $11::boolean, $12::float8, $13::text
            WHERE EXISTS (SELECT 1 FROM vehicles WHERE id = $2::text)
            ${ignoreExisting ? "ON CONFLICT (id) DO NOTHING" : ""}
            RETURNING id`,
@@ -505,6 +513,7 @@ export function insertEntryStatement(
       e.createdAt,
       e.isFull,
       e.gaugeBefore ?? null,
+      e.fuel ?? null,
     ],
   };
 }

@@ -109,7 +109,8 @@ export async function sendReminderNotifications(now = new Date()): Promise<{ che
   const today = todayInTurkey(now);
   const rows = await query(
     `SELECT r.id, r.kind, r.title, r.due_date, r.due_km, r.vehicle_id, v.name AS vehicle_name,
-            (SELECT MAX(e.odometer_km) FROM entries e WHERE e.vehicle_id = r.vehicle_id) AS latest_km
+            GREATEST((SELECT MAX(e.odometer_km) FROM entries e WHERE e.vehicle_id = r.vehicle_id),
+                     (SELECT v.odometer_km FROM vehicles v WHERE v.id = r.vehicle_id)) AS latest_km
        FROM reminders r JOIN vehicles v ON v.id = r.vehicle_id
       WHERE r.done_at IS NULL AND (r.due_date IS NOT NULL OR r.due_km IS NOT NULL)`,
   );

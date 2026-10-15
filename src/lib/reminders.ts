@@ -36,7 +36,7 @@ export function reminderStatus(reminder: Reminder, latestKm: number | null, toda
   if (reminder.dueDate) {
     const days = daysBetween(today, reminder.dueDate);
     if (days < 0) parts.push({ level: "overdue", text: `${-days} gün gecikti`, urgency: days });
-    else if (days === 0) parts.push({ level: "overdue", text: "Bugün", urgency: 0 });
+    else if (days === 0) parts.push({ level: "soon", text: "Bugün", urgency: 0 });
     else
       parts.push({
         level: days <= SOON_DAYS ? "soon" : "planned",

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { api, errorMessage } from "../lib/api";
 import { FUEL_TYPE_LABELS } from "../lib/format";
-import type { CatalogEntry, CatalogEntryInput, FuelType, MissingCatalogModel } from "../types";
+import type { CatalogEntry, CatalogEntryInput, FactoryConsumption, FuelType, MissingCatalogModel, TestCycle } from "../types";
 import { useDialog } from "./DialogProvider";
 import { toast } from "./Toaster";
 import { CancelButton } from "./EntryForm";
@@ -231,6 +231,15 @@ function CatalogForm({
   const [tank, setTank] = useState(initial?.tankCapacity ? String(initial.tankCapacity) : "");
   const [lpgTank, setLpgTank] = useState(initial?.lpgTankCapacity ? String(initial.lpgTankCapacity) : "");
   const [note, setNote] = useState(initial?.note ?? "");
+  // Factory consumption, one optional row per selected fuel type (blank L/100km = none).
+  const [factory, setFactory] = useState<Record<string, { engine: string; value: string; cycle: TestCycle }>>(() =>
+    Object.fromEntries(
+      (initial?.factoryConsumption ?? []).map((f) => [f.fuelType, { engine: f.engine, value: String(f.lPer100km), cycle: f.cycle }]),
+    ),
+  );
+  const factoryRow = (f: FuelType) => factory[f] ?? { engine: "", value: "", cycle: "WLTP" as TestCycle };
+  const setFactoryRow = (f: FuelType, patch: Partial<{ engine: string; value: string; cycle: TestCycle }>) =>
+    setFactory((prev) => ({ ...prev, [f]: { ...factoryRow(f), ...patch } }));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const num = (v: string) => Number(v.replace(",", "."));
@@ -250,6 +259,12 @@ function CatalogForm({
         tankCapacity: num(tank),
         lpgTankCapacity: lpgTank ? num(lpgTank) : undefined,
         note: note.trim() || undefined,
+        factoryConsumption: fuelTypes
+          .map((f): FactoryConsumption | null => {
+            const row = factoryRow(f);
+            return row.value.trim() ? { fuelType: f, engine: row.engine.trim(), lPer100km: num(row.value), cycle: row.cycle } : null;
+          })
+          .filter((f): f is FactoryConsumption => f != null),
       }, Boolean(fromMissing) && link);
     } catch (err) {
       setError(errorMessage(err));
@@ -299,6 +314,45 @@ function CatalogForm({
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opsiyonel 66 L depo ile de satıldı." className="input" />
         </Field>
       </div>
+      <fieldset className="col-span-full flex flex-col gap-2 text-sm">
+        <legend className="mb-1 font-medium text-slate-600 dark:text-slate-300">
+          Fabrika tüketimi <span className="font-normal text-slate-400">(opsiyonel, karma L/100km)</span>
+        </legend>
+        {fuelTypes.map((f) => {
+          const row = factoryRow(f);
+          return (
+            <div key={f} className="grid grid-cols-[6rem_1fr_5.5rem_6rem] items-center gap-2 max-sm:grid-cols-2">
+              <span className="font-medium text-slate-600 dark:text-slate-300">{FUEL_TYPE_LABELS[f]}</span>
+              <input
+                value={row.engine}
+                onChange={(e) => setFactoryRow(f, { engine: e.target.value })}
+                placeholder="Motor, ör. 1.0 TCe 90 HP"
+                aria-label={`${FUEL_TYPE_LABELS[f]} motoru`}
+                className="input"
+              />
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                value={row.value}
+                onChange={(e) => setFactoryRow(f, { value: e.target.value })}
+                placeholder="L/100km"
+                aria-label={`${FUEL_TYPE_LABELS[f]} fabrika tüketimi`}
+                className="input"
+              />
+              <select
+                value={row.cycle}
+                onChange={(e) => setFactoryRow(f, { cycle: e.target.value as TestCycle })}
+                aria-label="Ölçüm türü"
+                className="input"
+              >
+                <option value="WLTP">WLTP</option>
+                <option value="NEDC">NEDC</option>
+              </select>
+            </div>
+          );
+        })}
+      </fieldset>
       {fromMissing ? (
         <label className="col-span-full flex items-start gap-2 rounded-lg bg-brand-50 px-3 py-2.5 text-sm dark:bg-brand-900/30">
           <input type="checkbox" checked={link} onChange={(e) => setLink(e.target.checked)} className="mt-0.5 h-4 w-4 accent-brand-600" />

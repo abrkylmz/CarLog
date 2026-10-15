@@ -2,6 +2,7 @@ import type {
   CatalogEntryInput,
   ExpenseCategory,
   ExpenseInput,
+  FactoryConsumption,
   FuelEntryInput,
   FuelType,
   ReminderInput,
@@ -29,6 +30,20 @@ const REMINDER_KINDS: ReminderKind[] = ["muayene", "sigorta", "kasko", "bakim", 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A client-chosen record id (see FuelEntryInput), or undefined to let the server pick one. */
+function clientId(value: unknown): string | undefined {
+  return typeof value === "string" && UUID.test(value) ? value.toLowerCase() : undefined;
+}
+
+/** Fill-ups and expenses can't be dated in the future; one day of slack covers time zones. */
+function dateError(value: unknown): string | null {
+  if (typeof value !== "string" || !ISO_DATE.test(value) || Number.isNaN(Date.parse(value))) return "Geçerli bir tarih girin.";
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  return value > tomorrow ? "Tarih ileri bir gün olamaz." : null;
+}
 
 function optionalString(value: unknown, max: number): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -82,9 +97,8 @@ export function parseVehicleInput(body: unknown): Result<VehicleInput> {
 export function parseEntryInput(body: unknown): Result<FuelEntryInput> {
   const b = (body ?? {}) as Record<string, unknown>;
   if (typeof b.vehicleId !== "string" || !b.vehicleId) return { ok: false, error: "Araç seçilmedi." };
-  if (typeof b.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) {
-    return { ok: false, error: "Geçerli bir tarih girin." };
-  }
+  const badDate = dateError(b.date);
+  if (badDate) return { ok: false, error: badDate };
 
   // The odometer reading is optional; when given it must be a positive number.
   const odometerKm = b.odometerKm == null ? null : positiveNumber(b.odometerKm);
@@ -102,17 +116,21 @@ export function parseEntryInput(body: unknown): Result<FuelEntryInput> {
     gaugeBefore = b.gaugeBefore;
   }
 
+  if (b.fuel != null && b.fuel !== "benzin" && b.fuel !== "lpg") return { ok: false, error: "Geçersiz yakıt." };
+
   return {
     ok: true,
     value: {
+      id: clientId(b.id),
       vehicleId: b.vehicleId,
-      date: b.date,
+      date: b.date as string,
       odometerKm,
       liters,
       pricePerLiter: positiveNumber(b.pricePerLiter) ?? totalCost / liters,
       totalCost,
       isFull: typeof b.isFull === "boolean" ? b.isFull : null,
       gaugeBefore,
+      fuel: b.fuel === "benzin" || b.fuel === "lpg" ? b.fuel : undefined,
       note: optionalString(b.note, 200),
     },
   };
@@ -121,9 +139,8 @@ export function parseEntryInput(body: unknown): Result<FuelEntryInput> {
 export function parseExpenseInput(body: unknown): Result<ExpenseInput> {
   const b = (body ?? {}) as Record<string, unknown>;
   if (typeof b.vehicleId !== "string" || !b.vehicleId) return { ok: false, error: "Araç seçilmedi." };
-  if (typeof b.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) {
-    return { ok: false, error: "Geçerli bir tarih girin." };
-  }
+  const badDate = dateError(b.date);
+  if (badDate) return { ok: false, error: badDate };
   const category = EXPENSE_CATEGORIES.find((c) => c === b.category);
   if (!category) return { ok: false, error: "Geçersiz masraf türü." };
   const amount = positiveNumber(b.amount);
@@ -131,7 +148,7 @@ export function parseExpenseInput(body: unknown): Result<ExpenseInput> {
 
   return {
     ok: true,
-    value: { vehicleId: b.vehicleId, date: b.date, category, amount, note: optionalString(b.note, 200) },
+    value: { id: clientId(b.id), vehicleId: b.vehicleId, date: b.date as string, category, amount, note: optionalString(b.note, 200) },
   };
 }
 
@@ -163,6 +180,7 @@ export function parseReminderInput(body: unknown): Result<ReminderInput> {
   return {
     ok: true,
     value: {
+      id: clientId(b.id),
       vehicleId: b.vehicleId,
       kind,
       title: optionalString(b.title, 60),
@@ -205,9 +223,36 @@ export function parseCatalogInput(body: unknown): Result<CatalogEntryInput> {
     lpgTankCapacity = l;
   }
 
+  // Manufacturer's combined consumption, at most one figure per fuel type of the entry.
+  const factoryConsumption: FactoryConsumption[] = [];
+  if (b.factoryConsumption != null) {
+    if (!Array.isArray(b.factoryConsumption)) return { ok: false, error: "Fabrika tüketimi geçersiz." };
+    for (const raw of b.factoryConsumption as Record<string, unknown>[]) {
+      const fuelType = fuelTypes.find((f) => f === raw?.fuelType);
+      const lPer100km = typeof raw?.lPer100km === "number" && raw.lPer100km >= 1 && raw.lPer100km <= 30 ? raw.lPer100km : null;
+      const cycle = raw?.cycle === "NEDC" || raw?.cycle === "WLTP" ? raw.cycle : null;
+      if (!fuelType || lPer100km == null || !cycle) {
+        return { ok: false, error: "Fabrika tüketimi için yakıt tipi, 1-30 arası L/100km ve ölçüm türü (WLTP/NEDC) gerekli." };
+      }
+      if (factoryConsumption.some((f) => f.fuelType === fuelType)) continue;
+      factoryConsumption.push({ fuelType, engine: optionalString(raw.engine, 60) ?? "", lPer100km, cycle });
+    }
+  }
+
   return {
     ok: true,
-    value: { brand, model, generation, yearFrom, yearTo, fuelTypes, tankCapacity, lpgTankCapacity, note: optionalString(b.note, 200) },
+    value: {
+      brand,
+      model,
+      generation,
+      yearFrom,
+      yearTo,
+      fuelTypes,
+      tankCapacity,
+      lpgTankCapacity,
+      note: optionalString(b.note, 200),
+      factoryConsumption: factoryConsumption.length ? factoryConsumption : undefined,
+    },
   };
 }
 

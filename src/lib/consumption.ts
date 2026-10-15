@@ -11,6 +11,16 @@ export function weakerKind(a: ConsumptionKind | null, b: ConsumptionKind): Consu
   return a == null || KIND_RANK[b] > KIND_RANK[a] ? b : a;
 }
 
+/**
+ * The fill-ups that measure consumption and price per liter. On a "Benzin + LPG" car that records
+ * which fuel went in, the car runs on LPG and petrol is the starter/backup tank, so measuring is
+ * done on the LPG fill-ups; petrol ones still count toward spending but would otherwise mix two
+ * fuels' liters. Older fill-ups without a fuel recorded stay in, as before.
+ */
+export function measuredFillUps<T extends FuelEntry>(entries: T[]): T[] {
+  return entries.some((e) => e.fuel === "lpg") ? entries.filter((e) => e.fuel !== "benzin") : entries;
+}
+
 function plausible(liters: number, km: number): boolean {
   const per100 = (liters / km) * 100;
   return per100 >= PLAUSIBLE_MIN && per100 <= PLAUSIBLE_MAX;
@@ -32,6 +42,23 @@ export function analyzeConsumption(
   entries: FuelEntry[],
   tankCapacity?: number,
 ): { derived: DerivedEntry[]; segments: ConsumptionSegment[] } {
+  const measured = measuredFillUps(entries);
+  if (measured.length < entries.length) {
+    // Measure the LPG fill-ups; list the petrol ones alongside, without a consumption figure.
+    const result = analyzeConsumption(measured, tankCapacity);
+    const petrol: DerivedEntry[] = entries
+      .filter((e) => !measured.includes(e))
+      .map((e) => ({
+        ...e,
+        kmSinceLast: null,
+        consumptionPer100km: null,
+        consumptionKind: null,
+        consumptionKm: null,
+        suspicious: false,
+        awaitingFull: false,
+      }));
+    return { derived: [...result.derived, ...petrol], segments: result.segments };
+  }
   const sorted = orderFillUps(entries);
   // km of the nearest earlier fill-up that has one.
   let lastKm: number | null = null;
@@ -197,6 +224,10 @@ export function fillUpWarnings(
 ): string[] {
   const warnings: string[] = [];
   const km = (n: number) => n.toLocaleString("tr-TR");
+
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  if (input.date > today) warnings.push("Tarih ileri bir gün; bugünden sonraki bir tarihle kaydedilemez.");
 
   // km checks only when this fill-up has a reading, against the ones that have one too.
   const reading = input.odometerKm;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Bell, CalendarDays, Car, ChevronDown, Fuel, LayoutDashboard, LogOut, Receipt, Search, ShieldCheck } from "lucide-react";
+import { Bell, CalendarDays, Car, ChevronDown, Fuel, KeyRound, LayoutDashboard, LogOut, Receipt, Search, ShieldCheck } from "lucide-react";
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL } from "../lib/format";
 import { usePopover } from "../lib/popover";
 import { reminderStatus } from "../lib/reminders";
@@ -19,6 +19,9 @@ interface SearchProps {
   entries: FuelEntry[];
   expenses: Expense[];
   reminders: Reminder[];
+  /** Phone search sheet: focus right away, and close it after picking a result. */
+  autoFocus?: boolean;
+  onDone?: () => void;
 }
 
 interface Hit {
@@ -33,7 +36,7 @@ interface Hit {
 const fold = (t: string) => t.toLocaleLowerCase("tr-TR");
 
 /** Finds vehicles, fill-ups, expenses and reminders by name, plate, note, category or date. */
-export function SearchBox({ vehicles, entries, expenses, reminders }: SearchProps) {
+export function SearchBox({ vehicles, entries, expenses, reminders, autoFocus, onDone }: SearchProps) {
   const [q, setQ] = useState("");
   const [cursor, setCursor] = useState(0);
   const { open, setOpen, ref } = usePopover();
@@ -102,6 +105,7 @@ export function SearchBox({ vehicles, entries, expenses, reminders }: SearchProp
   function go(hit: Hit) {
     setOpen(false);
     setQ("");
+    onDone?.();
     navigate(hit.href);
   }
 
@@ -117,6 +121,7 @@ export function SearchBox({ vehicles, entries, expenses, reminders }: SearchProp
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
+        autoFocus={autoFocus}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") {
             e.preventDefault();
@@ -243,7 +248,7 @@ export function ReminderBell({ vehicles, reminders, latestKmByVehicle }: {
 
 // ---- Account ------------------------------------------------------------------
 
-export function UserMenu({ user, onLogout }: { user: User; onLogout: () => void }) {
+export function UserMenu({ user, onLogout, onChangePassword }: { user: User; onLogout: () => void; onChangePassword: () => void }) {
   const { open, toggle, ref } = usePopover();
   const isAdmin = user.role === "admin";
   return (
@@ -275,6 +280,14 @@ export function UserMenu({ user, onLogout }: { user: User; onLogout: () => void 
               Yönetici Paneli
             </a>
           ) : null}
+          <button
+            type="button"
+            onClick={onChangePassword}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            <KeyRound size={16} />
+            Şifremi Değiştir
+          </button>
           <button
             type="button"
             onClick={onLogout}

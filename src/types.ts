@@ -27,6 +27,9 @@ export interface Vehicle {
   tankCapacity?: number;
   /** The catalog model this vehicle was picked from; absent when entered by hand. */
   catalogId?: string;
+  /** Odometer typed in without a fill-up ("Km Güncelle"), and the day it was read. */
+  odometerKm?: number;
+  odometerAt?: string;
   createdAt: string;
   /** The signed-in user's role on this vehicle (set by the server on reads). */
   myRole?: VehicleRole;
@@ -35,7 +38,7 @@ export interface Vehicle {
 }
 
 /** Fields the client sends when creating or editing a vehicle; the server owns the rest. */
-export type VehicleInput = Omit<Vehicle, "id" | "createdAt" | "myRole" | "ownerName">;
+export type VehicleInput = Omit<Vehicle, "id" | "createdAt" | "myRole" | "ownerName" | "odometerKm" | "odometerAt">;
 
 export interface VehicleMember {
   userId: string;
@@ -75,6 +78,8 @@ export interface FuelEntry {
   isFull: boolean | null;
   /** Fuel gauge before filling, 0 (empty) … 1 (full); only asked for partial fill-ups. */
   gaugeBefore?: number;
+  /** Which fuel went in, for "Benzin + LPG" vehicles; absent on single-fuel ones (and older records). */
+  fuel?: EntryFuel;
   note?: string;
   /** Username of whoever entered it; null if that user was deleted. */
   createdBy: string | null;
@@ -87,7 +92,13 @@ export interface FuelEntry {
 }
 
 /** Fields the client sends when adding a fill-up; the server owns id, createdBy and createdAt. */
-export type FuelEntryInput = Omit<FuelEntry, "id" | AuditField>;
+export type EntryFuel = "benzin" | "lpg";
+
+/**
+ * `id` may be chosen by the client (a UUID), so a record sent again after a lost response is
+ * recognised instead of saved twice.
+ */
+export type FuelEntryInput = Omit<FuelEntry, "id" | AuditField> & { id?: string };
 
 export type ExpenseCategory =
   | "bakim"
@@ -121,7 +132,7 @@ export interface Expense {
 }
 
 /** Fields the client sends when adding an expense; the server owns id, createdBy and createdAt. */
-export type ExpenseInput = Omit<Expense, "id" | AuditField>;
+export type ExpenseInput = Omit<Expense, "id" | AuditField> & { id?: string };
 
 /** Server-owned bookkeeping fields on records. */
 type AuditField = "createdBy" | "createdById" | "createdAt" | "updatedAt" | "updatedBy";
@@ -150,7 +161,7 @@ export interface Reminder {
   createdAt: string;
 }
 
-export type ReminderInput = Omit<Reminder, "id" | "doneAt" | "doneBy" | "createdBy" | "createdById" | "createdAt">;
+export type ReminderInput = Omit<Reminder, "id" | "doneAt" | "doneBy" | "createdBy" | "createdById" | "createdAt"> & { id?: string };
 
 /**
  * How a consumption figure was obtained:
@@ -263,7 +274,7 @@ export interface FactoryConsumption {
   cycle: TestCycle;
 }
 
-export type CatalogEntryInput = Omit<CatalogEntry, "id" | "factoryConsumption">;
+export type CatalogEntryInput = Omit<CatalogEntry, "id">;
 
 /** Hand-entered vehicles not in the catalog, counted without revealing whose they are. */
 export interface MissingCatalogModel {

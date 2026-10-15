@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, CalendarDays, Car, ChevronRight, Download, Fuel, MoreHorizontal, Route, Users } from "lucide-react";
+import { ArrowRight, BarChart3, CalendarDays, Car, ChevronRight, Download, Fuel, MoreHorizontal, Pencil, Route, Users } from "lucide-react";
 import { CONSUMPTION_KIND_LABELS, formatConsumption, formatNumber, formatTL, FUEL_TYPE_LABELS } from "../lib/format";
 import { usePopover } from "../lib/popover";
 import { paths, VEHICLE_TAB_LABELS, VEHICLE_TABS } from "../lib/router";
@@ -11,6 +11,8 @@ interface Props {
   subtitle: string | null;
   stats: VehicleStats;
   onExport: () => void;
+  /** Type in the current odometer without a fill-up. */
+  onUpdateKm?: () => void;
 }
 
 const longDate = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short", year: "numeric" });
@@ -19,7 +21,7 @@ const longDate = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "shor
  * Accent-colored header of a vehicle page: name, make and plate, a drawing of the car over a
  * landscape, and the four figures people check most (the last fill-up opens the fill-up list).
  */
-export default function VehicleHero({ vehicle, subtitle, stats, onExport }: Props) {
+export default function VehicleHero({ vehicle, subtitle, stats, onExport, onUpdateKm }: Props) {
   const thisMonth = stats.thisMonthCost + stats.thisMonthOtherCost;
   const makeLine = [[vehicle.brand, vehicle.model].filter(Boolean).join(" ") || subtitle, vehicle.year, FUEL_TYPE_LABELS[vehicle.fuelType]]
     .filter(Boolean)
@@ -100,7 +102,7 @@ export default function VehicleHero({ vehicle, subtitle, stats, onExport }: Prop
               "—"
             )}
           </Figure>
-          <Figure icon={Route} label="Son Km">
+          <Figure icon={Route} label="Son Km" onClick={onUpdateKm} action="Kilometreyi güncelle">
             {stats.latestOdometerKm != null ? <CountUp to={stats.latestOdometerKm} format={(n) => `${formatNumber(n, 0)} km`} /> : "—"}
           </Figure>
           <Figure icon={CalendarDays} label="Son Dolum" href={paths.vehicle(vehicle.id, "dolumlar")}>
@@ -117,12 +119,17 @@ function Figure({
   label,
   title,
   href,
+  onClick,
+  action,
   children,
 }: {
   icon: typeof Fuel;
   label: string;
   title?: string;
   href?: string;
+  /** Makes the box a button, with `action` as a small label (e.g. "Güncelle"). */
+  onClick?: () => void;
+  action?: string;
   children: React.ReactNode;
 }) {
   const body = (
@@ -133,9 +140,21 @@ function Figure({
         <dd className="truncate text-sm font-bold tabular-nums sm:text-base">{children}</dd>
       </div>
       {href ? <ChevronRight size={18} className="shrink-0 text-white/70" /> : null}
+      {onClick && action ? (
+        <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
+          <Pencil size={13} />
+        </span>
+      ) : null}
     </>
   );
   const box = "flex min-w-0 items-center gap-3 rounded-2xl bg-slate-950/20 px-3 py-2.5 ring-1 ring-white/10 backdrop-blur-md sm:px-4 sm:py-3";
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} title={title ?? action} aria-label={`${label}: ${action ?? ""}`} className={`${box} text-left transition hover:bg-slate-950/30`}>
+        {body}
+      </button>
+    );
+  }
   return href ? (
     <a href={href} title={title} className={`${box} transition hover:bg-slate-950/30`}>
       {body}

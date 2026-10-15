@@ -66,6 +66,10 @@ export const api = {
   login: (username: string, password: string, panel: "user" | "admin") =>
     request<{ user: User }>("POST", "/auth/login", { username, password, panel }),
   logout: () => request<void>("POST", "/auth/logout"),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>("POST", "/auth/password", { currentPassword, newPassword }),
+  updateOdometer: (vehicleId: string, odometerKm: number) =>
+    request<Vehicle>("PUT", `/vehicles/${encodeURIComponent(vehicleId)}/odometer`, { odometerKm }),
 
   listVehicles: () => request<Vehicle[]>("GET", "/vehicles"),
   createVehicle: (input: VehicleInput) => request<Vehicle>("POST", "/vehicles", input),

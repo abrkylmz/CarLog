@@ -13,8 +13,10 @@ interface Props {
   onCancel?: () => void;
 }
 
+/** Today on the user's own calendar (toISOString would give yesterday's date after midnight in Turkey). */
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function parse(value: string): number {
@@ -57,7 +59,7 @@ export default function ExpenseForm({ vehicleId, onAdd, initial, submitLabel = "
       className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-4"
     >
       <Field label="Tarih">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" required />
+        <input type="date" value={date} max={todayIso()} onChange={(e) => setDate(e.target.value)} className="input" required />
       </Field>
 
       <Field label="Masraf Türü">

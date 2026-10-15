@@ -1,6 +1,6 @@
 import type { Expense, FuelEntry, MonthlySummary } from "../types";
 import { monthKey } from "./calc";
-import { analyzeConsumption, averageOf } from "./consumption";
+import { analyzeConsumption, averageOf, measuredFillUps } from "./consumption";
 import { change } from "./dashboard";
 
 // Figures with a direction for one vehicle's summary: what changed, and a short history to draw.
@@ -53,8 +53,9 @@ export function vehicleTrends(
   const recent = averageOf(segments.filter((s) => s.endDate >= since90));
   const overall = averageOf(segments);
 
+  const priced = measuredFillUps(entries);
   const priceBetween = (from: string, to: string) => {
-    const inRange = entries.filter((e) => e.date >= from && e.date < to);
+    const inRange = priced.filter((e) => e.date >= from && e.date < to);
     const liters = sum(inRange.map((e) => e.liters));
     return liters > 0 ? sum(inRange.map((e) => e.totalCost)) / liters : null;
   };

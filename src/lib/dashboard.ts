@@ -14,9 +14,12 @@ export function dataYears(entries: FuelEntry[], expenses: Expense[], now = new D
 const sum = (values: number[]) => values.reduce((t, v) => t + v, 0);
 const inYear = (date: string, year: number) => date.startsWith(`${year}-`);
 
-/** Percent change from `before` to `now`, or null when there is nothing to compare with. */
+/**
+ * Percent change from `before` to `now`, or null when there is nothing to compare with: both
+ * periods need something in them, so a month that has only just begun doesn't read as "-100%".
+ */
 export function change(now: number, before: number): number | null {
-  if (!(before > 0)) return null;
+  if (!(before > 0) || !(now > 0)) return null;
   return Math.round(((now - before) / before) * 100);
 }
 

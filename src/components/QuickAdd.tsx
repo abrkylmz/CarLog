@@ -78,7 +78,7 @@ export default function QuickAdd({
   const vehicleEntries = vehicle ? entries.filter((e) => e.vehicleId === vehicle.id) : [];
   const latestKm = vehicleEntries.reduce<number | null>(
     (max, e) => (e.odometerKm != null && (max == null || e.odometerKm > max) ? e.odometerKm : max),
-    null,
+    vehicle?.odometerKm ?? null,
   );
 
   return (
@@ -151,6 +151,7 @@ export default function QuickAdd({
         >
           {kind === "entry" ? (
             <EntryForm
+              fuelType={vehicle.fuelType}
               vehicleId={vehicle.id}
               tankCapacity={vehicle.tankCapacity}
               otherEntries={vehicleEntries}

@@ -116,6 +116,25 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
 }
 
 function TankCell({ entry }: { entry: DerivedEntry }) {
+  return (
+    <>
+      {entry.fuel ? (
+        <span
+          className={`mr-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+            entry.fuel === "lpg"
+              ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+              : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+          }`}
+        >
+          {entry.fuel === "lpg" ? "LPG" : "Benzin"}
+        </span>
+      ) : null}
+      <TankState entry={entry} />
+    </>
+  );
+}
+
+function TankState({ entry }: { entry: DerivedEntry }) {
   if (entry.isFull === true) return <span className="font-medium text-slate-700 dark:text-slate-200">Full</span>;
   if (entry.isFull === false) {
     return (
@@ -147,6 +166,13 @@ function ConsumptionCell({ entry }: { entry: DerivedEntry }) {
       );
     }
     return <span title={basis}>{value}</span>;
+  }
+  if (entry.fuel === "benzin") {
+    return (
+      <span className="text-xs" title="Benzin dolumu: harcamaya sayılır, tüketim LPG dolumlarından hesaplanır">
+        benzin
+      </span>
+    );
   }
   if (entry.odometerKm == null) {
     return (

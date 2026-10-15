@@ -70,6 +70,8 @@ interface Props {
   onUpdateReminder: (id: string, reminder: ReminderInput) => Promise<void>;
   onCompleteReminder: (reminder: Reminder, latestKm: number | null) => void;
   onUpdateVehicle: (id: string, input: VehicleInput) => Promise<void>;
+  /** Type in the current odometer without a fill-up. */
+  onUpdateOdometer: () => void;
   onExport: () => void;
   currentUser: User;
   catalog: CatalogEntry[];
@@ -106,6 +108,7 @@ export default function VehiclePage({
   onDeleteExpense,
   onDeleteReminder,
   onUpdateVehicle,
+  onUpdateOdometer,
   onDeleteVehicle,
 }: Props) {
   const [editingEntry, setEditingEntry] = useState<FuelEntry | null>(null);
@@ -127,7 +130,10 @@ export default function VehiclePage({
   const tank = vehicle.tankCapacity;
   const derived = useMemo(() => withDerived(entries, tank), [entries, tank]);
   const summaries = useMemo(() => groupByMonth(entries, expenses, tank), [entries, expenses, tank]);
-  const stats = useMemo(() => vehicleStats(entries, expenses, tank), [entries, expenses, tank]);
+  const stats = useMemo(
+    () => vehicleStats(entries, expenses, tank, vehicle.odometerKm),
+    [entries, expenses, tank, vehicle.odometerKm],
+  );
   const insights = useMemo(() => vehicleInsights(entries, expenses, tank), [entries, expenses, tank]);
   const kmByMonth = useMemo(() => monthlyKm(entries), [entries]);
   const trends = useMemo(() => vehicleTrends(entries, expenses, summaries, tank), [entries, expenses, summaries, tank]);
@@ -147,7 +153,14 @@ export default function VehiclePage({
     <>
       <BackLink />
 
-      <VehicleHero key={`hero-${vehicle.id}`} vehicle={vehicle} subtitle={subtitle} stats={stats} onExport={onExport} />
+      <VehicleHero
+        key={`hero-${vehicle.id}`}
+        vehicle={vehicle}
+        subtitle={subtitle}
+        stats={stats}
+        onExport={onExport}
+        onUpdateKm={onUpdateOdometer}
+      />
 
       {/* Horizontal-only tab strip. The outer box draws the baseline (an inset shadow, so the active
           tab's underline covers it) and clips the scroller's extra bottom padding: iOS Safari draws its
@@ -285,7 +298,7 @@ export default function VehiclePage({
         <>
           <section className="mb-8">
             <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Yeni Dolum Ekle</h3>
-            <EntryForm vehicleId={vehicle.id} onAdd={onAddEntry} tankCapacity={tank} otherEntries={entries} />
+            <EntryForm vehicleId={vehicle.id} onAdd={onAddEntry} tankCapacity={tank} otherEntries={entries} fuelType={vehicle.fuelType} />
           </section>
           <section>
             <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Kayıtlar</h3>
@@ -405,6 +418,7 @@ export default function VehiclePage({
       {editingEntry ? (
         <Modal title="Dolumu Düzenle" onClose={() => setEditingEntry(null)} width="max-w-2xl">
           <EntryForm
+            fuelType={vehicle.fuelType}
             vehicleId={vehicle.id}
             tankCapacity={tank}
             otherEntries={entries}

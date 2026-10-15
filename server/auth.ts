@@ -58,6 +58,12 @@ export async function createSession(res: Response, userId: string): Promise<void
   });
 }
 
+/** The stored key of the request's own session, e.g. to keep it while signing out the others. */
+export function currentSessionKey(req: Request): string | null {
+  const token = readSessionToken(req);
+  return token ? sessionKey(token) : null;
+}
+
 export async function destroySession(req: Request, res: Response): Promise<void> {
   const token = readSessionToken(req);
   if (token) await query("DELETE FROM sessions WHERE token = $1", [sessionKey(token)]);

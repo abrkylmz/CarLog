@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { errorMessage } from "../lib/api";
 import { fillUpWarnings, GAUGE_OPTIONS } from "../lib/consumption";
-import type { FuelEntry, FuelEntryInput } from "../types";
+import type { EntryFuel, FuelEntry, FuelEntryInput, FuelType } from "../types";
 import { useDialog } from "./DialogProvider";
 
 interface Props {
@@ -11,14 +11,18 @@ interface Props {
   tankCapacity?: number;
   /** The vehicle's other fill-ups, for the odometer sanity checks. */
   otherEntries?: FuelEntry[];
+  /** "benzin-lpg" adds an LPG / Benzin choice; LPG and petrol are measured apart. */
+  fuelType?: FuelType;
   /** Edit mode: fields start from this record and aren't cleared after saving. */
   initial?: FuelEntry;
   submitLabel?: string;
   onCancel?: () => void;
 }
 
+/** Today on the user's own calendar (toISOString would give yesterday's date after midnight in Turkey). */
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function parse(value: string): number {
@@ -31,6 +35,7 @@ export default function EntryForm({
   onAdd,
   tankCapacity,
   otherEntries = [],
+  fuelType,
   initial,
   submitLabel = "Kaydı Ekle",
   onCancel,
@@ -45,6 +50,10 @@ export default function EntryForm({
   // Most fill-ups are full, so new ones start checked; untick for a partial fill.
   const [isFull, setIsFull] = useState(initial?.isFull ?? true);
   const [gauge, setGauge] = useState(initial?.gaugeBefore != null ? String(initial.gaugeBefore) : "");
+  const dualFuel = fuelType === "benzin-lpg";
+  // New fill-ups start with whichever fuel was bought last; most fill-ups of an LPG car are LPG.
+  const lastFuel = [...otherEntries].sort((a, b) => b.date.localeCompare(a.date)).find((e) => e.fuel)?.fuel;
+  const [fuel, setFuel] = useState<EntryFuel>(initial?.fuel ?? lastFuel ?? "lpg");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -134,6 +143,7 @@ export default function EntryForm({
         totalCost: t,
         isFull,
         gaugeBefore: !isFull && gauge ? Number(gauge) : undefined,
+        fuel: dualFuel ? fuel : undefined,
         note: note.trim() || undefined,
       });
       if (!initial) reset();
@@ -153,11 +163,39 @@ export default function EntryForm({
         <input
           type="date"
           value={date}
+          max={todayIso()}
           onChange={(e) => setDate(e.target.value)}
           className="input"
           required
         />
       </Field>
+
+      {dualFuel ? (
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-slate-600 dark:text-slate-300">Yakıt</span>
+          <div role="radiogroup" aria-label="Yakıt" className="grid grid-cols-2 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+            {(["lpg", "benzin"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                role="radio"
+                aria-checked={fuel === f}
+                onClick={() => setFuel(f)}
+                className={`rounded-md px-3 py-1.5 font-medium transition ${
+                  fuel === f
+                    ? "bg-white text-brand-700 shadow-sm dark:bg-slate-900 dark:text-brand-300"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                {f === "lpg" ? "LPG" : "Benzin"}
+              </button>
+            ))}
+          </div>
+          <span className="text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+            Tüketim LPG dolumlarından hesaplanır; benzin harcamaya sayılır.
+          </span>
+        </div>
+      ) : null}
 
       <Field label="Kilometre (opsiyonel)">
         <input

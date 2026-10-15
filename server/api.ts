@@ -24,6 +24,7 @@ import {
 import {
   clearAttempts,
   createSession,
+  currentSessionKey,
   destroySession,
   hashPassword,
   isThrottled,
@@ -107,6 +108,28 @@ async function checkDeletable(req: Request, table: RecordTable): Promise<[number
   if (!access) return [404, NOT_FOUND];
   if (!access.canDelete) return [403, DELETE_OWN_ONLY];
   return null;
+}
+
+/**
+ * A create sent again (the offline queue after a lost response) carries the id the client chose
+ * the first time. "new": go ahead; "same": that record is already saved, by this user; "taken":
+ * the id belongs to something else.
+ */
+async function priorCreate(table: RecordTable, id: string | undefined, userId: string): Promise<"new" | "same" | "taken"> {
+  if (!id) return "new";
+  const row = await queryOne(`SELECT created_by FROM ${table} WHERE id = $1`, [id]);
+  if (!row) return "new";
+  return row.created_by === userId ? "same" : "taken";
+}
+const ID_TAKEN = "Bu kayıt kimliği zaten kullanılıyor.";
+
+/** Highest known odometer of a vehicle: its fill-ups or a reading typed in without one. */
+async function latestKm(vehicleId: string): Promise<number | null> {
+  const row = await queryOne(
+    `SELECT GREATEST((SELECT MAX(odometer_km) FROM entries WHERE vehicle_id = $1), (SELECT odometer_km FROM vehicles WHERE id = $1)) AS km`,
+    [vehicleId],
+  );
+  return row?.km == null ? null : Number(row.km);
 }
 
 /** New records may only go to vehicles the caller is a member of. */
@@ -251,6 +274,29 @@ api.post("/auth/login", async (req, res) => {
   res.json({ user: toUser(row) });
 });
 
+/** Signed-in users change their own password; other devices are signed out, this one stays. */
+api.post("/auth/password", requireUser, async (req, res) => {
+  const throttleKey = `password:${req.user!.id}`;
+  if (await isThrottled(throttleKey, 5)) return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
+  const current = typeof req.body?.currentPassword === "string" ? req.body.currentPassword.slice(0, 200) : "";
+  const next = req.body?.newPassword;
+  const row = await queryOne("SELECT password_hash FROM users WHERE id = $1", [req.user!.id]);
+  if (!row || !(await verifyLogin(current, row.password_hash as string))) {
+    await recordAttempt(throttleKey);
+    return void res.status(403).json({ error: "Mevcut şifre hatalı." });
+  }
+  const error = checkPassword(next);
+  if (error) return void res.status(400).json({ error });
+  if (next === current) return void res.status(400).json({ error: "Yeni şifre eskisiyle aynı olamaz." });
+
+  await transaction([
+    { text: "UPDATE users SET password_hash = $1 WHERE id = $2", params: [await hashPassword(next), req.user!.id] },
+    { text: "DELETE FROM sessions WHERE user_id = $1 AND token <> $2", params: [req.user!.id, currentSessionKey(req) ?? ""] },
+  ]);
+  await clearAttempts(throttleKey);
+  res.status(204).end();
+});
+
 api.post("/auth/logout", async (req, res) => {
   await destroySession(req, res);
   res.status(204).end();
@@ -327,6 +373,27 @@ api.put("/vehicles/:id", requireUser, async (req, res) => {
   res.json(await myVehicle(req, paramId(req)));
 });
 
+/**
+ * The current odometer typed in without a fill-up, so km-based reminders don't wait for the next
+ * one. Any member may set it (whoever drives knows the km); it can't go below a recorded reading.
+ */
+api.put("/vehicles/:id/odometer", requireUser, async (req, res) => {
+  if (!(await guardVehicle(req, res, "member"))) return;
+  const km = req.body?.odometerKm;
+  if (typeof km !== "number" || !Number.isFinite(km) || km <= 0 || km > 5_000_000) {
+    return void res.status(400).json({ error: "Geçerli bir kilometre girin." });
+  }
+  const recorded = await queryOne("SELECT MAX(odometer_km) AS km FROM entries WHERE vehicle_id = $1", [paramId(req)]);
+  if (recorded?.km != null && km < Number(recorded.km)) {
+    return void res
+      .status(400)
+      .json({ error: `Kilometre, dolumlarda kayıtlı en yüksek değerden (${Number(recorded.km).toLocaleString("tr-TR")} km) küçük olamaz.` });
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  await query("UPDATE vehicles SET odometer_km = $1, odometer_at = $2 WHERE id = $3", [km, today, paramId(req)]);
+  res.json(await myVehicle(req, paramId(req)));
+});
+
 api.delete("/vehicles/:id", requireUser, async (req, res) => {
   if (!(await guardVehicle(req, res, "owner"))) return;
   await query("DELETE FROM vehicles WHERE id = $1", [paramId(req)]);
@@ -384,9 +451,21 @@ api.put("/catalog/:id", requireAdmin, async (req, res) => {
   const e = parsed.value;
   const row = await queryOne(
     `UPDATE vehicle_catalog SET brand = $1, model = $2, generation = $3, year_from = $4, year_to = $5, fuel_types = $6,
-       tank_capacity = $7, lpg_tank_capacity = $8, note = $9
+       tank_capacity = $7, lpg_tank_capacity = $8, note = $9, factory_consumption = $11
      WHERE id = $10 RETURNING *`,
-    [e.brand, e.model, e.generation, e.yearFrom, e.yearTo ?? null, e.fuelTypes.join(","), e.tankCapacity, e.lpgTankCapacity ?? null, e.note ?? null, paramId(req)],
+    [
+      e.brand,
+      e.model,
+      e.generation,
+      e.yearFrom,
+      e.yearTo ?? null,
+      e.fuelTypes.join(","),
+      e.tankCapacity,
+      e.lpgTankCapacity ?? null,
+      e.note ?? null,
+      paramId(req),
+      e.factoryConsumption?.length ? JSON.stringify(e.factoryConsumption) : null,
+    ],
   );
   if (!row) return void res.status(404).json({ error: "Katalog kaydı bulunamadı." });
   res.json(toCatalogEntry(row));
@@ -597,7 +676,10 @@ api.post("/entries", requireUser, async (req, res) => {
 
   const input: FuelEntryInput = parsed.value;
   if (!(await isMember(req, input.vehicleId))) return void res.status(404).json({ error: VEHICLE_NOT_FOUND });
-  const id = randomUUID();
+  const prior = await priorCreate("entries", input.id, req.user!.id);
+  if (prior === "taken") return void res.status(409).json({ error: ID_TAKEN });
+  if (prior === "same") return void res.json(toEntry((await queryOne(`${ENTRY_SELECT} WHERE e.id = $1`, [input.id]))!));
+  const id = input.id ?? randomUUID();
   const statement = insertEntryStatement({ ...input, id, createdAt: new Date().toISOString() }, req.user!.id);
   if ((await query(statement.text, statement.params)).length === 0) {
     return void res.status(404).json({ error: "Araç bulunamadı." });
@@ -614,7 +696,7 @@ api.put("/entries/:id", requireUser, async (req, res) => {
   const e: FuelEntryInput = parsed.value;
   const row = await queryOne(
     `UPDATE entries SET vehicle_id = $1, date = $2, odometer_km = $3, liters = $4, price_per_liter = $5,
-       total_cost = $6, note = $7, updated_at = $8, updated_by = $9, is_full = $11, gauge_before = $12
+       total_cost = $6, note = $7, updated_at = $8, updated_by = $9, is_full = $11, gauge_before = $12, fuel = $13
      WHERE id = $10 AND EXISTS (SELECT 1 FROM vehicles WHERE id = $1)
      RETURNING id`,
     [
@@ -630,6 +712,7 @@ api.put("/entries/:id", requireUser, async (req, res) => {
       paramId(req),
       e.isFull,
       e.gaugeBefore ?? null,
+      e.fuel ?? null,
     ],
   );
   if (!row) return void res.status(404).json({ error: "Araç bulunamadı." });
@@ -658,7 +741,10 @@ api.post("/expenses", requireUser, async (req, res) => {
 
   const input: ExpenseInput = parsed.value;
   if (!(await isMember(req, input.vehicleId))) return void res.status(404).json({ error: VEHICLE_NOT_FOUND });
-  const id = randomUUID();
+  const prior = await priorCreate("expenses", input.id, req.user!.id);
+  if (prior === "taken") return void res.status(409).json({ error: ID_TAKEN });
+  if (prior === "same") return void res.json(toExpense((await queryOne(`${EXPENSE_SELECT} WHERE x.id = $1`, [input.id]))!));
+  const id = input.id ?? randomUUID();
   const rows = await query(
     `INSERT INTO expenses (id, vehicle_id, date, category, amount, note, created_by, created_at)
      SELECT $1::text, $2::text, $3::text, $4::text, $5::float8, $6::text, $7::text, $8::text
@@ -719,7 +805,10 @@ api.post("/reminders", requireUser, async (req, res) => {
 
   const r = parsed.value;
   if (!(await isMember(req, r.vehicleId))) return void res.status(404).json({ error: VEHICLE_NOT_FOUND });
-  const id = randomUUID();
+  const prior = await priorCreate("reminders", r.id, req.user!.id);
+  if (prior === "taken") return void res.status(409).json({ error: ID_TAKEN });
+  if (prior === "same") return void res.json(await reminderResponse(r.id!));
+  const id = r.id ?? randomUUID();
   const rows = await query(
     `INSERT INTO reminders (id, vehicle_id, kind, title, due_date, due_km, repeat_months, repeat_km, note, created_by, created_at)
      SELECT $1::text, $2::text, $3::text, $4::text, $5::text, $6::float8, $7::int, $8::float8, $9::text, $10::text, $11::text
@@ -792,13 +881,7 @@ api.post("/reminders/:id/complete", requireUser, async (req, res) => {
     const nextDate = repeatMonths ? addMonths((reminder.due_date as string | null) ?? today, repeatMonths) : null;
     let nextKm: number | null = null;
     if (repeatKm) {
-      const base =
-        reminder.due_km != null
-          ? Number(reminder.due_km)
-          : Number(
-              (await queryOne("SELECT MAX(odometer_km) AS km FROM entries WHERE vehicle_id = $1", [reminder.vehicle_id]))
-                ?.km ?? 0,
-            );
+      const base = reminder.due_km != null ? Number(reminder.due_km) : ((await latestKm(reminder.vehicle_id as string)) ?? 0);
       nextKm = base + repeatKm;
     }
     nextId = randomUUID();

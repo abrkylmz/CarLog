@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Fuel } from "lucide-react";
+import { Fuel, Search, X } from "lucide-react";
+import PasswordDialog from "./components/PasswordDialog";
 import AppSidebar from "./components/AppSidebar";
 import { ReminderBell, SearchBox, UserMenu, YearSelect } from "./components/TopBar";
 import { dataYears } from "./lib/dashboard";
@@ -125,6 +126,8 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   /** undefined = closed, "" = all vehicles, otherwise the pre-selected vehicle id. */
   const [exportFor, setExportFor] = useState<string | undefined>(undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [phoneSearch, setPhoneSearch] = useState(false);
   const isAdmin = user.role === "admin";
   const dialog = useDialog();
   const showError = (err: unknown) =>
@@ -181,6 +184,34 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     toast("Araç bilgileri kaydedildi");
   }
 
+  async function updateOdometer(vehicle: Vehicle) {
+    const current = latestKmByVehicle.get(vehicle.id) ?? null;
+    const text = await dialog.prompt({
+      title: "Güncel kilometre",
+      message: "Dolum yapmadan aracın şu anki kilometresini girin; kilometreye bağlı hatırlatmalar buna göre güncellenir.",
+      confirmLabel: "Kaydet",
+      input: {
+        label: "Kilometre",
+        inputMode: "numeric",
+        placeholder: current != null ? String(current) : "125000",
+        validate: (value) => {
+          const n = parseAmount(value);
+          if (!Number.isFinite(n) || n <= 0) return "Geçerli bir kilometre girin.";
+          if (current != null && n < current) return `Son kayıtlı ${current.toLocaleString("tr-TR")} km'den küçük olamaz.`;
+          return null;
+        },
+      },
+    });
+    if (text == null) return;
+    try {
+      const updated = await api.updateOdometer(vehicle.id, parseAmount(text));
+      setVehicles((prev) => prev?.map((v) => (v.id === updated.id ? updated : v)) ?? null);
+      toast("Kilometre güncellendi");
+    } catch (err) {
+      await showError(err);
+    }
+  }
+
   async function deleteVehicle(id: string) {
     try {
       await api.deleteVehicle(id);
@@ -194,7 +225,9 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     }
   }
 
-  async function addEntry(input: FuelEntryInput) {
+  async function addEntry(fields: FuelEntryInput) {
+    // The id is fixed before the first try, so a retry from the offline queue is recognised.
+    const input = { ...fields, id: fields.id ?? crypto.randomUUID() };
     try {
       const entry = await api.createEntry(input);
       setEntries((prev) => [...prev, entry]);
@@ -302,7 +335,8 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     toast("Masraf güncellendi");
   }
 
-  async function addReminder(input: ReminderInput) {
+  async function addReminder(fields: ReminderInput) {
+    const input = { ...fields, id: fields.id ?? crypto.randomUUID() };
     try {
       const reminder = await api.createReminder(input);
       setReminders((prev) => [...prev, reminder]);
@@ -382,7 +416,8 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     }
   }
 
-  async function addExpense(input: ExpenseInput) {
+  async function addExpense(fields: ExpenseInput) {
+    const input = { ...fields, id: fields.id ?? crypto.randomUUID() };
     try {
       const expense = await api.createExpense(input);
       setExpenses((prev) => [...prev, expense]);
@@ -423,11 +458,12 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   const [year, setYear] = useState(() => new Date().getFullYear());
   const latestKmByVehicle = useMemo(() => {
     const km = new Map<string, number | null>();
+    for (const v of vehicles ?? []) if (v.odometerKm != null) km.set(v.id, v.odometerKm);
     for (const e of entries) {
       if (e.odometerKm != null && e.odometerKm > (km.get(e.vehicleId) ?? -1)) km.set(e.vehicleId, e.odometerKm);
     }
     return km;
-  }, [entries]);
+  }, [entries, vehicles]);
 
   const currentVehicle = route.name === "vehicle" ? vehicles?.find((v) => v.id === route.id) : undefined;
   // Inside a vehicle the whole app (header included) takes that vehicle's fuel-type color.
@@ -472,6 +508,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
         onUpdateReminder={updateReminder}
         onCompleteReminder={completeReminder}
         onUpdateVehicle={updateVehicle}
+        onUpdateOdometer={() => updateOdometer(vehicle)}
         onExport={() => setExportFor(vehicle.id)}
         currentUser={user}
         catalog={catalog}
@@ -550,13 +587,37 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
             </div>
           ) : null}
           <ThemeToggle className="h-9 w-9 justify-center rounded-xl px-0 [&>span]:hidden [&>svg]:h-[19px] [&>svg]:w-[19px]" />
+          {vehicles?.length ? (
+            <button
+              type="button"
+              onClick={() => setPhoneSearch((s) => !s)}
+              aria-label="Ara"
+              aria-expanded={phoneSearch}
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 md:hidden dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              {phoneSearch ? <X size={19} /> : <Search size={19} />}
+            </button>
+          ) : null}
           {vehicles ? <ReminderBell vehicles={vehicles} reminders={reminders} latestKmByVehicle={latestKmByVehicle} /> : null}
-          <UserMenu user={user} onLogout={onLogout} />
+          <UserMenu user={user} onLogout={onLogout} onChangePassword={() => setChangingPassword(true)} />
         </div>
       </header>
+      {phoneSearch && vehicles ? (
+        <div className="pop-in relative z-30 -mt-3 mb-5 md:hidden">
+          <SearchBox
+            vehicles={vehicles}
+            entries={entries}
+            expenses={expenses}
+            reminders={reminders}
+            autoFocus
+            onDone={() => setPhoneSearch(false)}
+          />
+        </div>
+      ) : null}
 
       {page}
 
+      {changingPassword ? <PasswordDialog onClose={() => setChangingPassword(false)} /> : null}
       <Toaster />
       <PullToRefresh
         onRefresh={async () => {
