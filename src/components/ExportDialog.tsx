@@ -5,6 +5,7 @@ import { errorMessage } from "../lib/api";
 import { formatDate, formatTL } from "../lib/format";
 import { planForFeature, planHasFeature, type PlanId } from "../lib/plans";
 import { paths } from "../lib/router";
+import { useSession } from "../lib/session";
 import { todayIso } from "../lib/reminders";
 import type { Expense, FuelEntry, Reminder, Vehicle } from "../types";
 import { CancelButton } from "./EntryForm";
@@ -74,7 +75,9 @@ function rangeBounds(range: Range, customFrom: string, customTo: string): [strin
 }
 
 export default function ExportDialog({ vehicles, entries, expenses, reminders, defaultVehicleId, plan, username, onClose }: Props) {
-  const pdfAllowed = planHasFeature(plan, "pdfReports");
+  const session = useSession();
+  // Admins have every feature; everyone else by plan.
+  const pdfAllowed = session?.user.role === "admin" || planHasFeature(plan, "pdfReports");
   const [format, setFormat] = useState<Format>("csv");
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);

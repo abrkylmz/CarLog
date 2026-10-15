@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
-export const VEHICLE_TABS = ["ozet", "dolumlar", "masraflar", "hatirlatmalar", "aylik", "paylasim", "bilgiler"] as const;
+export const VEHICLE_TABS = ["ozet", "dolumlar", "masraflar", "bakim", "hatirlatmalar", "aylik", "paylasim", "bilgiler"] as const;
 export type VehicleTab = (typeof VEHICLE_TABS)[number];
 
 export const VEHICLE_TAB_LABELS: Record<VehicleTab, string> = {
   ozet: "Özet",
   dolumlar: "Dolumlar",
   masraflar: "Masraflar",
+  bakim: "Bakım Defteri",
   hatirlatmalar: "Hatırlatmalar",
   aylik: "Aylık Rapor",
   paylasim: "Paylaşım",
@@ -19,6 +20,8 @@ export type Route =
   | { name: "new-vehicle" }
   | { name: "admin" }
   | { name: "plans" }
+  | { name: "privacy" }
+  | { name: "reset"; token: string }
   | { name: "invite"; token: string }
   | { name: "vehicle"; id: string; tab: VehicleTab }
   | { name: "wrapped"; year: number };
@@ -28,6 +31,7 @@ export const paths = {
   newVehicle: "#/arac-ekle",
   admin: "#/admin",
   plans: "#/paketler",
+  privacy: "#/gizlilik",
   invite: (token: string) => `#/davet/${encodeURIComponent(token)}`,
   vehicle: (id: string, tab: VehicleTab = "ozet") => `#/arac/${encodeURIComponent(id)}/${tab}`,
   wrapped: (year: number) => `#/yil-ozeti/${year}`,
@@ -38,6 +42,8 @@ export function parseHash(hash: string): Route {
   if (parts[0] === "arac-ekle") return { name: "new-vehicle" };
   if (parts[0] === "admin") return { name: "admin" };
   if (parts[0] === "paketler") return { name: "plans" };
+  if (parts[0] === "gizlilik") return { name: "privacy" };
+  if (parts[0] === "sifre-sifirla" && parts[1]) return { name: "reset", token: decodeURIComponent(parts[1]) };
   if (parts[0] === "yil-ozeti" && /^\d{4}$/.test(parts[1] ?? "")) return { name: "wrapped", year: Number(parts[1]) };
   if (parts[0] === "davet" && parts[1]) return { name: "invite", token: decodeURIComponent(parts[1]) };
   if (parts[0] === "arac" && parts[1]) {

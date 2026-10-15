@@ -3,6 +3,7 @@ import { BODY_TYPES } from "../src/lib/bodyType.ts";
 import { join } from "node:path";
 import { CATALOG_SEED, CATALOG_SEED_VERSION } from "./catalogSeed.ts";
 import type {
+  ServiceDetails,
   CatalogEntry,
   Expense,
   ExpenseCategory,
@@ -157,6 +158,34 @@ const SCHEMA: string[] = [
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS monthly_budget DOUBLE PRECISION`,
   // Body style for the vehicle drawing ('sedan' | 'hatchback' | 'suv' | 'station' | 'van').
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS body_type TEXT`,
+  // Optional email for password resets, and when the privacy notice (KVKK) was acknowledged.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower ON users (lower(email)) WHERE email IS NOT NULL`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_accepted_at TEXT`,
+  // Password reset links: only a hash of the token is stored; each link works once, for an hour.
+  `CREATE TABLE IF NOT EXISTS password_resets (
+     token_hash TEXT PRIMARY KEY,
+     user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     expires_at TIMESTAMPTZ NOT NULL
+   )`,
+  // Errors from users' browsers and from the server, for the admin's "Hatalar" tab.
+  `CREATE TABLE IF NOT EXISTS app_errors (
+     id         TEXT PRIMARY KEY,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     source     TEXT NOT NULL,
+     message    TEXT NOT NULL,
+     stack      TEXT,
+     url        TEXT,
+     user_agent TEXT,
+     user_id    TEXT
+   )`,
+  // Maintenance log: service details on an expense, and its invoice photo kept apart from list queries.
+  `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS details TEXT`,
+  `CREATE TABLE IF NOT EXISTS expense_photos (
+     expense_id TEXT PRIMARY KEY REFERENCES expenses(id) ON DELETE CASCADE,
+     data       TEXT NOT NULL,
+     created_at TEXT NOT NULL
+   )`,
   // Odometer typed in without a fill-up, so km-based reminders keep up.
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS odometer_km DOUBLE PRECISION`,
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS odometer_at TEXT`,
@@ -358,6 +387,7 @@ export function toUser(row: Row): User {
     role: row.role as Role,
     plan: planById(row.plan as string | null).id,
     monthlyBudget: row.monthly_budget == null ? null : Number(row.monthly_budget),
+    email: (row.email as string | null) ?? null,
     createdAt: row.created_at as string,
   };
 }
@@ -432,6 +462,8 @@ export function toExpense(row: Row): Expense {
     category: row.category as ExpenseCategory,
     amount: Number(row.amount),
     note: (row.note as string | null) ?? undefined,
+    details: row.details ? (JSON.parse(row.details as string) as ServiceDetails) : undefined,
+    hasPhoto: Boolean(row.has_photo) || undefined,
     ...audit(row),
   };
 }
@@ -464,7 +496,8 @@ export const REMINDER_SELECT = `
 `;
 
 export const EXPENSE_SELECT = `
-  SELECT x.*, u.username AS created_by_name, uu.username AS updated_by_name
+  SELECT x.*, u.username AS created_by_name, uu.username AS updated_by_name,
+         EXISTS (SELECT 1 FROM expense_photos p WHERE p.expense_id = x.id) AS has_photo
   FROM expenses x
   LEFT JOIN users u ON u.id = x.created_by
   LEFT JOIN users uu ON uu.id = x.updated_by

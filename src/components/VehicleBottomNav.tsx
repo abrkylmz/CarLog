@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BarChart3, Bell, Download, Fuel, LayoutGrid, MoreHorizontal, Receipt, Settings, Users } from "lucide-react";
+import { BarChart3, Bell, Download, Fuel, LayoutGrid, MoreHorizontal, Receipt, Settings, Users, Wrench } from "lucide-react";
 import { navigate, paths, VEHICLE_TAB_LABELS, type VehicleTab } from "../lib/router";
 import Modal from "./Modal";
 
@@ -10,6 +10,7 @@ const MAIN: { tab: VehicleTab; icon: typeof Fuel; label: string }[] = [
   { tab: "hatirlatmalar", icon: Bell, label: "Hatırlatma" },
 ];
 const MORE: { tab: VehicleTab; icon: typeof Fuel }[] = [
+  { tab: "bakim", icon: Wrench },
   { tab: "aylik", icon: BarChart3 },
   { tab: "paylasim", icon: Users },
   { tab: "bilgiler", icon: Settings },

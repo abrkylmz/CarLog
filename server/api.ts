@@ -66,11 +66,40 @@ import {
   parseExpenseInput,
   parseReminderInput,
   parseVehicleInput,
+  parseEmail,
+  parseImage,
 } from "./validate.ts";
 import { sendReminderNotifications, sendToUser, vapidKeys } from "./push.ts";
-import { PLAN_PREVIEW, PLANS, planById, type PlanId } from "../src/lib/plans.ts";
+import { PLAN_PREVIEW, PLANS, userHasFeature, vehicleLimit, type PlanId } from "../src/lib/plans.ts";
+import { appUrl, mailConfigured, sendMail } from "./mail.ts";
+import { readReceipt, receiptScanConfigured } from "./receipt.ts";
+import { sendMonthlySummaries } from "./push.ts";
 
 export const api = Router();
+
+const escapeHtml = (t: string) => t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+/** Stores an error for the admin's "Hatalar" tab, keeping the newest 1,000. Never throws. */
+export async function recordError(
+  source: "client" | "server",
+  message: string,
+  stack: string | null,
+  url: string | null,
+  userAgent: string | null,
+  userId: string | null,
+): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO app_errors (id, source, message, stack, url, user_agent, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [randomUUID(), source, message, stack, url, userAgent, userId],
+    );
+    if (Math.random() < 0.05) {
+      await query(`DELETE FROM app_errors WHERE id NOT IN (SELECT id FROM app_errors ORDER BY created_at DESC LIMIT 1000)`);
+    }
+  } catch {
+    // Error reporting must never cause an error of its own.
+  }
+}
 
 const TOO_MANY_REQUESTS = "Çok fazla istek gönderildi. Biraz sonra tekrar deneyin.";
 
@@ -183,6 +212,8 @@ api.get("/auth/status", async (req, res) => {
     user: req.user ?? null,
     // Only the admin panel uses these, to offer first-admin setup.
     adminSetup: hasAdmin ? "done" : adminSetupKey() ? "available" : "needs-key",
+    // Optional services that need keys on the server; the app hides what isn't set up.
+    services: { receiptScan: receiptScanConfigured(), mail: mailConfigured() },
   });
 });
 
@@ -232,13 +263,24 @@ api.post("/auth/register", async (req, res) => {
 
   const parsed = parseCredentials(req.body);
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
+  // KVKK: the privacy notice has to be acknowledged before an account exists.
+  if (req.body?.acceptedPrivacy !== true) return void res.status(400).json({ error: "Devam etmek için aydınlatma metnini onaylayın." });
+  let email: string | null = null;
+  if (req.body?.email != null && req.body.email !== "") {
+    email = parseEmail(req.body.email);
+    if (!email) return void res.status(400).json({ error: "Geçerli bir e-posta adresi girin." });
+    if (await queryOne("SELECT 1 FROM users WHERE lower(email) = $1", [email])) {
+      return void res.status(409).json({ error: "Bu e-posta başka bir hesapta kayıtlı." });
+    }
+  }
 
+  const now = new Date().toISOString();
   const row = await queryOne(
-    `INSERT INTO users (id, username, password_hash, role, created_at)
-     VALUES ($1, $2, $3, 'user', $4)
+    `INSERT INTO users (id, username, password_hash, role, created_at, email, privacy_accepted_at)
+     VALUES ($1, $2, $3, 'user', $4, $5, $4)
      ON CONFLICT DO NOTHING
      RETURNING *`,
-    [randomUUID(), parsed.value.username, await hashPassword(parsed.value.password), new Date().toISOString()],
+    [randomUUID(), parsed.value.username, await hashPassword(parsed.value.password), now, email],
   );
   if (!row) return void res.status(409).json({ error: "Bu kullanıcı adı zaten kullanılıyor." });
 
@@ -276,6 +318,137 @@ api.post("/auth/login", async (req, res) => {
   await purgeExpired();
   await createSession(res, row.id as string);
   res.json({ user: toUser(row) });
+});
+
+/** Set, change or remove the account's email (used only for password resets); needs the password. */
+api.put("/account/email", requireUser, async (req, res) => {
+  const throttleKey = `password:${req.user!.id}`;
+  if (await isThrottled(throttleKey, 5)) return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
+  const password = typeof req.body?.password === "string" ? req.body.password.slice(0, 200) : "";
+  const row = await queryOne("SELECT password_hash FROM users WHERE id = $1", [req.user!.id]);
+  if (!row || !(await verifyLogin(password, row.password_hash as string))) {
+    await recordAttempt(throttleKey);
+    return void res.status(403).json({ error: "Şifre hatalı." });
+  }
+  let email: string | null = null;
+  if (req.body?.email != null && req.body.email !== "") {
+    email = parseEmail(req.body.email);
+    if (!email) return void res.status(400).json({ error: "Geçerli bir e-posta adresi girin." });
+    if (await queryOne("SELECT 1 FROM users WHERE lower(email) = $1 AND id <> $2", [email, req.user!.id])) {
+      return void res.status(409).json({ error: "Bu e-posta başka bir hesapta kayıtlı." });
+    }
+  }
+  const updated = await queryOne("UPDATE users SET email = $1 WHERE id = $2 RETURNING *", [email, req.user!.id]);
+  res.json({ user: toUser(updated!) });
+});
+
+const RESET_TTL_MINUTES = 60;
+
+/**
+ * "Şifremi unuttum": emails a one-time link to the account's address. The answer is the same
+ * whether or not the account (or an email on it) exists, so it can't be used to look accounts up.
+ */
+api.post("/auth/forgot", async (req, res) => {
+  if (!mailConfigured()) return void res.status(503).json({ error: "E-posta gönderimi henüz ayarlanmadı; şifrenizi yöneticiye sıfırlatabilirsiniz." });
+  const ipKey = `forgot:${req.ip ?? "unknown"}`;
+  if (await overLimit(ipKey, 5)) return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
+  const login = typeof req.body?.login === "string" ? req.body.login.trim().slice(0, 254) : "";
+  const done = () => res.json({ ok: true, message: "Hesapta kayıtlı bir e-posta varsa, şifre sıfırlama bağlantısı gönderildi." });
+  if (!login) return void done();
+  const user = await queryOne("SELECT id, username, email FROM users WHERE lower(username) = lower($1) OR lower(email) = lower($1)", [login]);
+  if (!user?.email || (await overLimit(`forgot-user:${user.id}`, 3))) return void done();
+
+  const token = randomBytes(32).toString("base64url");
+  await query(`DELETE FROM password_resets WHERE user_id = $1 OR expires_at <= now()`, [user.id]);
+  await query(`INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES ($1, $2, now() + ($3 || ' minutes')::interval)`, [
+    hashToken(token),
+    user.id,
+    String(RESET_TTL_MINUTES),
+  ]);
+  const link = `${appUrl()}/#/sifre-sifirla/${token}`;
+  try {
+    await sendMail(
+      String(user.email),
+      "CarLog şifre sıfırlama",
+      `Merhaba ${user.username},\n\nCarLog şifrenizi sıfırlamak için bu bağlantıyı açın (${RESET_TTL_MINUTES} dakika geçerli, bir kez kullanılır):\n${link}\n\nBu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz; şifreniz değişmez.`,
+      `<p>Merhaba ${escapeHtml(String(user.username))},</p><p>CarLog şifrenizi sıfırlamak için aşağıdaki bağlantıyı açın. Bağlantı ${RESET_TTL_MINUTES} dakika geçerlidir ve bir kez kullanılır.</p><p><a href="${link}">Şifremi sıfırla</a></p><p>Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz; şifreniz değişmez.</p>`,
+    );
+  } catch (err) {
+    console.error(err);
+  }
+  done();
+});
+
+/** Sets a new password from a reset link; every session of the account is signed out. */
+api.post("/auth/reset", async (req, res) => {
+  if (await overLimit(`reset:${req.ip ?? "unknown"}`, 10)) return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
+  const token = typeof req.body?.token === "string" ? req.body.token.slice(0, 100) : "";
+  const error = checkPassword(req.body?.password);
+  if (error) return void res.status(400).json({ error });
+  const row = await queryOne(`DELETE FROM password_resets WHERE token_hash = $1 AND expires_at > now() RETURNING user_id`, [hashToken(token)]);
+  if (!row) return void res.status(400).json({ error: "Bu bağlantı geçersiz ya da süresi dolmuş. Yeni bir sıfırlama bağlantısı isteyin." });
+  await transaction([
+    { text: "UPDATE users SET password_hash = $1 WHERE id = $2", params: [await hashPassword(req.body.password), row.user_id] },
+    { text: "DELETE FROM sessions WHERE user_id = $1", params: [row.user_id] },
+    { text: "DELETE FROM password_resets WHERE user_id = $1", params: [row.user_id] },
+  ]);
+  res.status(204).end();
+});
+
+/**
+ * "Fiş Tara": reads a receipt photo and returns the fill-up fields for the user to check. The
+ * photo goes to Anthropic for reading and isn't stored. Part of the Pro plan (admins: always).
+ */
+api.post("/receipts/scan", requireUser, async (req, res) => {
+  if (!receiptScanConfigured()) return void res.status(503).json({ error: "Fiş okuma henüz ayarlanmadı." });
+  if (!userHasFeature(req.user!, "receiptScan")) return void res.status(403).json({ error: "Fiş okuma Pro ve üstü paketlerde var.", code: "plan_feature" });
+  if (await limited(res, `receipt:${req.user!.id}`, 20)) return;
+  const image = parseImage(req.body?.image);
+  if (!image) return void res.status(400).json({ error: "Fotoğraf JPEG, PNG ya da WebP olmalı ve 1 MB'ı geçmemeli." });
+  try {
+    const reading = await readReceipt(image.mediaType, image.base64);
+    if (!reading || !reading.is_fuel_receipt) return void res.status(422).json({ error: "Bu fotoğrafta bir akaryakıt fişi okunamadı." });
+    res.json(reading);
+  } catch (err) {
+    console.error("receipt scan failed", err);
+    res.status(502).json({ error: "Fiş şu an okunamadı. Biraz sonra tekrar deneyin ya da elle girin." });
+  }
+});
+
+/**
+ * Errors from users' browsers (and the server's own, see app.ts), for the admin's "Hatalar" tab.
+ * Open to signed-out visitors too (the login screen can fail), but limited and size-capped.
+ */
+api.post("/errors", async (req, res) => {
+  if (await overLimit(`errors:${req.ip ?? "unknown"}`, 20)) return void res.status(204).end();
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : null);
+  const message = text(req.body?.message, 500);
+  if (!message) return void res.status(204).end();
+  await recordError("client", message, text(req.body?.stack, 4000), text(req.body?.url, 300), text(req.headers["user-agent"], 300), req.user?.id ?? null);
+  res.status(204).end();
+});
+
+api.get("/admin/errors", requireAdmin, async (_req, res) => {
+  const rows = await query(
+    `SELECT e.*, u.username FROM app_errors e LEFT JOIN users u ON u.id = e.user_id ORDER BY e.created_at DESC LIMIT 200`,
+  );
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      at: new Date(r.created_at as string | Date).toISOString(),
+      source: r.source,
+      message: r.message,
+      stack: r.stack,
+      url: r.url,
+      userAgent: r.user_agent,
+      username: r.username ?? null,
+    })),
+  );
+});
+
+api.delete("/admin/errors", requireAdmin, async (_req, res) => {
+  await query("DELETE FROM app_errors");
+  res.status(204).end();
 });
 
 /** Signed-in users change their own password; other devices are signed out, this one stays. */
@@ -366,11 +539,11 @@ api.post("/vehicles", requireUser, async (req, res) => {
 
   // Only vehicles the user owns count; ones shared with them don't. Vehicles already over the
   // limit (from before plans existed) are kept; only adding more needs a bigger plan.
-  const plan = planById(req.user!.plan);
+  const limit = vehicleLimit(req.user!);
   const owned = await queryOne("SELECT COUNT(*) AS n FROM vehicle_members WHERE user_id = $1 AND role = 'owner'", [req.user!.id]);
-  if (Number(owned?.n ?? 0) >= plan.maxVehicles) {
+  if (Number(owned?.n ?? 0) >= limit) {
     return void res.status(403).json({
-      error: `${plan.name} pakette en fazla ${plan.maxVehicles} araç eklenebilir. Daha fazlası için paketinizi yükseltin.`,
+      error: `Paketinizde en fazla ${limit} araç eklenebilir. Daha fazlası için paketinizi yükseltin.`,
       code: "plan_limit",
     });
   }
@@ -789,13 +962,23 @@ api.post("/expenses", requireUser, async (req, res) => {
   if (prior === "taken") return void res.status(409).json({ error: ID_TAKEN });
   if (prior === "same") return void res.json(toExpense((await queryOne(`${EXPENSE_SELECT} WHERE x.id = $1`, [input.id]))!));
   const id = input.id ?? randomUUID();
-  const rows = await query(
-    `INSERT INTO expenses (id, vehicle_id, date, category, amount, note, created_by, created_at)
-     SELECT $1::text, $2::text, $3::text, $4::text, $5::float8, $6::text, $7::text, $8::text
-     WHERE EXISTS (SELECT 1 FROM vehicles WHERE id = $2::text)
-     RETURNING id`,
-    [id, input.vehicleId, input.date, input.category, input.amount, input.note ?? null, req.user!.id, new Date().toISOString()],
-  );
+  const now = new Date().toISOString();
+  const statements: Statement[] = [
+    {
+      text: `INSERT INTO expenses (id, vehicle_id, date, category, amount, note, created_by, created_at, details)
+             SELECT $1::text, $2::text, $3::text, $4::text, $5::float8, $6::text, $7::text, $8::text, $9::text
+             WHERE EXISTS (SELECT 1 FROM vehicles WHERE id = $2::text)
+             RETURNING id`,
+      params: [id, input.vehicleId, input.date, input.category, input.amount, input.note ?? null, req.user!.id, now, input.details ? JSON.stringify(input.details) : null],
+    },
+  ];
+  if (input.photo) {
+    statements.push({
+      text: "INSERT INTO expense_photos (expense_id, data, created_at) SELECT $1, $2, $3 WHERE EXISTS (SELECT 1 FROM expenses WHERE id = $1)",
+      params: [id, input.photo, now],
+    });
+  }
+  const [rows] = await transaction(statements);
   if (rows.length === 0) return void res.status(404).json({ error: "Araç bulunamadı." });
   res.status(201).json(toExpense((await queryOne(`${EXPENSE_SELECT} WHERE x.id = $1`, [id]))!));
 });
@@ -807,15 +990,36 @@ api.put("/expenses/:id", requireUser, async (req, res) => {
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
 
   const x: ExpenseInput = parsed.value;
-  const row = await queryOne(
-    `UPDATE expenses SET vehicle_id = $1, date = $2, category = $3, amount = $4, note = $5,
-       updated_at = $6, updated_by = $7
-     WHERE id = $8 AND EXISTS (SELECT 1 FROM vehicles WHERE id = $1)
-     RETURNING id`,
-    [x.vehicleId, x.date, x.category, x.amount, x.note ?? null, new Date().toISOString(), req.user!.id, paramId(req)],
-  );
-  if (!row) return void res.status(404).json({ error: "Araç bulunamadı." });
+  const now = new Date().toISOString();
+  const statements: Statement[] = [
+    {
+      text: `UPDATE expenses SET vehicle_id = $1, date = $2, category = $3, amount = $4, note = $5,
+               updated_at = $6, updated_by = $7, details = $9
+             WHERE id = $8 AND EXISTS (SELECT 1 FROM vehicles WHERE id = $1)
+             RETURNING id`,
+      params: [x.vehicleId, x.date, x.category, x.amount, x.note ?? null, now, req.user!.id, paramId(req), x.details ? JSON.stringify(x.details) : null],
+    },
+  ];
+  // photo: a new one replaces the old, null removes it, absent leaves it alone.
+  if (x.photo === null) statements.push({ text: "DELETE FROM expense_photos WHERE expense_id = $1", params: [paramId(req)] });
+  if (x.photo) {
+    statements.push({
+      text: `INSERT INTO expense_photos (expense_id, data, created_at) VALUES ($1, $2, $3)
+             ON CONFLICT (expense_id) DO UPDATE SET data = EXCLUDED.data, created_at = EXCLUDED.created_at`,
+      params: [paramId(req), x.photo, now],
+    });
+  }
+  const [updated] = await transaction(statements);
+  if (updated.length === 0) return void res.status(404).json({ error: "Araç bulunamadı." });
   res.json(toExpense((await queryOne(`${EXPENSE_SELECT} WHERE x.id = $1`, [paramId(req)]))!));
+});
+
+/** An expense's invoice photo; anyone on the vehicle may see it. */
+api.get("/expenses/:id/photo", requireUser, async (req, res) => {
+  if (!(await recordAccess(req, "expenses", paramId(req)))) return void res.status(404).json({ error: NOT_FOUND });
+  const row = await queryOne("SELECT data FROM expense_photos WHERE expense_id = $1", [paramId(req)]);
+  if (!row) return void res.status(404).json({ error: "Bu masrafa fotoğraf eklenmemiş." });
+  res.json({ image: row.data });
 });
 
 api.delete("/expenses/:id", requireUser, async (req, res) => {
@@ -1056,7 +1260,7 @@ api.get("/cron/reminders", async (req, res) => {
   if (!secretsMatch(req.headers.authorization ?? "", `Bearer ${secret}`)) {
     return void res.status(401).json({ error: "Yetkisiz." });
   }
-  res.json(await sendReminderNotifications());
+  res.json({ reminders: await sendReminderNotifications(), monthly: await sendMonthlySummaries() });
 });
 
 // ---- Users (admin) ---------------------------------------------------------
@@ -1219,7 +1423,7 @@ api.post("/import", requireUser, async (req, res) => {
 
   // Imported vehicles count toward the plan like any other; ones over the limit are left out.
   const ownedRow = await queryOne("SELECT COUNT(*) AS n FROM vehicle_members WHERE user_id = $1 AND role = 'owner'", [req.user!.id]);
-  let room = Math.max(0, planById(req.user!.plan).maxVehicles - Number(ownedRow?.n ?? 0));
+  let room = Math.max(0, vehicleLimit(req.user!) - Number(ownedRow?.n ?? 0));
 
   const vehicleStatements: Statement[] = [];
   for (const raw of vehicles) {

@@ -3,6 +3,8 @@ import { errorMessage } from "../lib/api";
 import { fillUpWarnings, GAUGE_OPTIONS } from "../lib/consumption";
 import type { EntryFuel, FuelEntry, FuelEntryInput, FuelType } from "../types";
 import { useDialog } from "./DialogProvider";
+import ReceiptScanButton from "./ReceiptScanButton";
+import type { ReceiptReading } from "../lib/api";
 
 interface Props {
   vehicleId: string;
@@ -86,6 +88,19 @@ export default function EntryForm({
     else if (l > 0 && t > 0) setPricePerLiter((t / l).toFixed(3));
   }
 
+  /** Fills the form from a scanned receipt; the user checks it before saving. */
+  function applyReceipt(r: ReceiptReading) {
+    const two = (n: number) => String(Math.round(n * 100) / 100);
+    if (r.total_tl) setTotalCost(two(r.total_tl));
+    if (r.price_per_liter) setPricePerLiter(String(Math.round(r.price_per_liter * 1000) / 1000));
+    if (r.liters) setLiters(two(r.liters));
+    else if (r.total_tl && r.price_per_liter) setLiters(two(r.total_tl / r.price_per_liter));
+    if (r.date && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && r.date <= todayIso()) setDate(r.date);
+    if (r.fuel === "lpg" || r.fuel === "benzin") setFuel(r.fuel);
+    if (r.station && !note) setNote(r.station);
+    setError(null);
+  }
+
   function reset() {
     setDate(todayIso());
     setOdometerKm("");
@@ -159,6 +174,13 @@ export default function EntryForm({
       onSubmit={handleSubmit}
       className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3"
     >
+      {!initial ? (
+        <div className="col-span-full flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm text-slate-500 dark:text-slate-400">Fişin fotoğrafını çekerek alanları doldurabilirsiniz.</span>
+          <ReceiptScanButton onRead={applyReceipt} />
+        </div>
+      ) : null}
+
       <Field label="Tarih">
         <input
           type="date"

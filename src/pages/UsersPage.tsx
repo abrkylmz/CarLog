@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { KeyRound, ShieldCheck, Trash2, UserPlus, UserRound } from "lucide-react";
 import BackLink from "../components/BackLink";
 import CatalogAdmin from "../components/CatalogAdmin";
+import ErrorsAdmin from "../components/ErrorsAdmin";
 import { useDialog } from "../components/DialogProvider";
 import { api, ApiError, errorMessage } from "../lib/api";
 import { formatDate, formatRelative } from "../lib/format";
@@ -16,7 +17,7 @@ export default function UsersPage({ currentUser }: Props) {
   const [users, setUsers] = useState<User[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const dialog = useDialog();
-  const [tab, setTab] = useState<"users" | "catalog">("users");
+  const [tab, setTab] = useState<"users" | "catalog" | "errors">("users");
   /** Hand-entered models waiting to be added to the catalog, shown on the catalog tab. */
   const [missingCount, setMissingCount] = useState(0);
 
@@ -109,6 +110,7 @@ export default function UsersPage({ currentUser }: Props) {
           [
             ["users", "Kullanıcılar"],
             ["catalog", "Araç Kataloğu"],
+            ["errors", "Hatalar"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -136,6 +138,7 @@ export default function UsersPage({ currentUser }: Props) {
       </nav>
 
       {tab === "catalog" ? <CatalogAdmin onMissingChange={setMissingCount} /> : null}
+      {tab === "errors" ? <ErrorsAdmin /> : null}
 
       {tab === "users" ? (
         <>

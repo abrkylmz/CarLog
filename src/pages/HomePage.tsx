@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   ArrowDownRight,
   ArrowRight,
@@ -18,7 +18,8 @@ import {
 import BudgetStat from "../components/BudgetStat";
 import CarArt from "../components/CarArt";
 import LegacyImportBanner from "../components/LegacyImportBanner";
-import MonthlyFuelChart from "../components/MonthlyFuelChart";
+// The chart library is large; the cards and figures show first, the chart follows.
+const MonthlyFuelChart = lazy(() => import("../components/MonthlyFuelChart"));
 import RecentEntries from "../components/RecentEntries";
 import { CountUp } from "../components/StatCard";
 import { YearSelect } from "../components/TopBar";
@@ -44,6 +45,8 @@ interface Props {
   onYearChange: (year: number) => void;
   /** The user's plan, for the "2 / 2 araç" usage and the add tile at the limit. */
   plan: Plan;
+  /** Vehicles the user may own (Infinity for admins). */
+  limit: number;
   /** Monthly spending target for the budget ring (null: not set). */
   budget: number | null;
   onEditBudget: () => void;
@@ -96,7 +99,7 @@ function useSort(): [SortKey, (key: SortKey) => void] {
   ];
 }
 
-export default function HomePage({ vehicles, entries, expenses, reminders, year, years, onYearChange, plan, budget, onEditBudget, onReload, onExport }: Props) {
+export default function HomePage({ vehicles, entries, expenses, reminders, year, years, onYearChange, plan, limit, budget, onEditBudget, onReload, onExport }: Props) {
   const wide = useMediaQuery("(min-width: 1024px)");
   const [sort, setSort] = useSort();
 
@@ -179,7 +182,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
       spend={spendByVehicle.get(vehicle.id)!}
     />
   );
-  const atLimit = owned.length >= plan.maxVehicles;
+  const atLimit = owned.length >= limit;
   const addTile = (
     <a
       key="new"
@@ -269,14 +272,14 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
           <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight">
             Araçlarım
             <span className="rounded-lg bg-slate-200/70 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              {owned.length} / {plan.maxVehicles} araç
+              {Number.isFinite(limit) ? `${owned.length} / ${limit} araç` : `${owned.length} araç`}
             </span>
             <a
               href={paths.plans}
               className="inline-flex items-center gap-1 rounded-lg bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-300"
             >
               <Crown size={12} />
-              {plan.name}
+              {Number.isFinite(limit) ? plan.name : "Tüm özellikler"}
             </a>
           </h2>
           <div className="flex items-center gap-2">
@@ -313,6 +316,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
         <RecentEntries vehicles={vehicles} entries={entries.filter((e) => e.date.startsWith(`${year}-`))} />
+        <Suspense fallback={<div className="skeleton h-80 rounded-2xl" />}>
         <MonthlyFuelChart
           year={year}
           values={board.monthlyFuel}
@@ -320,6 +324,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
           entries={entries}
           expenses={expenses}
         />
+        </Suspense>
       </section>
     </div>
   );

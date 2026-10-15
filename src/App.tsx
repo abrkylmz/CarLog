@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Fuel, Search, X } from "lucide-react";
 import PasswordDialog from "./components/PasswordDialog";
 import AppSidebar from "./components/AppSidebar";
@@ -7,9 +7,9 @@ import { ReminderBell, SearchBox, UserMenu, YearSelect } from "./components/TopB
 import { dataYears } from "./lib/dashboard";
 import BackLink from "./components/BackLink";
 import { useDialog } from "./components/DialogProvider";
-import ExportDialog from "./components/ExportDialog";
+
 import LoadingSkeleton from "./components/LoadingSkeleton";
-import WrappedStories from "./components/WrappedStories";
+
 import { wrappedYear, yearSummary } from "./lib/wrapped";
 import Toaster, { toast } from "./components/Toaster";
 import QuickAdd from "./components/QuickAdd";
@@ -20,7 +20,7 @@ import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL, parseAmount } from "./li
 import { navigate, paths, useHashRoute, type Route } from "./lib/router";
 import { FUEL_ACCENT, usePageAccent } from "./lib/theme";
 import { animateOut, clearLeaving } from "./lib/motion";
-import { dropFromOutbox, enqueue, isOfflineError, isPending, readOutbox, replaceInOutbox } from "./lib/outbox";
+import { dropFromOutbox, enqueue, enqueueChange, isOfflineError, LOCAL_ID_PREFIX, readOutbox, replaceInOutbox, type OutboxKind } from "./lib/outbox";
 import OnlineStatus from "./components/OnlineStatus";
 import PullToRefresh from "./components/PullToRefresh";
 
@@ -28,11 +28,20 @@ const OFFLINE_SAVED = "Çevrimdışı kaydedildi";
 import { AdminAuthPage, UserAuthPage } from "./pages/AuthPage";
 import InvitePage, { InviteNotice } from "./pages/InvitePage";
 import HomePage from "./pages/HomePage";
-import NewVehiclePage from "./pages/NewVehiclePage";
-import PlansPage from "./pages/PlansPage";
-import { planById } from "./lib/plans";
-import UsersPage from "./pages/UsersPage";
-import VehiclePage from "./pages/VehiclePage";
+import { planById, vehicleLimit } from "./lib/plans";
+import { SessionContext } from "./lib/session";
+import type { Services } from "./lib/api";
+
+// Pages and dialogs that aren't needed for the first screen load on demand, so the home screen
+// (and the login screen) open faster, especially on phones.
+const VehiclePage = lazy(() => import("./pages/VehiclePage"));
+const NewVehiclePage = lazy(() => import("./pages/NewVehiclePage"));
+const PlansPage = lazy(() => import("./pages/PlansPage"));
+const UsersPage = lazy(() => import("./pages/UsersPage"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const WrappedStories = lazy(() => import("./components/WrappedStories"));
+const ExportDialog = lazy(() => import("./components/ExportDialog"));
 import type {
   CatalogEntry,
   Expense,
@@ -54,12 +63,16 @@ type AuthState =
 
 export default function App() {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
+  const [services, setServices] = useState<Services>({ receiptScan: false, mail: false });
   const route = useHashRoute();
 
   const checkAuth = useCallback(() => {
     api
       .authStatus()
-      .then(({ user, adminSetup }) => setAuth(user ? { status: "ready", user } : { status: "signed-out", adminSetup }))
+      .then(({ user, adminSetup, services }) => {
+        if (services) setServices(services);
+        setAuth(user ? { status: "ready", user } : { status: "signed-out", adminSetup });
+      })
       .catch((err) => setAuth({ status: "error", message: errorMessage(err) }));
   }, []);
 
@@ -69,6 +82,15 @@ export default function App() {
     window.addEventListener(UNAUTHORIZED_EVENT, checkAuth);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, checkAuth);
   }, [checkAuth]);
+
+  // The privacy notice and password reset links open whether or not anyone is signed in.
+  if (route.name === "privacy" || route.name === "reset") {
+    return (
+      <Suspense fallback={<LoadingSkeleton />}>
+        {route.name === "privacy" ? <PrivacyPage /> : <ResetPasswordPage token={route.token} />}
+      </Suspense>
+    );
+  }
 
   if (auth.status === "loading") {
     // Session check: show the page's outline instead of a bare "loading" text.
@@ -105,6 +127,7 @@ export default function App() {
   }
 
   return (
+    <SessionContext.Provider value={{ user: auth.user, services }}>
     <SignedInApp
       user={auth.user}
       route={route}
@@ -118,6 +141,7 @@ export default function App() {
         checkAuth();
       }}
     />
+    </SessionContext.Provider>
   );
 }
 
@@ -168,11 +192,23 @@ function SignedInApp({
       // Keep records that are still waiting to be sent.
       const pending = readOutbox(user.id);
       const waiting = <T,>(kind: string) =>
-        pending.filter((item) => item.kind === kind).map((item) => placeholder<T>(item.input, item.localId));
+        pending
+          .filter((item) => item.kind === kind && (item.op ?? "create") === "create")
+          .map((item) => placeholder<T>(item.input, item.localId));
+      // Edits and deletes made offline still show until they're sent.
+      const withChanges = <T extends { id: string },>(kind: OutboxKind, list: T[]) => {
+        const changes = new Map(pending.filter((i) => i.kind === kind && i.targetId).map((i) => [i.targetId!, i]));
+        return list
+          .filter((rec) => changes.get(rec.id)?.op !== "delete")
+          .map((rec) => {
+            const change = changes.get(rec.id);
+            return change?.op === "update" ? ({ ...rec, ...(change.input as object), id: rec.id } as T) : rec;
+          });
+      };
       setVehicles(v);
-      setEntries([...e, ...waiting<FuelEntry>("entry")]);
-      setExpenses([...x, ...waiting<Expense>("expense")]);
-      setReminders([...r, ...waiting<Reminder>("reminder")]);
+      setEntries([...withChanges("entry", e), ...waiting<FuelEntry>("entry")]);
+      setExpenses([...withChanges("expense", x), ...waiting<Expense>("expense")]);
+      setReminders([...withChanges("reminder", r), ...waiting<Reminder>("reminder")]);
       setLoadError(null);
     } catch (err) {
       setLoadError(errorMessage(err));
@@ -215,6 +251,34 @@ function SignedInApp({
    * Deletes the user's own account after the password; if they own vehicles, says what happens to
    * them (handed to a helper or deleted) and asks once more.
    */
+  /** Adds, changes or removes the email used for password resets (asks for the password). */
+  async function editEmail() {
+    const email = await dialog.prompt({
+      title: "E-posta adresiniz",
+      message: "Yalnızca şifrenizi unutursanız sıfırlama bağlantısı göndermek için kullanılır. Kaldırmak için boş bırakın.",
+      confirmLabel: "Devam",
+      input: {
+        label: "E-posta",
+        placeholder: user.email ?? "ornek@eposta.com",
+        validate: (v) => (!v.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()) ? null : "Geçerli bir e-posta adresi girin."),
+      },
+    });
+    if (email == null) return;
+    const password = await dialog.prompt({
+      title: "Şifrenizi onaylayın",
+      confirmLabel: "Kaydet",
+      input: { label: "Şifre", type: "password", validate: (v) => (v ? null : "Şifrenizi girin.") },
+    });
+    if (password == null) return;
+    try {
+      const { user: updated } = await api.updateEmail(email.trim() || null, password);
+      onUserChange(updated);
+      toast(email.trim() ? "E-posta kaydedildi" : "E-posta kaldırıldı");
+    } catch (err) {
+      await showError(err);
+    }
+  }
+
   async function deleteAccount() {
     const password = await dialog.prompt({
       title: "Hesabınız silinsin mi?",
@@ -328,6 +392,27 @@ function SignedInApp({
     }
   }
 
+  /**
+   * Deletes a record on the server; without a connection the delete is queued instead. A record
+   * that never reached the server is simply dropped from the queue. True when it was queued.
+   */
+  async function removeOnServer(kind: OutboxKind, id: string): Promise<boolean> {
+    if (id.startsWith(LOCAL_ID_PREFIX)) {
+      dropFromOutbox(id);
+      return false;
+    }
+    try {
+      if (kind === "entry") await api.deleteEntry(id);
+      else if (kind === "expense") await api.deleteExpense(id);
+      else await api.deleteReminder(id);
+      return false;
+    } catch (err) {
+      if (!isOfflineError(err)) throw err;
+      enqueueChange("delete", kind, id, null, user.id);
+      return true;
+    }
+  }
+
   async function deleteEntry(id: string) {
     const entry = entries.find((e) => e.id === id);
     const confirmed = await dialog.confirm({
@@ -340,14 +425,37 @@ function SignedInApp({
     });
     if (!confirmed) return;
     try {
-      if (isPending(id)) dropFromOutbox(id);
-      else await api.deleteEntry(id);
+      const offline = await removeOnServer("entry", id);
       await animateOut(id);
       setEntries((prev) => prev.filter((e) => e.id !== id));
       clearLeaving(id);
-      toast("Dolum silindi");
+      toast(offline ? OFFLINE_SAVED : "Dolum silindi");
     } catch (err) {
       await showError(err);
+    }
+  }
+
+  /** Sends one queued edit or delete; a record already gone from the server counts as deleted. */
+  async function sendChange(op: "update" | "delete", kind: OutboxKind, id: string, input: unknown) {
+    if (op === "delete") {
+      try {
+        if (kind === "entry") await api.deleteEntry(id);
+        else if (kind === "expense") await api.deleteExpense(id);
+        else await api.deleteReminder(id);
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 404)) throw err;
+      }
+      return;
+    }
+    if (kind === "entry") {
+      const saved = await api.updateEntry(id, input as FuelEntryInput);
+      setEntries((prev) => prev.map((e) => (e.id === id ? saved : e)));
+    } else if (kind === "expense") {
+      const saved = await api.updateExpense(id, input as ExpenseInput);
+      setExpenses((prev) => prev.map((e) => (e.id === id ? saved : e)));
+    } else {
+      const saved = await api.updateReminder(id, input as ReminderInput);
+      setReminders((prev) => prev.map((r) => (r.id === id ? saved : r)));
     }
   }
 
@@ -361,7 +469,9 @@ function SignedInApp({
     try {
       for (const item of items) {
         try {
-          if (item.kind === "entry") {
+          if (item.op === "update" || item.op === "delete") {
+            await sendChange(item.op, item.kind, item.targetId!, item.input);
+          } else if (item.kind === "entry") {
             const saved = await api.createEntry(item.input as FuelEntryInput);
             setEntries((prev) => prev.map((e) => (e.id === item.localId ? saved : e)));
           } else if (item.kind === "expense") {
@@ -400,27 +510,41 @@ function SignedInApp({
     vehicle.myRole === "owner" || record.createdById === user.id;
 
   async function updateEntry(id: string, input: FuelEntryInput) {
-    if (isPending(id)) {
+    if (id.startsWith(LOCAL_ID_PREFIX)) {
       replaceInOutbox(id, input);
       setEntries((prev) => prev.map((e) => (e.id === id ? placeholder<FuelEntry>(input, id) : e)));
       toast("Dolum güncellendi");
       return;
     }
-    const entry = await api.updateEntry(id, input);
-    setEntries((prev) => prev.map((e) => (e.id === id ? entry : e)));
-    toast("Dolum güncellendi");
+    try {
+      const entry = await api.updateEntry(id, input);
+      setEntries((prev) => prev.map((e) => (e.id === id ? entry : e)));
+      toast("Dolum güncellendi");
+    } catch (err) {
+      if (!isOfflineError(err)) throw err;
+      enqueueChange("update", "entry", id, input, user.id);
+      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...input, id } : e)));
+      toast(OFFLINE_SAVED);
+    }
   }
 
   async function updateExpense(id: string, input: ExpenseInput) {
-    if (isPending(id)) {
+    if (id.startsWith(LOCAL_ID_PREFIX)) {
       replaceInOutbox(id, input);
       setExpenses((prev) => prev.map((e) => (e.id === id ? placeholder<Expense>(input, id) : e)));
       toast("Masraf güncellendi");
       return;
     }
-    const expense = await api.updateExpense(id, input);
-    setExpenses((prev) => prev.map((e) => (e.id === id ? expense : e)));
-    toast("Masraf güncellendi");
+    try {
+      const expense = await api.updateExpense(id, input);
+      setExpenses((prev) => prev.map((e) => (e.id === id ? expense : e)));
+      toast("Masraf güncellendi");
+    } catch (err) {
+      if (!isOfflineError(err)) throw err;
+      enqueueChange("update", "expense", id, input, user.id);
+      setExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...input, id } : e)));
+      toast(OFFLINE_SAVED);
+    }
   }
 
   async function addReminder(fields: ReminderInput) {
@@ -438,15 +562,22 @@ function SignedInApp({
   }
 
   async function updateReminder(id: string, input: ReminderInput) {
-    if (isPending(id)) {
+    if (id.startsWith(LOCAL_ID_PREFIX)) {
       replaceInOutbox(id, input);
       setReminders((prev) => prev.map((r) => (r.id === id ? placeholder<Reminder>(input, id) : r)));
       toast("Hatırlatma güncellendi");
       return;
     }
-    const reminder = await api.updateReminder(id, input);
-    setReminders((prev) => prev.map((r) => (r.id === id ? reminder : r)));
-    toast("Hatırlatma güncellendi");
+    try {
+      const reminder = await api.updateReminder(id, input);
+      setReminders((prev) => prev.map((r) => (r.id === id ? reminder : r)));
+      toast("Hatırlatma güncellendi");
+    } catch (err) {
+      if (!isOfflineError(err)) throw err;
+      enqueueChange("update", "reminder", id, input, user.id);
+      setReminders((prev) => prev.map((r) => (r.id === id ? { ...r, ...input, id } : r)));
+      toast(OFFLINE_SAVED);
+    }
   }
 
   async function completeReminder(reminder: Reminder, latestKm: number | null) {
@@ -493,12 +624,11 @@ function SignedInApp({
     });
     if (!confirmed) return;
     try {
-      if (isPending(reminder.id)) dropFromOutbox(reminder.id);
-      else await api.deleteReminder(reminder.id);
+      const offline = await removeOnServer("reminder", reminder.id);
       await animateOut(reminder.id);
       setReminders((prev) => prev.filter((r) => r.id !== reminder.id));
       clearLeaving(reminder.id);
-      toast("Hatırlatma silindi");
+      toast(offline ? OFFLINE_SAVED : "Hatırlatma silindi");
     } catch (err) {
       await showError(err);
     }
@@ -530,12 +660,11 @@ function SignedInApp({
     });
     if (!confirmed) return;
     try {
-      if (isPending(id)) dropFromOutbox(id);
-      else await api.deleteExpense(id);
+      const offline = await removeOnServer("expense", id);
       await animateOut(id);
       setExpenses((prev) => prev.filter((e) => e.id !== id));
       clearLeaving(id);
-      toast("Masraf silindi");
+      toast(offline ? OFFLINE_SAVED : "Masraf silindi");
     } catch (err) {
       await showError(err);
     }
@@ -584,7 +713,7 @@ function SignedInApp({
       />
     );
   } else if (route.name === "new-vehicle") {
-    page = <NewVehiclePage catalog={catalog} onCreate={addVehicle} plan={planById(user.plan)} ownedCount={ownedCount} />;
+    page = <NewVehiclePage catalog={catalog} onCreate={addVehicle} plan={planById(user.plan)} limit={vehicleLimit(user)} ownedCount={ownedCount} />;
   } else if (route.name === "plans") {
     page = (
       <PlansPage
@@ -646,6 +775,7 @@ function SignedInApp({
         year={year}
         years={years}
         plan={planById(user.plan)}
+        limit={vehicleLimit(user)}
         budget={user.monthlyBudget}
         onEditBudget={editBudget}
         onYearChange={setYear}
@@ -707,7 +837,7 @@ function SignedInApp({
             </button>
           ) : null}
           {vehicles ? <ReminderBell vehicles={vehicles} reminders={reminders} latestKmByVehicle={latestKmByVehicle} /> : null}
-          <UserMenu user={user} onLogout={onLogout} onChangePassword={() => setChangingPassword(true)} onDeleteAccount={deleteAccount} />
+          <UserMenu user={user} onLogout={onLogout} onChangePassword={() => setChangingPassword(true)} onDeleteAccount={deleteAccount} onEditEmail={editEmail} />
         </div>
       </header>
       {phoneSearch && vehicles ? (
@@ -723,7 +853,7 @@ function SignedInApp({
         </div>
       ) : null}
 
-      {page}
+      <Suspense fallback={<LoadingSkeleton />}>{page}</Suspense>
 
       {vehicles && !currentVehicle ? (
         <AppBottomNav
@@ -735,6 +865,7 @@ function SignedInApp({
           onChangePassword={() => setChangingPassword(true)}
           onLogout={onLogout}
           onDeleteAccount={deleteAccount}
+          onEditEmail={editEmail}
         />
       ) : null}
       {changingPassword ? <PasswordDialog onClose={() => setChangingPassword(false)} /> : null}
@@ -747,10 +878,12 @@ function SignedInApp({
           toast("Güncellendi");
         }}
       />
-      <OnlineStatus pending={[...entries, ...expenses, ...reminders].filter((r) => isPending(r.id)).length} />
+      <OnlineStatus pending={readOutbox(user.id).length} />
 
       {wrapped && wrapped.fillCount > 0 ? (
-        <WrappedStories summary={wrapped} userName={user.username} onClose={() => navigate(paths.home)} />
+        <Suspense fallback={null}>
+          <WrappedStories summary={wrapped} userName={user.username} onClose={() => navigate(paths.home)} />
+        </Suspense>
       ) : null}
 
       {showQuickAdd && vehicles ? (
@@ -768,6 +901,7 @@ function SignedInApp({
       ) : null}
 
       {exportFor !== undefined && vehicles ? (
+        <Suspense fallback={null}>
         <ExportDialog
           vehicles={vehicles}
           entries={entries}
@@ -778,6 +912,7 @@ function SignedInApp({
           username={user.username}
           onClose={() => setExportFor(undefined)}
         />
+        </Suspense>
       ) : null}
       </div>
     </div>

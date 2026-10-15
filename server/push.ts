@@ -144,3 +144,50 @@ export async function sendReminderNotifications(now = new Date()): Promise<{ che
   }
   return { checked: rows.length, sent };
 }
+
+const MONTHS_TR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+/**
+ * On the 1st (Turkey time), a summary of last month for everyone who has notifications on: total,
+ * fuel and other spending across their vehicles, and how much of their budget it was. Each user
+ * gets it once per month (push_sent keeps a "monthly:<user>" row per month).
+ */
+export async function sendMonthlySummaries(now = new Date()): Promise<{ sent: number }> {
+  const today = todayInTurkey(now);
+  if (!today.endsWith("-01")) return { sent: 0 };
+  const [y, m] = today.split("-").map(Number);
+  const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+  const monthName = MONTHS_TR[Number(prev.slice(5)) - 1];
+
+  const users = await query(`SELECT DISTINCT u.id, u.monthly_budget FROM users u JOIN push_subscriptions p ON p.user_id = u.id`);
+  let sent = 0;
+  for (const u of users) {
+    const sums = await queryOne(
+      `SELECT
+         (SELECT COALESCE(SUM(e.total_cost), 0) FROM entries e
+            WHERE e.date LIKE $2 AND e.vehicle_id IN (SELECT vehicle_id FROM vehicle_members WHERE user_id = $1)) AS fuel,
+         (SELECT COALESCE(SUM(x.amount), 0) FROM expenses x
+            WHERE x.date LIKE $2 AND x.vehicle_id IN (SELECT vehicle_id FROM vehicle_members WHERE user_id = $1)) AS other`,
+      [u.id, `${prev}-%`],
+    );
+    const fuel = Number(sums?.fuel ?? 0);
+    const other = Number(sums?.other ?? 0);
+    const total = fuel + other;
+    if (total <= 0) continue;
+    const claimed = await query(
+      `INSERT INTO push_sent (reminder_id, stage, sent_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING reminder_id`,
+      [`monthly:${u.id}`, prev, now.toISOString()],
+    );
+    if (claimed.length === 0) continue;
+    const tl = (n: number) => `₺${Math.round(n).toLocaleString("tr-TR")}`;
+    const budget = u.monthly_budget == null ? null : Number(u.monthly_budget);
+    const budgetPart = budget ? ` · bütçe kullanımı %${Math.round((total / budget) * 100)}` : "";
+    sent += await sendToUser(String(u.id), {
+      title: `${monthName} özeti: ${tl(total)}`,
+      body: `Yakıt ${tl(fuel)} · diğer masraflar ${tl(other)}${budgetPart}`,
+      url: "/#/",
+      tag: `monthly-${prev}`,
+    });
+  }
+  return { sent };
+}

@@ -10,11 +10,13 @@ interface Props {
   onCreate: (vehicle: VehicleInput) => Promise<void>;
   /** The user's plan and how many vehicles they own, for the vehicle limit. */
   plan: Plan;
+  /** Vehicles the user may own (unlimited for admins). */
+  limit: number;
   ownedCount: number;
 }
 
-export default function NewVehiclePage({ catalog, onCreate, plan, ownedCount }: Props) {
-  if (ownedCount >= plan.maxVehicles) {
+export default function NewVehiclePage({ catalog, onCreate, plan, limit, ownedCount }: Props) {
+  if (ownedCount >= limit) {
     const next = planForVehicles(ownedCount + 1);
     return (
       <>

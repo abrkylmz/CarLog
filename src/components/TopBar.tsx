@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Bell, CalendarDays, Car, ChevronDown, Crown, Trash2, Fuel, KeyRound, LayoutDashboard, LogOut, Receipt, Search, ShieldCheck } from "lucide-react";
+import { Bell, CalendarDays, Car, ChevronDown, Crown, Mail, Trash2, Fuel, KeyRound, LayoutDashboard, LogOut, Receipt, Search, ShieldCheck } from "lucide-react";
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL } from "../lib/format";
 import { usePopover } from "../lib/popover";
 import { planById } from "../lib/plans";
@@ -254,11 +254,13 @@ export function UserMenu({
   onLogout,
   onChangePassword,
   onDeleteAccount,
+  onEditEmail,
 }: {
   user: User;
   onLogout: () => void;
   onChangePassword: () => void;
   onDeleteAccount: () => void;
+  onEditEmail: () => void;
 }) {
   const { open, toggle, ref } = usePopover();
   const isAdmin = user.role === "admin";
@@ -303,6 +305,14 @@ export function UserMenu({
           >
             <KeyRound size={16} />
             Şifremi Değiştir
+          </button>
+          <button
+            type="button"
+            onClick={onEditEmail}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            <Mail size={16} />
+            <span className="min-w-0 flex-1 truncate">{user.email ? user.email : "E-posta ekle"}</span>
           </button>
           <button
             type="button"

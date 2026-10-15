@@ -18,6 +18,33 @@ import type {
   VehicleMember,
 } from "../types";
 
+/** Optional server features that need keys (see server/receipt.ts, server/mail.ts). */
+export interface Services {
+  receiptScan: boolean;
+  mail: boolean;
+}
+
+/** What "Fiş Tara" read off a receipt; null where it couldn't read a value. */
+export interface ReceiptReading {
+  date: string | null;
+  total_tl: number | null;
+  liters: number | null;
+  price_per_liter: number | null;
+  fuel: "benzin" | "motorin" | "lpg" | "diger" | null;
+  station: string | null;
+}
+
+export interface AppErrorReport {
+  id: string;
+  at: string;
+  source: "client" | "server";
+  message: string;
+  stack: string | null;
+  url: string | null;
+  userAgent: string | null;
+  username: string | null;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -61,11 +88,19 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const api = {
-  authStatus: () => request<{ user: User | null; adminSetup: AdminSetupState }>("GET", "/auth/status"),
+  authStatus: () =>
+    request<{ user: User | null; adminSetup: AdminSetupState; services?: Services }>("GET", "/auth/status"),
   setupAdmin: (username: string, password: string, setupKey: string) =>
     request<{ user: User }>("POST", "/auth/setup", { username, password, setupKey }),
-  register: (username: string, password: string) =>
-    request<{ user: User }>("POST", "/auth/register", { username, password }),
+  register: (username: string, password: string, email: string, acceptedPrivacy: boolean) =>
+    request<{ user: User }>("POST", "/auth/register", { username, password, email: email || null, acceptedPrivacy }),
+  forgotPassword: (login: string) => request<{ ok: true; message: string }>("POST", "/auth/forgot", { login }),
+  resetPassword: (token: string, password: string) => request<void>("POST", "/auth/reset", { token, password }),
+  updateEmail: (email: string | null, password: string) => request<{ user: User }>("PUT", "/account/email", { email, password }),
+  scanReceipt: (image: string) => request<ReceiptReading>("POST", "/receipts/scan", { image }),
+  expensePhoto: (id: string) => request<{ image: string }>("GET", `/expenses/${encodeURIComponent(id)}/photo`),
+  listErrors: () => request<AppErrorReport[]>("GET", "/admin/errors"),
+  clearErrors: () => request<void>("DELETE", "/admin/errors"),
   login: (username: string, password: string, panel: "user" | "admin") =>
     request<{ user: User }>("POST", "/auth/login", { username, password, panel }),
   logout: () => request<void>("POST", "/auth/logout"),

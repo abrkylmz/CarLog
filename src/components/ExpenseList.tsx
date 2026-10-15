@@ -1,4 +1,4 @@
-import { Pencil, Receipt, Trash2, UserRound } from "lucide-react";
+import { Camera, Pencil, Receipt, Trash2, UserRound, Wrench } from "lucide-react";
 import { monthKey } from "../lib/calc";
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatMonth, formatTL } from "../lib/format";
 import type { Expense } from "../types";
@@ -49,7 +49,18 @@ export default function ExpenseList({ expenses, onDelete, onEdit, canEdit }: Pro
                 className={`flex items-center gap-3 px-4 py-2.5 text-sm ${leaving.has(expense.id) ? "leave-item" : ""}`}
               >
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">{EXPENSE_CATEGORY_LABELS[expense.category]}</p>
+                  <p className="flex items-center gap-1.5 font-medium">
+                    {EXPENSE_CATEGORY_LABELS[expense.category]}
+                    {expense.details ? <Wrench size={13} className="text-slate-400" aria-label="Bakım defterinde" /> : null}
+                    {expense.hasPhoto ? <Camera size={13} className="text-slate-400" aria-label="Fatura fotoğrafı var" /> : null}
+                  </p>
+                  {expense.details ? (
+                    <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                      {[expense.details.shop, expense.details.km != null ? `${expense.details.km.toLocaleString("tr-TR")} km` : null, expense.details.items?.join(", ")]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  ) : null}
                   <p className="flex flex-wrap items-center gap-x-2 text-xs text-slate-500 dark:text-slate-400">
                     <span>{formatDate(expense.date)}</span>
                     <PendingBadge id={expense.id} />

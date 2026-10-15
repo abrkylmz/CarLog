@@ -1,5 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from "express";
-import { api } from "./api.ts";
+import { api, recordError } from "./api.ts";
 import { loadUser } from "./auth.ts";
 
 /** The /api backend, shared by the local server (server/index.ts) and the Vercel function (api/index.ts). */
@@ -71,6 +71,8 @@ app.use("/api", (err: unknown, _req: Request, res: Response, _next: NextFunction
   const status = (err as { status?: number }).status;
   if (status && status >= 400 && status < 500) return void res.status(status).json({ error: "Geçersiz istek." });
   console.error(err);
+  const e = err as Error;
+  void recordError("server", String(e?.message ?? err).slice(0, 500), e?.stack?.slice(0, 4000) ?? null, _req.originalUrl.slice(0, 300), null, _req.user?.id ?? null);
   res.status(500).json({ error: "Sunucu hatası." });
 });
 

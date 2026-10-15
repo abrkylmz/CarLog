@@ -8,6 +8,7 @@ import type {
   FuelType,
   ReminderInput,
   ReminderKind,
+  ServiceDetails,
   VehicleInput,
 } from "../src/types.ts";
 
@@ -148,6 +149,47 @@ export function parseEntryInput(body: unknown): Result<FuelEntryInput> {
   };
 }
 
+const IMAGE = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/;
+/** Largest accepted photo, as base64 text (about 1.1 MB of image). */
+const MAX_IMAGE_CHARS = 1_500_000;
+
+/** A photo sent as a data URL: JPEG, PNG or WebP, within the size limit. */
+export function parseImage(value: unknown): { mediaType: "image/jpeg" | "image/png" | "image/webp"; base64: string; dataUrl: string } | null {
+  if (typeof value !== "string" || value.length > MAX_IMAGE_CHARS + 40) return null;
+  const m = IMAGE.exec(value);
+  if (!m || m[2].length > MAX_IMAGE_CHARS) return null;
+  return { mediaType: m[1] as "image/jpeg" | "image/png" | "image/webp", base64: m[2], dataUrl: value };
+}
+
+const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
+
+/** A plausible email address, trimmed and lower-cased; null if it doesn't look like one. */
+export function parseEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  return email.length <= 254 && EMAIL.test(email) ? email : null;
+}
+
+function parseServiceDetails(value: unknown): ServiceDetails | undefined | null {
+  if (value == null) return undefined;
+  if (typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  const details: ServiceDetails = {};
+  const shop = optionalString(v.shop, 80);
+  if (shop) details.shop = shop;
+  if (v.km != null) {
+    const km = positiveNumber(v.km, 5_000_000);
+    if (km == null) return null;
+    details.km = km;
+  }
+  if (v.items != null) {
+    if (!Array.isArray(v.items) || v.items.length > 20) return null;
+    const items = v.items.map((i) => optionalString(i, 60)).filter((i): i is string => Boolean(i));
+    if (items.length) details.items = items;
+  }
+  return Object.keys(details).length ? details : undefined;
+}
+
 export function parseExpenseInput(body: unknown): Result<ExpenseInput> {
   const b = (body ?? {}) as Record<string, unknown>;
   if (typeof b.vehicleId !== "string" || !b.vehicleId) return { ok: false, error: "Araç seçilmedi." };
@@ -157,10 +199,28 @@ export function parseExpenseInput(body: unknown): Result<ExpenseInput> {
   if (!category) return { ok: false, error: "Geçersiz masraf türü." };
   const amount = positiveNumber(b.amount, 100_000_000);
   if (amount == null) return { ok: false, error: "Tutar değeri girin." };
+  const details = parseServiceDetails(b.details);
+  if (details === null) return { ok: false, error: "Servis bilgileri geçersiz." };
+  let photo: string | null | undefined;
+  if (b.photo === null) photo = null;
+  else if (b.photo !== undefined) {
+    const image = parseImage(b.photo);
+    if (!image) return { ok: false, error: "Fotoğraf JPEG, PNG ya da WebP olmalı ve 1 MB'ı geçmemeli." };
+    photo = image.dataUrl;
+  }
 
   return {
     ok: true,
-    value: { id: clientId(b.id), vehicleId: b.vehicleId, date: b.date as string, category, amount, note: optionalString(b.note, 200) },
+    value: {
+      id: clientId(b.id),
+      vehicleId: b.vehicleId,
+      date: b.date as string,
+      category,
+      amount,
+      note: optionalString(b.note, 200),
+      details,
+      photo,
+    },
   };
 }
 

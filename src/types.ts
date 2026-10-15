@@ -13,6 +13,8 @@ export interface User {
   plan: PlanId;
   /** Monthly spending target in TL (fuel + other expenses, all vehicles); null when not set. */
   monthlyBudget: number | null;
+  /** For password reset emails; optional. */
+  email: string | null;
   createdAt: string;
   /** Last time the user used the app; only in the admin's user list (null: not seen since tracking began). */
   lastSeenAt?: string | null;
@@ -140,10 +142,28 @@ export interface Expense {
   /** Set once the record has been edited. */
   updatedAt?: string;
   updatedBy?: string | null;
+  /** Service details for the maintenance log (service, odometer, work done). */
+  details?: ServiceDetails;
+  /** An invoice photo is attached (fetched separately: GET /expenses/:id/photo). */
+  hasPhoto?: boolean;
 }
 
 /** Fields the client sends when adding an expense; the server owns id, createdBy and createdAt. */
-export type ExpenseInput = Omit<Expense, "id" | AuditField> & { id?: string };
+/**
+ * `photo`: an invoice photo as a data URL to attach, null to remove it, absent to leave it as is.
+ * `hasPhoto` is the server's answer and isn't sent.
+ */
+export type ExpenseInput = Omit<Expense, "id" | AuditField | "hasPhoto"> & { id?: string; photo?: string | null };
+
+/** Service details on a maintenance-type expense (the "Bakım Defteri"). */
+export interface ServiceDetails {
+  /** Garage or service name. */
+  shop?: string;
+  /** Odometer at the service. */
+  km?: number;
+  /** What was done or replaced, e.g. "Yağ değişimi", "Ön balata". */
+  items?: string[];
+}
 
 /** Server-owned bookkeeping fields on records. */
 type AuditField = "createdBy" | "createdById" | "createdAt" | "updatedAt" | "updatedBy";

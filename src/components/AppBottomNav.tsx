@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BarChart3, Car, ChevronRight, Crown, Download, Home, KeyRound, LayoutDashboard, LogOut, Play, Plus, UserRound } from "lucide-react";
+import { BarChart3, Car, ChevronRight, Crown, Download, Home, KeyRound, Mail, LayoutDashboard, LogOut, Play, Plus, UserRound } from "lucide-react";
 import { planById } from "../lib/plans";
 import { paths, type Route } from "../lib/router";
 import { FUEL_ACCENT } from "../lib/theme";
@@ -18,6 +18,7 @@ interface Props {
   onChangePassword: () => void;
   onLogout: () => void;
   onDeleteAccount: () => void;
+  onEditEmail: () => void;
 }
 
 type Sheet = "vehicles" | "reports" | "profile" | null;
@@ -26,7 +27,7 @@ type Sheet = "vehicles" | "reports" | "profile" | null;
  * Phone tab bar for every screen except a vehicle's own pages (which have their tabs): home,
  * vehicles, the add button in the middle under the thumb, reports and the account.
  */
-export default function AppBottomNav({ user, route, vehicles, wrappedYear, onExport, onChangePassword, onLogout, onDeleteAccount }: Props) {
+export default function AppBottomNav({ user, route, vehicles, wrappedYear, onExport, onChangePassword, onLogout, onDeleteAccount, onEditEmail }: Props) {
   const [sheet, setSheet] = useState<Sheet>(null);
   const close = () => setSheet(null);
   const item = (active: boolean) =>
@@ -166,6 +167,19 @@ export default function AppBottomNav({ user, route, vehicles, wrappedYear, onExp
               >
                 <KeyRound size={18} />
                 Şifremi Değiştir
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  close();
+                  onEditEmail();
+                }}
+                className={row}
+              >
+                <Mail size={18} />
+                <span className="min-w-0 flex-1 truncate">{user.email ? user.email : "E-posta ekle"}</span>
               </button>
             </li>
             <li className="flex items-center justify-between px-4 py-2 text-sm font-medium">

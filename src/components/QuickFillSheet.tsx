@@ -5,6 +5,8 @@ import { fillUpWarnings, GAUGE_OPTIONS } from "../lib/consumption";
 import { formatNumber, formatTL, parseAmount } from "../lib/format";
 import type { EntryFuel, FuelEntry, FuelEntryInput, Vehicle } from "../types";
 import { useDialog } from "./DialogProvider";
+import ReceiptScanButton from "./ReceiptScanButton";
+import type { ReceiptReading } from "../lib/api";
 
 interface Props {
   vehicle: Vehicle;
@@ -57,6 +59,23 @@ export default function QuickFillSheet({ vehicle, entries, onAdd }: Props) {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  /** Fills the sheet from a scanned receipt; the user checks it before saving. */
+  function applyReceipt(r: ReceiptReading) {
+    if (r.total_tl) setAmount(formatNumber(r.total_tl, 2).replace(/\./g, ""));
+    if (r.price_per_liter) {
+      setPrice(formatNumber(r.price_per_liter, 2));
+      setEditingPrice(false);
+    } else if (r.total_tl && r.liters) {
+      setPrice(formatNumber(r.total_tl / r.liters, 2));
+      setEditingPrice(false);
+    }
+    if (r.date && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && r.date <= todayIso()) setDate(r.date);
+    if (dualFuel && (r.fuel === "lpg" || r.fuel === "benzin")) setFuel(r.fuel);
+    if (r.station) setNote(r.station);
+    setDetails(Boolean(r.date && r.date !== todayIso()) || Boolean(r.station));
+    setError(null);
+  }
 
   const total = parse(amount);
   const perLiter = parse(price);
@@ -153,6 +172,8 @@ export default function QuickFillSheet({ vehicle, entries, onAdd }: Props) {
           ))}
         </div>
       ) : null}
+
+      <ReceiptScanButton onRead={applyReceipt} className="w-full [&>button]:w-full" />
 
       <div className="rounded-2xl bg-white px-4 pb-3 pt-4 text-center shadow-sm dark:bg-slate-900">
         <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Toplam tutar</p>

@@ -40,13 +40,16 @@ export function UserAuthPage({ onAuthenticated, notice }: UserAuthProps) {
       <CredentialsForm
         key={mode}
         confirmPassword={isRegister}
+        askEmail={isRegister}
+        askPrivacy={isRegister}
         submitLabel={isRegister ? "Hesap Oluştur" : "Giriş Yap"}
         submitIcon={isRegister ? <UserPlus size={16} /> : <LogIn size={16} />}
-        onSubmit={async ({ username, password }) =>
-          (isRegister ? await api.register(username, password) : await api.login(username, password, "user")).user
+        onSubmit={async ({ username, password, email, acceptedPrivacy }) =>
+          (isRegister ? await api.register(username, password, email, acceptedPrivacy) : await api.login(username, password, "user")).user
         }
         onAuthenticated={onAuthenticated}
       />
+      {!isRegister ? <ForgotPassword /> : null}
 
       <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">
         <a href={paths.admin} className="hover:text-brand-600 hover:underline dark:hover:text-brand-300">
@@ -134,11 +137,15 @@ interface Credentials {
   username: string;
   password: string;
   setupKey: string;
+  email: string;
+  acceptedPrivacy: boolean;
 }
 
 function CredentialsForm({
   confirmPassword = false,
   askSetupKey = false,
+  askEmail = false,
+  askPrivacy = false,
   submitLabel,
   submitIcon,
   onSubmit,
@@ -146,6 +153,8 @@ function CredentialsForm({
 }: {
   confirmPassword?: boolean;
   askSetupKey?: boolean;
+  askEmail?: boolean;
+  askPrivacy?: boolean;
   submitLabel: string;
   submitIcon: React.ReactNode;
   onSubmit: (credentials: Credentials) => Promise<User>;
@@ -155,17 +164,20 @@ function CredentialsForm({
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [setupKey, setSetupKey] = useState("");
+  const [email, setEmail] = useState("");
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (confirmPassword && password !== passwordConfirm) return setError("Şifreler eşleşmiyor.");
+    if (askPrivacy && !acceptedPrivacy) return setError("Devam etmek için aydınlatma metnini onaylayın.");
 
     setError(null);
     setSubmitting(true);
     try {
-      onAuthenticated(await onSubmit({ username: username.trim(), password, setupKey }));
+      onAuthenticated(await onSubmit({ username: username.trim(), password, setupKey, email: email.trim(), acceptedPrivacy }));
     } catch (err) {
       setError(errorMessage(err));
       setSubmitting(false);
@@ -225,6 +237,29 @@ function CredentialsForm({
         </Field>
       ) : null}
 
+      {askEmail ? (
+        <Field label="E-posta (opsiyonel, şifrenizi unutursanız sıfırlamak için)">
+          <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input" />
+        </Field>
+      ) : null}
+
+      {askPrivacy ? (
+        <label className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+          <input
+            type="checkbox"
+            checked={acceptedPrivacy}
+            onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600"
+          />
+          <span>
+            <a href={paths.privacy} target="_blank" rel="noreferrer" className="font-medium text-brand-600 underline dark:text-brand-300">
+              KVKK Aydınlatma Metni
+            </a>
+            'ni okudum; verilerimin bu metinde anlatıldığı şekilde işlenmesini kabul ediyorum.
+          </span>
+        </label>
+      ) : null}
+
       {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
 
       <button
@@ -235,6 +270,56 @@ function CredentialsForm({
         {submitIcon}
         {submitting ? "Lütfen bekleyin…" : submitLabel}
       </button>
+    </form>
+  );
+}
+
+/** "Şifremi unuttum": asks for the username or email and sends a reset link if there's an address. */
+function ForgotPassword() {
+  const [open, setOpen] = useState(false);
+  const [login, setLogin] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="mt-3 w-full text-center text-sm text-slate-500 hover:text-brand-600 hover:underline dark:text-slate-400">
+        Şifremi unuttum
+      </button>
+    );
+  }
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setSending(true);
+        setError(null);
+        try {
+          setMessage((await api.forgotPassword(login.trim())).message);
+        } catch (err) {
+          setError(errorMessage(err));
+        } finally {
+          setSending(false);
+        }
+      }}
+      className="mt-4 flex flex-col gap-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800/60"
+    >
+      {message ? (
+        <p className="text-slate-700 dark:text-slate-200">{message}</p>
+      ) : (
+        <>
+          <label className="flex flex-col gap-1">
+            <span className="font-medium text-slate-600 dark:text-slate-300">Kullanıcı adınız veya e-postanız</span>
+            <input value={login} onChange={(e) => setLogin(e.target.value)} className="input" required autoCapitalize="none" />
+          </label>
+          {error ? <p className="text-red-600 dark:text-red-400">{error}</p> : null}
+          <button type="submit" disabled={sending} className="rounded-lg bg-slate-800 px-3 py-1.5 font-medium text-white disabled:opacity-60 dark:bg-slate-200 dark:text-slate-900">
+            {sending ? "Gönderiliyor…" : "Sıfırlama bağlantısı gönder"}
+          </button>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Hesabınızda e-posta yoksa şifrenizi yöneticiye sıfırlatabilirsiniz.</p>
+        </>
+      )}
     </form>
   );
 }

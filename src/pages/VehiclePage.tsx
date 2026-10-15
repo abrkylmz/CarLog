@@ -3,6 +3,8 @@ import { BarChart3, Droplet, Fuel, Pencil, Tag, Trash2 } from "lucide-react";
 import MonthlyFuelChart from "../components/MonthlyFuelChart";
 import QuickActions from "../components/QuickActions";
 import FirstStepsCard from "../components/FirstStepsCard";
+import CostPerKmCard from "../components/CostPerKmCard";
+import ServiceLog from "../components/ServiceLog";
 import RemindersTimeline from "../components/RemindersTimeline";
 import RecentEntries from "../components/RecentEntries";
 import TrendStat from "../components/TrendStat";
@@ -283,6 +285,8 @@ export default function VehiclePage({
             />
           </section>
 
+          <CostPerKmCard entries={entries} expenses={expenses} />
+
           <section className="mb-6 grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
             <RecentEntries vehicles={[vehicle]} entries={entries} single />
             <MonthlyFuelChart
@@ -386,6 +390,18 @@ export default function VehiclePage({
             ) : null}
           </div>
         </>
+      )}
+
+      {tab === "bakim" && (
+        <ServiceLog
+          vehicleId={vehicle.id}
+          expenses={expenses}
+          latestKm={latestKm}
+          onAdd={onAddExpense}
+          onEdit={setEditingExpense}
+          onDelete={onDeleteExpense}
+          canEdit={canEdit}
+        />
       )}
 
       {tab === "hatirlatmalar" && (

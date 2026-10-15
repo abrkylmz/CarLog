@@ -99,6 +99,11 @@ export default function PlansPage({ user, ownedCount, onChoose }: Props) {
         </div>
       </div>
 
+      {user.role === "admin" ? (
+        <p className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100">
+          <b>Yönetici hesabı:</b> paketinizden bağımsız olarak tüm özellikler açık ve araç sınırı yok.
+        </p>
+      ) : null}
       {PLAN_PREVIEW ? (
         <p className="mb-6 flex items-start gap-2 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900 dark:border-brand-900 dark:bg-brand-900/20 dark:text-brand-100">
           <Info size={18} className="mt-px shrink-0" />

@@ -93,6 +93,16 @@ export function planHasFeature(id: string | null | undefined, feature: Feature):
   return planById(id).features.includes(feature);
 }
 
+/** Admins have every feature and no vehicle limit, whatever plan their account is on. */
+export function userHasFeature(user: { role: string; plan: string | null | undefined }, feature: Feature): boolean {
+  return user.role === "admin" || planHasFeature(user.plan, feature);
+}
+
+/** How many vehicles the user may own: their plan's limit, unlimited for admins. */
+export function vehicleLimit(user: { role: string; plan: string | null | undefined }): number {
+  return user.role === "admin" ? Infinity : planById(user.plan).maxVehicles;
+}
+
 /** The cheapest plan that includes `feature`. */
 export function planForFeature(feature: Feature): Plan {
   return PLANS.find((p) => p.features.includes(feature)) ?? PLANS[PLANS.length - 1];
