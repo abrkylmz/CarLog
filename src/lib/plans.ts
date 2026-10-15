@@ -79,7 +79,7 @@ export const FEATURE_INFO: Record<Feature, { label: string; soon?: boolean }> = 
   notifications: { label: "Hatırlatma bildirimleri" },
   sharing: { label: "Aracı aile veya iş arkadaşlarıyla paylaşma" },
   export: { label: "Excel'e aktarma" },
-  pdfReports: { label: "PDF rapor ve fatura dökümü", soon: true },
+  pdfReports: { label: "PDF rapor" },
   receiptScan: { label: "Fiş fotoğrafından otomatik dolum", soon: true },
   fleetReports: { label: "Filo raporları ve sürücü bazlı dökümler", soon: true },
   prioritySupport: { label: "Öncelikli destek", soon: true },
@@ -91,6 +91,11 @@ export function planById(id: string | null | undefined): Plan {
 
 export function planHasFeature(id: string | null | undefined, feature: Feature): boolean {
   return planById(id).features.includes(feature);
+}
+
+/** The cheapest plan that includes `feature`. */
+export function planForFeature(feature: Feature): Plan {
+  return PLANS.find((p) => p.features.includes(feature)) ?? PLANS[PLANS.length - 1];
 }
 
 /** The cheapest plan that allows `count` owned vehicles. */

@@ -692,6 +692,8 @@ function SignedInApp({
           expenses={expenses}
           reminders={reminders}
           defaultVehicleId={exportFor || undefined}
+          plan={user.plan}
+          username={user.username}
           onClose={() => setExportFor(undefined)}
         />
       ) : null}

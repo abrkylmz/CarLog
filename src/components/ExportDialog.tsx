@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { Crown, Download, FileSpreadsheet, FileText } from "lucide-react";
 import { buildExport, downloadFile, slug, type ExportContent } from "../lib/export";
-import { formatTL } from "../lib/format";
+import { errorMessage } from "../lib/api";
+import { formatDate, formatTL } from "../lib/format";
+import { planForFeature, planHasFeature, type PlanId } from "../lib/plans";
+import { paths } from "../lib/router";
 import { todayIso } from "../lib/reminders";
 import type { Expense, FuelEntry, Reminder, Vehicle } from "../types";
 import { CancelButton } from "./EntryForm";
@@ -14,8 +17,13 @@ interface Props {
   reminders: Reminder[];
   /** Pre-selected vehicle when opened from a vehicle page. */
   defaultVehicleId?: string;
+  /** The user's plan (PDF needs one that includes it) and name (shown on the PDF). */
+  plan: PlanId;
+  username: string;
   onClose: () => void;
 }
+
+type Format = "csv" | "pdf";
 
 type Range = "all" | "this-month" | "last-month" | "this-year" | "last-year" | "custom";
 
@@ -23,6 +31,13 @@ const CONTENT_LABELS: Record<ExportContent, string> = {
   all: "Tüm harcamalar (yakıt + masraf)",
   fuel: "Sadece yakıt dolumları",
   expenses: "Sadece diğer masraflar",
+  reminders: "Hatırlatmalar",
+};
+
+const CONTENT_TITLES: Record<ExportContent, string> = {
+  all: "Harcama Raporu",
+  fuel: "Yakıt Raporu",
+  expenses: "Masraf Raporu",
   reminders: "Hatırlatmalar",
 };
 
@@ -58,7 +73,11 @@ function rangeBounds(range: Range, customFrom: string, customTo: string): [strin
   }
 }
 
-export default function ExportDialog({ vehicles, entries, expenses, reminders, defaultVehicleId, onClose }: Props) {
+export default function ExportDialog({ vehicles, entries, expenses, reminders, defaultVehicleId, plan, username, onClose }: Props) {
+  const pdfAllowed = planHasFeature(plan, "pdfReports");
+  const [format, setFormat] = useState<Format>("csv");
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [vehicleId, setVehicleId] = useState(defaultVehicleId ?? "");
   const [content, setContent] = useState<ExportContent>("all");
   const [range, setRange] = useState<Range>("all");
@@ -71,18 +90,97 @@ export default function ExportDialog({ vehicles, entries, expenses, reminders, d
     [vehicles, entries, expenses, reminders, content, vehicleId, from, to],
   );
 
-  function handleDownload() {
+  async function handleDownload() {
     const vehicle = vehicles.find((v) => v.id === vehicleId);
     const parts = ["carlog", vehicle ? slug(vehicle.name) : "tum-araclar", content === "all" ? "harcamalar" : content];
     if (content !== "reminders" && from) parts.push(from);
     if (content !== "reminders" && to) parts.push(to);
-    downloadFile(`${parts.join("_")}.csv`, result.csv);
-    onClose();
+    if (format === "csv") {
+      downloadFile(`${parts.join("_")}.csv`, result.csv);
+      onClose();
+      return;
+    }
+    setWorking(true);
+    setError(null);
+    try {
+      const { buildPdf } = await import("../lib/pdf");
+      const blob = await buildPdf(result, {
+        title: CONTENT_TITLES[content],
+        scope: vehicle ? [vehicle.name, vehicle.plate].filter(Boolean).join(" · ") : "Tüm araçlar",
+        period:
+          content === "reminders"
+            ? "Tüm hatırlatmalar"
+            : from || to
+              ? `${from ? formatDate(from) : "…"} – ${to ? formatDate(to) : "…"}`
+              : "Tüm zamanlar",
+        username,
+        reminders: content === "reminders",
+      });
+      downloadFile(`${parts.join("_")}.pdf`, blob);
+      onClose();
+    } catch (err) {
+      setError(`PDF oluşturulamadı: ${errorMessage(err)}`);
+      setWorking(false);
+    }
   }
 
   return (
     <Modal title="Dışa Aktar" onClose={onClose}>
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-slate-600 dark:text-slate-300">Biçim</span>
+          <div role="radiogroup" aria-label="Biçim" className="grid grid-cols-2 gap-2">
+            {(
+              [
+                ["csv", "Excel (CSV)", "Tablo olarak düzenlemek için", FileSpreadsheet],
+                ["pdf", "PDF", "Yazdırmak ve paylaşmak için", FileText],
+              ] as const
+            ).map(([value, label, hint, Icon]) => {
+              const locked = value === "pdf" && !pdfAllowed;
+              const selected = format === value;
+              return locked ? (
+                <a
+                  key={value}
+                  href={paths.plans}
+                  onClick={onClose}
+                  className="flex items-start gap-2 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-3 text-left transition hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20"
+                >
+                  <Icon size={20} className="mt-0.5 shrink-0 text-amber-600" />
+                  <span>
+                    <span className="flex items-center gap-1 font-semibold">
+                      {label}
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                        <Crown size={10} />
+                        {planForFeature("pdfReports").name}
+                      </span>
+                    </span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">Paketini yükselterek aç</span>
+                  </span>
+                </a>
+              ) : (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => setFormat(value)}
+                  className={`flex items-start gap-2 rounded-xl border p-3 text-left transition ${
+                    selected
+                      ? "border-brand-500 bg-brand-50 ring-1 ring-brand-500 dark:bg-brand-900/30"
+                      : "border-slate-200 hover:border-slate-300 dark:border-slate-700"
+                  }`}
+                >
+                  <Icon size={20} className={`mt-0.5 shrink-0 ${selected ? "text-brand-600 dark:text-brand-300" : "text-slate-400"}`} />
+                  <span>
+                    <span className="block font-semibold">{label}</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">{hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <Field label="Araç">
           <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} className="input">
             <option value="">Tüm araçlar</option>
@@ -144,8 +242,11 @@ export default function ExportDialog({ vehicles, entries, expenses, reminders, d
           )}
         </p>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          CSV dosyası Excel, Numbers ve Google E-Tablolar ile açılır.
+          {format === "csv"
+            ? "CSV dosyası Excel, Numbers ve Google E-Tablolar ile açılır."
+            : "PDF raporda özet rakamlar ve kayıtların tablosu yer alır."}
         </p>
+        {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
       </div>
 
       <div className="mt-4 flex justify-end gap-2">
@@ -153,11 +254,11 @@ export default function ExportDialog({ vehicles, entries, expenses, reminders, d
         <button
           type="button"
           onClick={handleDownload}
-          disabled={result.rowCount === 0}
+          disabled={result.rowCount === 0 || working}
           className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-50"
         >
           <Download size={16} />
-          İndir
+          {working ? "Hazırlanıyor…" : format === "pdf" ? "PDF İndir" : "Excel İndir"}
         </button>
       </div>
     </Modal>
