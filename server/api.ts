@@ -316,6 +316,16 @@ api.post("/account/plan", requireUser, async (req, res) => {
   res.json({ user: toUser(row!) });
 });
 
+/** The user's monthly spending target for the budget ring; null clears it. */
+api.put("/account/budget", requireUser, async (req, res) => {
+  const value = req.body?.monthlyBudget;
+  if (value !== null && (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > 10_000_000)) {
+    return void res.status(400).json({ error: "Geçerli bir bütçe girin." });
+  }
+  const row = await queryOne("UPDATE users SET monthly_budget = $1 WHERE id = $2 RETURNING *", [value, req.user!.id]);
+  res.json({ user: toUser(row!) });
+});
+
 api.post("/auth/logout", async (req, res) => {
   await destroySession(req, res);
   res.status(204).end();
@@ -386,7 +396,7 @@ api.put("/vehicles/:id", requireUser, async (req, res) => {
   const v: VehicleInput = parsed.value;
   await query(
     `UPDATE vehicles SET name = $1, brand = $2, model = $3, year = $4, plate = $5, fuel_type = $6, tank_capacity = $7,
-       catalog_id = $9
+       catalog_id = $9, body_type = $10
      WHERE id = $8`,
     [
       v.name,
@@ -398,6 +408,7 @@ api.put("/vehicles/:id", requireUser, async (req, res) => {
       v.tankCapacity ?? null,
       paramId(req),
       (await knownCatalogId(v.catalogId)) ?? null,
+      v.bodyType ?? null,
     ],
   );
   res.json(await myVehicle(req, paramId(req)));

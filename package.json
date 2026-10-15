@@ -12,6 +12,7 @@
     "migrate:sqlite": "node --env-file-if-exists=.env.local --disable-warning=ExperimentalWarning server/migrate-sqlite.ts"
   },
   "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
     "@neondatabase/serverless": "^1.1.0",
     "express": "^5.2.1",
     "lucide-react": "^0.453.0",

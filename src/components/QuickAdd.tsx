@@ -4,6 +4,7 @@ import { FUEL_ACCENT } from "../lib/theme";
 import { FUEL_TYPE_LABELS } from "../lib/format";
 import type { ExpenseInput, FuelEntry, FuelEntryInput, ReminderInput, Vehicle } from "../types";
 import EntryForm from "./EntryForm";
+import QuickFillSheet from "./QuickFillSheet";
 import ExpenseForm from "./ExpenseForm";
 import Modal from "./Modal";
 import { ReminderForm } from "./Reminders";
@@ -12,6 +13,13 @@ export type QuickAddKind = "entry" | "expense" | "reminder";
 type Kind = QuickAddKind;
 
 const OPEN_EVENT = "carlog:quick-add";
+
+const START_EVENT = "carlog:quick-add-start";
+
+/** Opens the "what to add" menu, as the floating + button does (e.g. from the phone tab bar). */
+export function startQuickAdd(): void {
+  window.dispatchEvent(new Event(START_EVENT));
+}
 
 /** Opens the add form for `vehicleId` straight away, e.g. from a "Yakıt Ekle" button. */
 export function openQuickAdd(kind: QuickAddKind, vehicleId: string): void {
@@ -25,6 +33,10 @@ interface Props {
   currentVehicleId?: string;
   /** Lift the button above the phone tab bar on vehicle pages. */
   aboveTabBar: boolean;
+  /** On phones the + sits in the app tab bar instead, so the floating one is hidden there. */
+  hideOnPhone?: boolean;
+  /** No floating button at all (the menu still opens from the tab bar or "Yakıt Ekle" buttons). */
+  hideButton?: boolean;
   onAddEntry: (input: FuelEntryInput) => Promise<void>;
   onAddExpense: (input: ExpenseInput) => Promise<void>;
   onAddReminder: (input: ReminderInput) => Promise<void>;
@@ -42,6 +54,8 @@ export default function QuickAdd({
   entries,
   currentVehicleId,
   aboveTabBar,
+  hideOnPhone = false,
+  hideButton = false,
   onAddEntry,
   onAddExpense,
   onAddReminder,
@@ -49,6 +63,8 @@ export default function QuickAdd({
   const [open, setOpen] = useState(false);
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [kind, setKind] = useState<Kind | null>(null);
+  // Phones get the one-handed fill-up sheet; wider screens keep the full form.
+  const phone = typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
   const vehicle = vehicles.find((v) => v.id === vehicleId);
   const accent = vehicle ? FUEL_ACCENT[vehicle.fuelType] : undefined;
 
@@ -60,8 +76,12 @@ export default function QuickAdd({
       setOpen(true);
     };
     window.addEventListener(OPEN_EVENT, onOpen);
-    return () => window.removeEventListener(OPEN_EVENT, onOpen);
-  }, []);
+    window.addEventListener(START_EVENT, start);
+    return () => {
+      window.removeEventListener(OPEN_EVENT, onOpen);
+      window.removeEventListener(START_EVENT, start);
+    };
+  });
 
   function start() {
     // Skip choosing when the vehicle is obvious.
@@ -87,7 +107,7 @@ export default function QuickAdd({
         type="button"
         onClick={start}
         aria-label="Hızlı ekle: dolum, masraf veya hatırlatma"
-        className={`fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-900/30 ring-4 ring-white/60 transition hover:bg-brand-700 active:scale-95 dark:ring-slate-950/60 sm:bottom-6 sm:right-6 ${
+        className={`${hideButton ? "hidden " : hideOnPhone ? "max-sm:hidden " : ""}fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-900/30 ring-4 ring-white/60 transition hover:bg-brand-700 active:scale-95 dark:ring-slate-950/60 sm:bottom-6 sm:right-6 ${
           aboveTabBar ? "bottom-[calc(4.5rem+env(safe-area-inset-bottom))]" : "bottom-[calc(1.25rem+env(safe-area-inset-bottom))]"
         }`}
       >
@@ -149,7 +169,16 @@ export default function QuickAdd({
           width="max-w-2xl"
           accent={accent}
         >
-          {kind === "entry" ? (
+          {kind === "entry" && phone ? (
+            <QuickFillSheet
+              vehicle={vehicle}
+              entries={vehicleEntries}
+              onAdd={async (input) => {
+                await onAddEntry(input);
+                close();
+              }}
+            />
+          ) : kind === "entry" ? (
             <EntryForm
               fuelType={vehicle.fuelType}
               vehicleId={vehicle.id}

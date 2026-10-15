@@ -2,6 +2,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { DialogProvider } from "./components/DialogProvider";
+// CarLog's own typeface, served with the app (the CSP allows no font hosts), so text looks the
+// same on every device. Browsers fetch only the subsets a page uses (Latin + Turkish letters).
+import "@fontsource-variable/plus-jakarta-sans/wght.css";
 import "./index.css";
 
 // Offline support and reminder notifications (see public/sw.js). Development runs without it

@@ -1,3 +1,4 @@
+import type { BodyType } from "./lib/bodyType.ts";
 import type { PlanId } from "./lib/plans.ts";
 
 export type FuelType = "benzin" | "dizel" | "lpg" | "benzin-lpg" | "hibrit";
@@ -10,6 +11,8 @@ export interface User {
   role: Role;
   /** Subscription plan (see lib/plans.ts); "free" until one is chosen. */
   plan: PlanId;
+  /** Monthly spending target in TL (fuel + other expenses, all vehicles); null when not set. */
+  monthlyBudget: number | null;
   createdAt: string;
   /** Last time the user used the app; only in the admin's user list (null: not seen since tracking began). */
   lastSeenAt?: string | null;
@@ -33,6 +36,8 @@ export interface Vehicle {
   tankCapacity?: number;
   /** The catalog model this vehicle was picked from; absent when entered by hand. */
   catalogId?: string;
+  /** Body style for the drawing; absent = guessed from make and model (lib/bodyType.ts). */
+  bodyType?: BodyType;
   /** Odometer typed in without a fill-up ("Km Güncelle"), and the day it was read. */
   odometerKm?: number;
   odometerAt?: string;

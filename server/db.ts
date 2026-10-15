@@ -1,4 +1,5 @@
 import { planById } from "../src/lib/plans.ts";
+import { BODY_TYPES } from "../src/lib/bodyType.ts";
 import { join } from "node:path";
 import { CATALOG_SEED, CATALOG_SEED_VERSION } from "./catalogSeed.ts";
 import type {
@@ -152,6 +153,10 @@ const SCHEMA: string[] = [
   // Subscription plan (src/lib/plans.ts) and when it was chosen.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_since TEXT`,
+  // Monthly spending target (TL) for the home screen's budget ring.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS monthly_budget DOUBLE PRECISION`,
+  // Body style for the vehicle drawing ('sedan' | 'hatchback' | 'suv' | 'station' | 'van').
+  `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS body_type TEXT`,
   // Odometer typed in without a fill-up, so km-based reminders keep up.
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS odometer_km DOUBLE PRECISION`,
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS odometer_at TEXT`,
@@ -352,6 +357,7 @@ export function toUser(row: Row): User {
     username: row.username as string,
     role: row.role as Role,
     plan: planById(row.plan as string | null).id,
+    monthlyBudget: row.monthly_budget == null ? null : Number(row.monthly_budget),
     createdAt: row.created_at as string,
   };
 }
@@ -367,6 +373,7 @@ export function toVehicle(row: Row): Vehicle {
     fuelType: row.fuel_type as FuelType,
     tankCapacity: row.tank_capacity == null ? undefined : Number(row.tank_capacity),
     catalogId: (row.catalog_id as string | null) ?? undefined,
+    bodyType: BODY_TYPES.find((b) => b === row.body_type),
     odometerKm: row.odometer_km == null ? undefined : Number(row.odometer_km),
     odometerAt: (row.odometer_at as string | null) ?? undefined,
     createdAt: row.created_at as string,
@@ -472,8 +479,8 @@ export const ENTRY_SELECT = `
 
 export function insertVehicleStatement(v: Vehicle, { ignoreExisting = false } = {}): Statement {
   return {
-    text: `INSERT INTO vehicles (id, name, brand, model, year, plate, fuel_type, created_at, tank_capacity, catalog_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    text: `INSERT INTO vehicles (id, name, brand, model, year, plate, fuel_type, created_at, tank_capacity, catalog_id, body_type)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            ${ignoreExisting ? "ON CONFLICT (id) DO NOTHING" : ""}
            RETURNING id`,
     params: [
@@ -487,6 +494,7 @@ export function insertVehicleStatement(v: Vehicle, { ignoreExisting = false } = 
       v.createdAt,
       v.tankCapacity ?? null,
       v.catalogId ?? null,
+      v.bodyType ?? null,
     ],
   };
 }

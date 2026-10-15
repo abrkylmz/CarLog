@@ -20,7 +20,10 @@ export default function Modal({ title, onClose, children, width = "max-w-lg", ac
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    panelRef.current?.querySelector<HTMLElement>("input, select, textarea, button:not([data-close])")?.focus();
+    // A form can name its starting point with data-autofocus; otherwise the first field or button.
+    const panel = panelRef.current;
+    (panel?.querySelector<HTMLElement>("[data-autofocus]") ??
+      panel?.querySelector<HTMLElement>("input, select, textarea, button:not([data-close])"))?.focus();
     return () => {
       document.body.style.overflow = previousOverflow;
       previouslyFocused?.focus?.();

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Fuel, Search, X } from "lucide-react";
 import PasswordDialog from "./components/PasswordDialog";
 import AppSidebar from "./components/AppSidebar";
+import AppBottomNav from "./components/AppBottomNav";
 import { ReminderBell, SearchBox, UserMenu, YearSelect } from "./components/TopBar";
 import { dataYears } from "./lib/dashboard";
 import BackLink from "./components/BackLink";
@@ -207,6 +208,33 @@ function SignedInApp({
     const vehicle = await api.updateVehicle(id, input);
     setVehicles((prev) => prev?.map((v) => (v.id === id ? vehicle : v)) ?? null);
     toast("Araç bilgileri kaydedildi");
+  }
+
+  /** Set, change or clear the monthly spending target shown as the home screen's ring. */
+  async function editBudget() {
+    const text = await dialog.prompt({
+      title: "Aylık bütçe",
+      message: "Bir ayda yakıt ve diğer araç masraflarına (tüm araçlarınız) en fazla ne kadar harcamak istiyorsunuz? Boş bırakırsanız bütçe kaldırılır.",
+      confirmLabel: "Kaydet",
+      input: {
+        label: "Aylık bütçe (TL)",
+        inputMode: "decimal",
+        placeholder: user.monthlyBudget ? String(user.monthlyBudget) : "8000",
+        validate: (value) => {
+          if (!value.trim()) return null;
+          const n = parseAmount(value);
+          return Number.isFinite(n) && n > 0 ? null : "Geçerli bir tutar girin veya boş bırakın.";
+        },
+      },
+    });
+    if (text == null) return;
+    try {
+      const { user: updated } = await api.setBudget(text.trim() ? parseAmount(text) : null);
+      onUserChange(updated);
+      toast(text.trim() ? "Bütçe kaydedildi" : "Bütçe kaldırıldı");
+    } catch (err) {
+      await showError(err);
+    }
   }
 
   async function updateOdometer(vehicle: Vehicle) {
@@ -496,7 +524,10 @@ function SignedInApp({
   const currentVehicle = route.name === "vehicle" ? vehicles?.find((v) => v.id === route.id) : undefined;
   // Inside a vehicle the whole app (header included) takes that vehicle's fuel-type color.
   usePageAccent(currentVehicle ? FUEL_ACCENT[currentVehicle.fuelType] : null);
-  const showQuickAdd = Boolean(vehicles?.length) && (route.name === "home" || currentVehicle != null);
+  // The add menu is always ready (the phone tab bar opens it anywhere); the floating + button only
+  // shows on the home screen and vehicle pages.
+  const showQuickAdd = Boolean(vehicles?.length);
+  const showAddButton = route.name === "home" || currentVehicle != null;
 
   let page: React.ReactNode;
   if (vehicles == null) {
@@ -580,6 +611,8 @@ function SignedInApp({
         year={year}
         years={years}
         plan={planById(user.plan)}
+        budget={user.monthlyBudget}
+        onEditBudget={editBudget}
         onYearChange={setYear}
         onReload={reload}
         onExport={() => setExportFor("")}
@@ -606,7 +639,7 @@ function SignedInApp({
           isHome ? "max-w-[96rem]" : "max-w-5xl lg:max-w-6xl"
         } ${
           // Room for the floating + button and, on vehicle pages, the phone tab bar.
-          currentVehicle ? "pb-40 sm:pb-24" : showQuickAdd ? "pb-28 sm:pb-24" : "pb-8"
+          currentVehicle ? "pb-40 sm:pb-24" : "pb-28 sm:pb-24"
         }`}
       >
       <header className="relative z-30 mb-6 flex items-center justify-between gap-3 [view-transition-name:app-header]">
@@ -657,6 +690,17 @@ function SignedInApp({
 
       {page}
 
+      {vehicles && !currentVehicle ? (
+        <AppBottomNav
+          user={user}
+          route={route}
+          vehicles={vehicles}
+          wrappedYear={wrappedYear(entries)}
+          onExport={() => setExportFor("")}
+          onChangePassword={() => setChangingPassword(true)}
+          onLogout={onLogout}
+        />
+      ) : null}
       {changingPassword ? <PasswordDialog onClose={() => setChangingPassword(false)} /> : null}
       <Toaster />
       <PullToRefresh
@@ -679,6 +723,8 @@ function SignedInApp({
           entries={entries}
           currentVehicleId={currentVehicle?.id}
           aboveTabBar={currentVehicle != null}
+          hideOnPhone={!currentVehicle}
+          hideButton={!showAddButton}
           onAddEntry={addEntry}
           onAddExpense={addExpense}
           onAddReminder={addReminder}

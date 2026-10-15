@@ -1,3 +1,4 @@
+import { BODY_TYPES, type BodyType } from "../src/lib/bodyType.ts";
 import type {
   CatalogEntryInput,
   ExpenseCategory,
@@ -79,10 +80,13 @@ export function parseVehicleInput(body: unknown): Result<VehicleInput> {
     year = b.year;
   }
 
+  if (b.bodyType != null && !BODY_TYPES.includes(b.bodyType as BodyType)) return { ok: false, error: "Geçersiz kasa tipi." };
+
   return {
     ok: true,
     value: {
       name,
+      bodyType: b.bodyType == null ? undefined : (b.bodyType as BodyType),
       brand: optionalString(b.brand, 60),
       model: optionalString(b.model, 60),
       year,

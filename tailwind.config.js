@@ -7,6 +7,9 @@ export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["\"Plus Jakarta Sans Variable\"", "ui-sans-serif", "system-ui", "-apple-system", "\"Segoe UI\"", "sans-serif"],
+      },
       // Adds `scale` so the press effect (index.css) also animates on elements with `transition`.
       transitionProperty: {
         DEFAULT:

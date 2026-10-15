@@ -15,6 +15,7 @@ import {
   Route,
   Users,
 } from "lucide-react";
+import BudgetStat from "../components/BudgetStat";
 import CarArt from "../components/CarArt";
 import LegacyImportBanner from "../components/LegacyImportBanner";
 import MonthlyFuelChart from "../components/MonthlyFuelChart";
@@ -43,6 +44,9 @@ interface Props {
   onYearChange: (year: number) => void;
   /** The user's plan, for the "2 / 2 araç" usage and the add tile at the limit. */
   plan: Plan;
+  /** Monthly spending target for the budget ring (null: not set). */
+  budget: number | null;
+  onEditBudget: () => void;
   onReload: () => void;
   onExport: () => void;
 }
@@ -92,7 +96,7 @@ function useSort(): [SortKey, (key: SortKey) => void] {
   ];
 }
 
-export default function HomePage({ vehicles, entries, expenses, reminders, year, years, onYearChange, plan, onReload, onExport }: Props) {
+export default function HomePage({ vehicles, entries, expenses, reminders, year, years, onYearChange, plan, budget, onEditBudget, onReload, onExport }: Props) {
   const wide = useMediaQuery("(min-width: 1024px)");
   const [sort, setSort] = useSort();
 
@@ -223,15 +227,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
       />
 
       <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <Stat
-          icon={Fuel}
-          tone="emerald"
-          label="Bu Ay Toplam"
-          value={<CountUp to={board.thisMonth.total} format={tl} />}
-          change={board.thisMonth.change}
-          changeHint="Geçen ayın aynı dönemine göre"
-          lowerIsBetter
-        />
+        <BudgetStat spent={board.thisMonth.total} change={board.thisMonth.change} budget={budget} onEditBudget={onEditBudget} />
         <Stat
           icon={BarChart3}
           tone="brand"
@@ -262,6 +258,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
           icon={Route}
           tone="slate"
           label="Toplam Kilometre"
+          className="max-sm:col-span-2"
           value={<CountUp to={board.km.total} format={(n) => `${formatNumber(n, 0)} km`} />}
           hint={`Tüm araçlar · ${year}`}
         />
@@ -320,6 +317,8 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
           year={year}
           values={board.monthlyFuel}
           highlight={thisYear && board.monthlyFuel[new Date().getMonth()] > 0 ? new Date().getMonth() : lastFill >= 0 ? lastFill : null}
+          entries={entries}
+          expenses={expenses}
         />
       </section>
     </div>
@@ -405,6 +404,7 @@ function Stat({
   change,
   changeHint,
   lowerIsBetter,
+  className = "",
 }: {
   icon: typeof Fuel;
   tone: keyof typeof TONES;
@@ -414,11 +414,12 @@ function Stat({
   change?: number | null;
   changeHint?: string;
   lowerIsBetter?: boolean;
+  className?: string;
 }) {
   const showChange = change != null && change !== 0;
   const good = showChange && (lowerIsBetter ? change! < 0 : change! > 0);
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:gap-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+    <div className={`flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:gap-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900 ${className}`}>
       <span className={`hidden rounded-xl p-3 sm:block ${TONES[tone]}`}>
         <Icon size={22} />
       </span>

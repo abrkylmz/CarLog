@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Factory, Info, ListChecks, PencilLine } from "lucide-react";
 import { errorMessage } from "../lib/api";
 import { FUEL_TYPE_LABELS } from "../lib/format";
+import { BODY_TYPE_LABELS, BODY_TYPES, guessBodyType, type BodyType } from "../lib/bodyType";
 import type { CatalogEntry, FuelType, Vehicle, VehicleInput } from "../types";
 
 interface Props {
@@ -31,6 +32,8 @@ export default function VehicleForm({ catalog, initial, submitLabel, onSubmit, o
 
   const [name, setName] = useState(initial?.name ?? "");
   const [plate, setPlate] = useState(initial?.plate ?? "");
+  /** "" = let the app guess from make and model. */
+  const [bodyType, setBodyType] = useState<BodyType | "">(initial?.bodyType ?? "");
   const [year, setYear] = useState(initial?.year ? String(initial.year) : "");
   const [fuelType, setFuelType] = useState<FuelType>(initial?.fuelType ?? "benzin");
   const [tankCapacity, setTankCapacity] = useState(initial?.tankCapacity ? String(initial.tankCapacity) : "");
@@ -118,6 +121,7 @@ export default function VehicleForm({ catalog, initial, submitLabel, onSubmit, o
         fuelType,
         tankCapacity: tankCapacity ? tankNumber : undefined,
         catalogId: mode === "catalog" ? entry?.id : undefined,
+        bodyType: bodyType || undefined,
       });
     } catch (err) {
       setError(errorMessage(err));
@@ -267,6 +271,19 @@ export default function VehicleForm({ catalog, initial, submitLabel, onSubmit, o
           onChange={(e) => setPlate(e.target.value)}
           className="input uppercase"
         />
+      </Field>
+
+      <Field label="Kasa Tipi">
+        <select value={bodyType} onChange={(e) => setBodyType(e.target.value as BodyType | "")} className="input">
+          <option value="">
+            Otomatik ({BODY_TYPE_LABELS[guessBodyType([mode === "catalog" ? entry?.brand : brand, mode === "catalog" ? entry?.model : model].filter(Boolean).join(" "))]})
+          </option>
+          {BODY_TYPES.map((b) => (
+            <option key={b} value={b}>
+              {BODY_TYPE_LABELS[b]}
+            </option>
+          ))}
+        </select>
       </Field>
 
       {entry?.note || entry?.lpgTankCapacity ? (

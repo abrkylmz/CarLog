@@ -5,6 +5,7 @@ import { paths, VEHICLE_TAB_LABELS, type VehicleTab } from "../lib/router";
 import { FUEL_ACCENT } from "../lib/theme";
 import type { Vehicle, VehicleStats } from "../types";
 import CarArt from "./CarArt";
+import { bodyTypeOf } from "../lib/bodyType";
 import { openQuickAdd } from "./QuickAdd";
 
 interface Props {
@@ -34,7 +35,7 @@ export default function VehicleCard({ vehicle, stats, alerts, spend }: Props) {
       <a href={paths.vehicle(vehicle.id)} className="block" aria-label={`${vehicle.name} detayları`}>
         <div className="relative -mx-4 -mt-4 mb-3 flex h-32 items-end justify-center overflow-hidden bg-gradient-to-b from-brand-50 to-white px-6 pb-1 dark:from-brand-900/30 dark:to-slate-900">
           <div aria-hidden className="absolute -top-10 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full bg-brand-200/50 blur-2xl dark:bg-brand-700/20" />
-          <CarArt className="relative h-24 w-auto transition duration-500 group-hover/card:-translate-y-0.5 group-hover/card:scale-[1.03]" />
+          <CarArt body={bodyTypeOf(vehicle)} className="relative h-24 w-auto transition duration-500 group-hover/card:-translate-y-0.5 group-hover/card:scale-[1.03]" />
         </div>
 
         <div className="flex items-start justify-between gap-2">

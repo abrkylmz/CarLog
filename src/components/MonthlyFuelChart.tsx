@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatTL } from "../lib/format";
+import { EXPENSE_CATEGORY_LABELS, formatNumber, formatTL } from "../lib/format";
+import type { Expense, FuelEntry } from "../types";
 import { prefersReducedMotion } from "../lib/motion";
 import { YearSelect } from "./TopBar";
 
@@ -16,13 +17,27 @@ interface Props {
   /** When given, the card carries its own year picker. */
   years?: number[];
   onYearChange?: (year: number) => void;
+  /** The records behind the chart (same vehicles), for the breakdown of a tapped month. */
+  entries: FuelEntry[];
+  expenses: Expense[];
 }
 
+const MONTH_NAMES = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+// Fuel first, then up to three expense categories; the rest is folded into "Diğer".
+const SEGMENT_COLORS = ["bg-brand-500", "bg-amber-400", "bg-violet-500", "bg-emerald-500", "bg-slate-400"];
+
 /** The year's fuel spend month by month; the highlighted month (or the hovered one) stands out. */
-export default function MonthlyFuelChart({ year, values, highlight, years, onYearChange }: Props) {
+export default function MonthlyFuelChart({ year, values, highlight, years, onYearChange, entries, expenses }: Props) {
   const [hover, setHover] = useState<number | null>(null);
+  // The month whose breakdown is shown; a tap (or click) on a bar picks it.
+  const [picked, setPicked] = useState<number | null>(null);
+  const selected = picked ?? highlight;
   const data = values.map((value, i) => ({ month: MONTHS[i], value, i }));
-  const strong = hover ?? highlight;
+  const strong = hover ?? selected;
+  const pick = (index: unknown) => {
+    const i = typeof index === "number" ? index : typeof index === "string" ? Number(index) : NaN;
+    if (Number.isInteger(i) && i >= 0 && i < 12) setPicked(i);
+  };
   const total = values.reduce((t, v) => t + v, 0);
 
   return (
@@ -45,6 +60,8 @@ export default function MonthlyFuelChart({ year, values, highlight, years, onYea
             margin={{ top: 12, right: 4, bottom: 0, left: -12 }}
             onMouseMove={(state) => setHover(typeof state?.activeTooltipIndex === "number" ? state.activeTooltipIndex : null)}
             onMouseLeave={() => setHover(null)}
+            onClick={(state) => pick(state?.activeTooltipIndex)}
+            className="cursor-pointer"
           >
             <CartesianGrid vertical={false} stroke="currentColor" className="text-slate-100 dark:text-slate-800" />
             <XAxis
@@ -75,6 +92,7 @@ export default function MonthlyFuelChart({ year, values, highlight, years, onYea
               {data.map((d) => (
                 <Cell
                   key={d.i}
+                  onClick={() => setPicked(d.i)}
                   className={`transition-colors duration-200 ${
                     d.i === strong ? "fill-brand-600 dark:fill-brand-400" : "fill-brand-200 dark:fill-brand-800"
                   }`}
@@ -84,7 +102,64 @@ export default function MonthlyFuelChart({ year, values, highlight, years, onYea
           </BarChart>
         </ResponsiveContainer>
       </div>
+      {selected != null ? (
+        <MonthBreakdown month={`${year}-${String(selected + 1).padStart(2, "0")}`} label={`${MONTH_NAMES[selected]} ${year}`} entries={entries} expenses={expenses} />
+      ) : null}
     </section>
+  );
+}
+
+/** What made up one month's spending: fuel (with fill-ups, liters, price) and the expense kinds. */
+function MonthBreakdown({ month, label, entries, expenses }: { month: string; label: string; entries: FuelEntry[]; expenses: Expense[] }) {
+  const fills = entries.filter((e) => e.date.startsWith(month));
+  const costs = expenses.filter((x) => x.date.startsWith(month));
+  const fuel = fills.reduce((t, e) => t + e.totalCost, 0);
+  const liters = fills.reduce((t, e) => t + e.liters, 0);
+  const byCategory = new Map<Expense["category"], number>();
+  for (const x of costs) byCategory.set(x.category, (byCategory.get(x.category) ?? 0) + x.amount);
+  const sorted = [...byCategory].sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, 3).map(([c, v]) => ({ label: EXPENSE_CATEGORY_LABELS[c], value: v }));
+  const rest = sorted.slice(3).reduce((t, [, v]) => t + v, 0);
+  const segments = [{ label: "Yakıt", value: fuel }, ...top, ...(rest > 0 ? [{ label: "Diğer", value: rest }] : [])].filter((s) => s.value > 0);
+  const total = segments.reduce((t, s) => t + s.value, 0);
+  const tl = (n: number) => formatTL(n).replace(",00", "");
+
+  return (
+    <div aria-live="polite" className="mt-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="font-semibold">{label}</p>
+        <p className="text-sm tabular-nums text-slate-500 dark:text-slate-400">
+          Toplam <b className="text-slate-800 dark:text-slate-100">{tl(total)}</b>
+        </p>
+      </div>
+      {total === 0 ? (
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Bu ayda kayıt yok.</p>
+      ) : (
+        <>
+          <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+            {segments.map((s, i) => (
+              <span key={s.label} className={SEGMENT_COLORS[i]} style={{ width: `${(s.value / total) * 100}%` }} />
+            ))}
+          </div>
+          <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+            {segments.map((s, i) => (
+              <li key={s.label} className="flex items-center justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${SEGMENT_COLORS[i]}`} />
+                  <span className="truncate">{s.label}</span>
+                </span>
+                <span className="tabular-nums font-medium">{tl(s.value)}</span>
+              </li>
+            ))}
+          </ul>
+          {fills.length ? (
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              {fills.length} dolum · {formatNumber(liters, 1)} L · ortalama {formatNumber(fuel / liters, 2)} TL/L
+            </p>
+          ) : null}
+        </>
+      )}
+    </div>
   );
 }
 

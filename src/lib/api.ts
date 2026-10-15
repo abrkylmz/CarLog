@@ -69,6 +69,7 @@ export const api = {
   login: (username: string, password: string, panel: "user" | "admin") =>
     request<{ user: User }>("POST", "/auth/login", { username, password, panel }),
   logout: () => request<void>("POST", "/auth/logout"),
+  setBudget: (monthlyBudget: number | null) => request<{ user: User }>("PUT", "/account/budget", { monthlyBudget }),
   choosePlan: (plan: PlanId) => request<{ user: User }>("POST", "/account/plan", { plan }),
   setUserPlan: (id: string, plan: PlanId) => request<void>("PUT", `/users/${encodeURIComponent(id)}/plan`, { plan }),
   changePassword: (currentPassword: string, newPassword: string) =>

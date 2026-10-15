@@ -4,6 +4,7 @@ import { usePopover } from "../lib/popover";
 import { paths, VEHICLE_TAB_LABELS, VEHICLE_TABS } from "../lib/router";
 import type { Vehicle, VehicleStats } from "../types";
 import CarArt from "./CarArt";
+import { bodyTypeOf } from "../lib/bodyType";
 import { CountUp } from "./StatCard";
 
 interface Props {
@@ -84,7 +85,7 @@ export default function VehicleHero({ vehicle, subtitle, stats, onExport, onUpda
         </div>
 
         <div className="pointer-events-none absolute right-[12%] top-6 hidden w-64 drop-shadow-2xl lg:block xl:w-72">
-          <CarArt light className="h-auto w-full" />
+          <CarArt light body={bodyTypeOf(vehicle)} className="h-auto w-full" />
         </div>
 
         <dl className="relative mt-5 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BarChart3, Droplet, Fuel, Pencil, Tag, Trash2 } from "lucide-react";
 import MonthlyFuelChart from "../components/MonthlyFuelChart";
 import QuickActions from "../components/QuickActions";
+import FirstStepsCard from "../components/FirstStepsCard";
+import RemindersTimeline from "../components/RemindersTimeline";
 import RecentEntries from "../components/RecentEntries";
 import TrendStat from "../components/TrendStat";
 import { CountUp } from "../components/StatCard";
@@ -148,6 +150,20 @@ export default function VehiclePage({
   const split = (fuel: number, other: number) => `Yakıt ${formatTL(fuel)} · Diğer ${formatTL(other)}`;
   const subtitle = vehicleSubtitle(vehicle);
   const latestKm = stats.latestOdometerKm;
+  // Recent driving pace (km/day) from the odometer readings of the last four months, to date
+  // km-based reminders on the timeline. Needs readings at least two weeks apart.
+  const kmPerDay = useMemo(() => {
+    const since = new Date(Date.now() - 120 * 86_400_000).toISOString().slice(0, 10);
+    const readings = entries
+      .filter((e) => e.odometerKm != null && e.date >= since)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.odometerKm! - b.odometerKm!);
+    if (readings.length < 2) return null;
+    const first = readings[0];
+    const last = readings[readings.length - 1];
+    const days = (Date.parse(last.date) - Date.parse(first.date)) / 86_400_000;
+    const km = last.odometerKm! - first.odometerKm!;
+    return days >= 14 && km > 0 ? km / days : null;
+  }, [entries]);
 
   return (
     <>
@@ -192,6 +208,7 @@ export default function VehiclePage({
       <div key={`${vehicle.id}-${tab}`} className="rise-stack">
       {tab === "ozet" && (
         <>
+          {stats.avgConsumptionPer100km == null ? <FirstStepsCard vehicleId={vehicle.id} entries={entries} /> : null}
           <div className={`mb-6 grid gap-4 ${insights.length ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" : ""}`}>
             <InsightsCard insights={insights} />
             <QuickActions vehicleId={vehicle.id} />
@@ -280,6 +297,8 @@ export default function VehiclePage({
               }
               years={years}
               onYearChange={setChartYear}
+              entries={entries}
+              expenses={expenses}
             />
           </section>
 
@@ -372,6 +391,7 @@ export default function VehiclePage({
       {tab === "hatirlatmalar" && (
         <>
           <NotificationSettings />
+          <RemindersTimeline reminders={reminders} latestKm={latestKm} kmPerDay={kmPerDay} />
           <section className="mb-8">
             <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Yeni Hatırlatma</h3>
             <ReminderForm vehicleId={vehicle.id} latestKm={latestKm} onSubmit={onAddReminder} />
