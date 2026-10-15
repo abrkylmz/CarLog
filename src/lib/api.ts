@@ -74,7 +74,9 @@ export const api = {
   deleteVehicle: (id: string) => request<void>("DELETE", `/vehicles/${encodeURIComponent(id)}`),
 
   listCatalog: () => request<CatalogEntry[]>("GET", "/catalog"),
-  createCatalogEntry: (input: CatalogEntryInput) => request<CatalogEntry>("POST", "/catalog", input),
+  /** With linkVehicles, hand-entered vehicles of that make and model are tied to the new entry. */
+  createCatalogEntry: (input: CatalogEntryInput, linkVehicles = false) =>
+    request<CatalogEntry & { linked: number }>("POST", "/catalog", { ...input, linkVehicles }),
   updateCatalogEntry: (id: string, input: CatalogEntryInput) =>
     request<CatalogEntry>("PUT", `/catalog/${encodeURIComponent(id)}`, input),
   deleteCatalogEntry: (id: string) => request<void>("DELETE", `/catalog/${encodeURIComponent(id)}`),

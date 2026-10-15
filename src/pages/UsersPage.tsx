@@ -16,6 +16,12 @@ export default function UsersPage({ currentUser }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const dialog = useDialog();
   const [tab, setTab] = useState<"users" | "catalog">("users");
+  /** Hand-entered models waiting to be added to the catalog, shown on the catalog tab. */
+  const [missingCount, setMissingCount] = useState(0);
+
+  useEffect(() => {
+    api.catalogMissing().then((m) => setMissingCount(m.length), () => undefined);
+  }, []);
 
   useEffect(() => {
     api
@@ -107,11 +113,19 @@ export default function UsersPage({ currentUser }: Props) {
             }`}
           >
             {label}
+            {key === "catalog" && missingCount > 0 ? (
+              <span
+                title="Katalogda olmayan, elle girilmiş model"
+                className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+              >
+                {missingCount}
+              </span>
+            ) : null}
           </button>
         ))}
       </nav>
 
-      {tab === "catalog" ? <CatalogAdmin /> : null}
+      {tab === "catalog" ? <CatalogAdmin onMissingChange={setMissingCount} /> : null}
 
       {tab === "users" ? (
         <>

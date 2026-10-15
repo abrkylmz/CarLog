@@ -4,17 +4,23 @@ import { api, errorMessage } from "../lib/api";
 import { FUEL_TYPE_LABELS } from "../lib/format";
 import type { CatalogEntry, CatalogEntryInput, FuelType, MissingCatalogModel } from "../types";
 import { useDialog } from "./DialogProvider";
+import { toast } from "./Toaster";
 import { CancelButton } from "./EntryForm";
 import Modal from "./Modal";
 import ScrollX from "./ScrollX";
 
 /** Admin view of the vehicle catalog, plus hand-entered models that are missing from it. */
-export default function CatalogAdmin() {
+export default function CatalogAdmin({ onMissingChange }: { onMissingChange?: (count: number) => void }) {
   const dialog = useDialog();
   const [entries, setEntries] = useState<CatalogEntry[] | null>(null);
   const [missing, setMissing] = useState<MissingCatalogModel[]>([]);
   const [query, setQuery] = useState("");
-  const [editing, setEditing] = useState<{ entry?: CatalogEntry; draft?: Partial<CatalogEntryInput> } | null>(null);
+  /** fromMissing: opened from the "missing" list, so the form offers to link those vehicles. */
+  const [editing, setEditing] = useState<{
+    entry?: CatalogEntry;
+    draft?: Partial<CatalogEntryInput>;
+    fromMissing?: MissingCatalogModel;
+  } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,6 +31,10 @@ export default function CatalogAdmin() {
       })
       .catch((err) => setLoadError(errorMessage(err)));
   }, []);
+
+  useEffect(() => {
+    if (entries) onMissingChange?.(missing.length);
+  }, [entries, missing, onMissingChange]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("tr-TR");
@@ -48,16 +58,17 @@ export default function CatalogAdmin() {
     }
   }
 
-  async function save(input: CatalogEntryInput) {
+  async function save(input: CatalogEntryInput, linkVehicles: boolean) {
     if (editing?.entry) {
       const updated = await api.updateCatalogEntry(editing.entry.id, input);
       setEntries((prev) => prev?.map((e) => (e.id === updated.id ? updated : e)) ?? null);
+      toast("Katalog kaydı güncellendi");
     } else {
-      const created = await api.createCatalogEntry(input);
+      const { linked, ...created } = await api.createCatalogEntry(input, linkVehicles);
       setEntries((prev) => [...(prev ?? []), created]);
-      setMissing((prev) =>
-        prev.filter((m) => !(m.brand.toLocaleLowerCase("tr-TR") === input.brand.toLocaleLowerCase("tr-TR") && m.model.toLocaleLowerCase("tr-TR") === input.model.toLocaleLowerCase("tr-TR"))),
-      );
+      // The server knows which vehicles were linked (years and fuel types decide), so ask it again.
+      setMissing(await api.catalogMissing().catch(() => missing));
+      toast(linked ? `Kataloğa eklendi · ${linked} araç bağlandı` : "Kataloğa eklendi");
     }
     setEditing(null);
   }
@@ -89,6 +100,7 @@ export default function CatalogAdmin() {
                   onClick={() =>
                     setEditing({
                       draft: { brand: m.brand, model: m.model, yearFrom: m.year, fuelTypes: [m.fuelType] },
+                      fromMissing: m,
                     })
                   }
                   className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/30"
@@ -186,7 +198,12 @@ export default function CatalogAdmin() {
 
       {editing ? (
         <Modal title={editing.entry ? "Katalog Kaydını Düzenle" : "Kataloğa Ekle"} onClose={() => setEditing(null)} width="max-w-2xl">
-          <CatalogForm initial={editing.entry ?? editing.draft} onCancel={() => setEditing(null)} onSubmit={save} />
+          <CatalogForm
+            initial={editing.entry ?? editing.draft}
+            fromMissing={editing.fromMissing}
+            onCancel={() => setEditing(null)}
+            onSubmit={save}
+          />
         </Modal>
       ) : null}
     </>
@@ -195,13 +212,16 @@ export default function CatalogAdmin() {
 
 function CatalogForm({
   initial,
+  fromMissing,
   onSubmit,
   onCancel,
 }: {
   initial?: Partial<CatalogEntryInput>;
-  onSubmit: (input: CatalogEntryInput) => Promise<void>;
+  fromMissing?: MissingCatalogModel;
+  onSubmit: (input: CatalogEntryInput, linkVehicles: boolean) => Promise<void>;
   onCancel: () => void;
 }) {
+  const [link, setLink] = useState(true);
   const [brand, setBrand] = useState(initial?.brand ?? "");
   const [model, setModel] = useState(initial?.model ?? "");
   const [generation, setGeneration] = useState(initial?.generation ?? "");
@@ -230,7 +250,7 @@ function CatalogForm({
         tankCapacity: num(tank),
         lpgTankCapacity: lpgTank ? num(lpgTank) : undefined,
         note: note.trim() || undefined,
-      });
+      }, Boolean(fromMissing) && link);
     } catch (err) {
       setError(errorMessage(err));
       setSubmitting(false);
@@ -279,6 +299,18 @@ function CatalogForm({
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opsiyonel 66 L depo ile de satıldı." className="input" />
         </Field>
       </div>
+      {fromMissing ? (
+        <label className="col-span-full flex items-start gap-2 rounded-lg bg-brand-50 px-3 py-2.5 text-sm dark:bg-brand-900/30">
+          <input type="checkbox" checked={link} onChange={(e) => setLink(e.target.checked)} className="mt-0.5 h-4 w-4 accent-brand-600" />
+          <span>
+            <b>Elle girilmiş araçları bu kayda bağla.</b>{" "}
+            <span className="text-slate-600 dark:text-slate-300">
+              Markası ve modeli aynı, yılı ve yakıt tipi bu kayda uyan araçlar katalogdan seçilmiş sayılır ve bu listeden
+              çıkar. Sahiplerinin girdiği bilgiler (depo hacmi, plaka…) değişmez.
+            </span>
+          </span>
+        </label>
+      ) : null}
       <div className="col-span-full flex items-center justify-between gap-3">
         {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : <span />}
         <div className="flex gap-2">

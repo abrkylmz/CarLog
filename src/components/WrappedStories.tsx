@@ -88,6 +88,7 @@ export default function WrappedStories({
       role="dialog"
       aria-modal="true"
       aria-label={`CarLog ${summary.year} Yıl Özeti`}
+      data-no-pull
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 backdrop-blur-sm sm:p-6"
     >
       <div

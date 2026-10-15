@@ -359,9 +359,23 @@ api.post("/catalog", requireAdmin, async (req, res) => {
   const parsed = parseCatalogInput(req.body);
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
   const entry = { ...parsed.value, id: catalogId(parsed.value) };
-  const insert = catalogUpsert(entry);
-  await query(insert.text, insert.params);
-  res.status(201).json(entry);
+  const statements: Statement[] = [catalogUpsert(entry)];
+  // Added from the "missing" list: hand-entered vehicles of this make and model (in its years and
+  // fuel types) join the new entry, so they leave that list for good. Only the link changes; the
+  // owners' own details (tank size, plate, …) stay as they entered them.
+  if (req.body?.linkVehicles === true) {
+    statements.push({
+      text: `UPDATE vehicles SET catalog_id = $1
+             WHERE catalog_id IS NULL
+               AND lower(trim(brand)) = lower(trim($2::text)) AND lower(trim(model)) = lower(trim($3::text))
+               AND (year IS NULL OR (year >= $4::int AND year <= COALESCE($5::int, 9999)))
+               AND fuel_type = ANY($6::text[])
+             RETURNING id`,
+      params: [entry.id, entry.brand, entry.model, entry.yearFrom, entry.yearTo ?? null, entry.fuelTypes],
+    });
+  }
+  const [, linked = []] = await transaction(statements);
+  res.status(201).json({ ...entry, linked: linked.length });
 });
 
 api.put("/catalog/:id", requireAdmin, async (req, res) => {

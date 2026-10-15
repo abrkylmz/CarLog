@@ -20,6 +20,7 @@ import { FUEL_ACCENT, usePageAccent } from "./lib/theme";
 import { animateOut, clearLeaving } from "./lib/motion";
 import { dropFromOutbox, enqueue, isOfflineError, isPending, readOutbox, replaceInOutbox } from "./lib/outbox";
 import OnlineStatus from "./components/OnlineStatus";
+import PullToRefresh from "./components/PullToRefresh";
 
 const OFFLINE_SAVED = "Çevrimdışı kaydedildi";
 import { AdminAuthPage, UserAuthPage } from "./pages/AuthPage";
@@ -557,6 +558,14 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       {page}
 
       <Toaster />
+      <PullToRefresh
+        onRefresh={async () => {
+          // Send anything added offline first, then fetch what others added meanwhile.
+          await flushOutbox();
+          await reload();
+          toast("Güncellendi");
+        }}
+      />
       <OnlineStatus pending={[...entries, ...expenses, ...reminders].filter((r) => isPending(r.id)).length} />
 
       {wrapped && wrapped.fillCount > 0 ? (
