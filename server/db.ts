@@ -144,6 +144,8 @@ const SCHEMA: string[] = [
      note              TEXT
    )`,
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS catalog_id TEXT`,
+  // When the user last used the app (signed in or opened it with a live session), for admins.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ`,
   // Manufacturer consumption per fuel type, as JSON (see FactoryConsumption).
   `ALTER TABLE vehicle_catalog ADD COLUMN IF NOT EXISTS factory_consumption TEXT`,
   `CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,

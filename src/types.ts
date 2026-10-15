@@ -7,6 +7,8 @@ export interface User {
   username: string;
   role: Role;
   createdAt: string;
+  /** Last time the user used the app; only in the admin's user list (null: not seen since tracking began). */
+  lastSeenAt?: string | null;
 }
 
 /** A user's relation to a vehicle: the owner manages it, helpers add records to it. */

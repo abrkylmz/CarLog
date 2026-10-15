@@ -27,6 +27,19 @@ export function formatDate(iso: string): string {
   return date.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+const relative = new Intl.RelativeTimeFormat("tr-TR", { numeric: "auto" });
+
+/** "az önce", "12 dakika önce", "3 saat önce", "dün", "5 gün önce"; older than a month: the date. */
+export function formatRelative(iso: string, now = Date.now()): string {
+  const seconds = (Date.parse(iso) - now) / 1000;
+  const abs = Math.abs(seconds);
+  if (abs < 60) return "az önce";
+  if (abs < 3600) return relative.format(Math.round(seconds / 60), "minute");
+  if (abs < 86_400) return relative.format(Math.round(seconds / 3600), "hour");
+  if (abs < 30 * 86_400) return relative.format(Math.round(seconds / 86_400), "day");
+  return formatDate(iso);
+}
+
 export const FUEL_TYPE_LABELS: Record<FuelType, string> = {
   benzin: "Benzin",
   dizel: "Dizel",

@@ -47,6 +47,7 @@ export async function createSession(res: Response, userId: string): Promise<void
     userId,
     expiresAt.toISOString(),
   ]);
+  await query("UPDATE users SET last_seen_at = now() WHERE id = $1", [userId]);
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -84,11 +85,17 @@ export async function loadUser(req: Request, _res: Response, next: NextFunction)
   const token = readSessionToken(req);
   if (token) {
     const row = await queryOne(
-      `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
+      `SELECT u.*, (u.last_seen_at IS NULL OR u.last_seen_at < now() - interval '10 minutes') AS seen_stale
+       FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token = $1 AND s.expires_at > now()`,
       [sessionKey(token)],
     );
-    if (row) req.user = toUser(row);
+    if (row) {
+      req.user = toUser(row);
+      // Sessions last 30 days, so "last seen" follows use of the app, not just signing in. Written
+      // at most every 10 minutes per user, so ordinary requests don't each cost a write.
+      if (row.seen_stale) await query("UPDATE users SET last_seen_at = now() WHERE id = $1", [row.id]);
+    }
   }
   next();
 }

@@ -935,7 +935,12 @@ api.get("/cron/reminders", async (req, res) => {
 // ---- Users (admin) ---------------------------------------------------------
 
 api.get("/users", requireAdmin, async (_req, res) => {
-  res.json((await query("SELECT * FROM users ORDER BY created_at")).map(toUser));
+  res.json(
+    (await query("SELECT * FROM users ORDER BY created_at")).map((r) => ({
+      ...toUser(r),
+      lastSeenAt: r.last_seen_at ? new Date(r.last_seen_at as string | Date).toISOString() : null,
+    })),
+  );
 });
 
 api.post("/users", requireAdmin, async (req, res) => {

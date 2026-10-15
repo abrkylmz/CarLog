@@ -4,7 +4,7 @@ import BackLink from "../components/BackLink";
 import CatalogAdmin from "../components/CatalogAdmin";
 import { useDialog } from "../components/DialogProvider";
 import { api, ApiError, errorMessage } from "../lib/api";
-import { formatDate } from "../lib/format";
+import { formatDate, formatRelative } from "../lib/format";
 import type { Role, User } from "../types";
 
 interface Props {
@@ -155,7 +155,18 @@ export default function UsersPage({ currentUser }: Props) {
                         ) : null}
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {user.role === "admin" ? "Admin" : "Kullanıcı"} · {formatDate(user.createdAt)}
+                        {user.role === "admin" ? "Admin" : "Kullanıcı"} · {formatDate(user.createdAt)} tarihinde katıldı
+                      </p>
+                      <p
+                        className="text-xs text-slate-500 dark:text-slate-400"
+                        title={user.lastSeenAt ? new Date(user.lastSeenAt).toLocaleString("tr-TR") : undefined}
+                      >
+                        Son giriş:{" "}
+                        {user.lastSeenAt ? (
+                          <span className="font-medium text-slate-700 dark:text-slate-200">{formatRelative(user.lastSeenAt)}</span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500">henüz bilgi yok</span>
+                        )}
                       </p>
                     </div>
                     <button
