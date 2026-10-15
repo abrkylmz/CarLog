@@ -211,6 +211,41 @@ function SignedInApp({
   }
 
   /** Set, change or clear the monthly spending target shown as the home screen's ring. */
+  /**
+   * Deletes the user's own account after the password; if they own vehicles, says what happens to
+   * them (handed to a helper or deleted) and asks once more.
+   */
+  async function deleteAccount() {
+    const password = await dialog.prompt({
+      title: "Hesabınız silinsin mi?",
+      message:
+        "Hesabınız ve size ait veriler kalıcı olarak silinir; bu geri alınamaz. Paylaşılan araçlara eklediğiniz kayıtlar o araçlarda kalır (ekleyen \"silinmiş kullanıcı\" görünür). İsterseniz önce Dışa Aktar ile verilerinizi indirin.",
+      tone: "danger",
+      confirmLabel: "Devam",
+      input: { label: "Onaylamak için şifreniz", type: "password", validate: (v) => (v ? null : "Şifrenizi girin.") },
+    });
+    if (password == null) return;
+    try {
+      try {
+        await api.deleteAccount(password);
+      } catch (err) {
+        if (!(err instanceof ApiError && err.code === "has_vehicles")) throw err;
+        const sure = await dialog.confirm({
+          title: "Araçlarınıza ne olacak?",
+          message: err.message,
+          tone: "danger",
+          confirmLabel: "Hesabımı Sil",
+        });
+        if (!sure) return;
+        await api.deleteAccount(password, true);
+      }
+      await dialog.alert({ title: "Hesabınız silindi", message: "Bu cihazdaki oturumunuz kapatıldı.", tone: "success" });
+      onLogout();
+    } catch (err) {
+      await showError(err);
+    }
+  }
+
   async function editBudget() {
     const text = await dialog.prompt({
       title: "Aylık bütçe",
@@ -672,7 +707,7 @@ function SignedInApp({
             </button>
           ) : null}
           {vehicles ? <ReminderBell vehicles={vehicles} reminders={reminders} latestKmByVehicle={latestKmByVehicle} /> : null}
-          <UserMenu user={user} onLogout={onLogout} onChangePassword={() => setChangingPassword(true)} />
+          <UserMenu user={user} onLogout={onLogout} onChangePassword={() => setChangingPassword(true)} onDeleteAccount={deleteAccount} />
         </div>
       </header>
       {phoneSearch && vehicles ? (
@@ -699,6 +734,7 @@ function SignedInApp({
           onExport={() => setExportFor("")}
           onChangePassword={() => setChangingPassword(true)}
           onLogout={onLogout}
+          onDeleteAccount={deleteAccount}
         />
       ) : null}
       {changingPassword ? <PasswordDialog onClose={() => setChangingPassword(false)} /> : null}

@@ -17,6 +17,7 @@ interface Props {
   onExport: () => void;
   onChangePassword: () => void;
   onLogout: () => void;
+  onDeleteAccount: () => void;
 }
 
 type Sheet = "vehicles" | "reports" | "profile" | null;
@@ -25,7 +26,7 @@ type Sheet = "vehicles" | "reports" | "profile" | null;
  * Phone tab bar for every screen except a vehicle's own pages (which have their tabs): home,
  * vehicles, the add button in the middle under the thumb, reports and the account.
  */
-export default function AppBottomNav({ user, route, vehicles, wrappedYear, onExport, onChangePassword, onLogout }: Props) {
+export default function AppBottomNav({ user, route, vehicles, wrappedYear, onExport, onChangePassword, onLogout, onDeleteAccount }: Props) {
   const [sheet, setSheet] = useState<Sheet>(null);
   const close = () => setSheet(null);
   const item = (active: boolean) =>
@@ -193,6 +194,16 @@ export default function AppBottomNav({ user, route, vehicles, wrappedYear, onExp
               </button>
             </li>
           </ul>
+          <button
+            type="button"
+            onClick={() => {
+              close();
+              onDeleteAccount();
+            }}
+            className="mt-3 w-full text-center text-xs text-slate-500 underline-offset-2 hover:text-red-600 hover:underline dark:text-slate-400"
+          >
+            Hesabımı sil
+          </button>
         </Modal>
       ) : null}
     </>

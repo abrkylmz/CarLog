@@ -41,7 +41,7 @@ function clientId(value: unknown): string | undefined {
 
 /** Fill-ups and expenses can't be dated in the future; one day of slack covers time zones. */
 function dateError(value: unknown): string | null {
-  if (typeof value !== "string" || !ISO_DATE.test(value) || Number.isNaN(Date.parse(value))) return "Geçerli bir tarih girin.";
+  if (typeof value !== "string" || !isRealDate(value)) return "Geçerli bir tarih girin.";
   const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
   return value > tomorrow ? "Tarih ileri bir gün olamaz." : null;
 }
@@ -52,8 +52,16 @@ function optionalString(value: unknown, max: number): string | undefined {
   return trimmed || undefined;
 }
 
-function positiveNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+/** A positive number no larger than `max` (absurd values would only break totals and charts). */
+function positiveNumber(value: unknown, max = 1_000_000_000): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= max ? value : null;
+}
+
+/** "2026-02-31" has the right shape but isn't a day; JavaScript would quietly roll it to March. */
+function isRealDate(value: string): boolean {
+  if (!ISO_DATE.test(value)) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
 }
 
 export function parseVehicleInput(body: unknown): Result<VehicleInput> {
@@ -105,9 +113,9 @@ export function parseEntryInput(body: unknown): Result<FuelEntryInput> {
   if (badDate) return { ok: false, error: badDate };
 
   // The odometer reading is optional; when given it must be a positive number.
-  const odometerKm = b.odometerKm == null ? null : positiveNumber(b.odometerKm);
-  const liters = positiveNumber(b.liters);
-  const totalCost = positiveNumber(b.totalCost);
+  const odometerKm = b.odometerKm == null ? null : positiveNumber(b.odometerKm, 5_000_000);
+  const liters = positiveNumber(b.liters, 5_000);
+  const totalCost = positiveNumber(b.totalCost, 10_000_000);
   if (b.odometerKm != null && odometerKm == null) return { ok: false, error: "Geçerli bir kilometre girin." };
   if (liters == null) return { ok: false, error: "Litre değeri girin." };
   if (totalCost == null) return { ok: false, error: "Tutar değeri girin." };
@@ -130,7 +138,7 @@ export function parseEntryInput(body: unknown): Result<FuelEntryInput> {
       date: b.date as string,
       odometerKm,
       liters,
-      pricePerLiter: positiveNumber(b.pricePerLiter) ?? totalCost / liters,
+      pricePerLiter: positiveNumber(b.pricePerLiter, 100_000) ?? totalCost / liters,
       totalCost,
       isFull: typeof b.isFull === "boolean" ? b.isFull : null,
       gaugeBefore,
@@ -147,7 +155,7 @@ export function parseExpenseInput(body: unknown): Result<ExpenseInput> {
   if (badDate) return { ok: false, error: badDate };
   const category = EXPENSE_CATEGORIES.find((c) => c === b.category);
   if (!category) return { ok: false, error: "Geçersiz masraf türü." };
-  const amount = positiveNumber(b.amount);
+  const amount = positiveNumber(b.amount, 100_000_000);
   if (amount == null) return { ok: false, error: "Tutar değeri girin." };
 
   return {
@@ -164,10 +172,10 @@ export function parseReminderInput(body: unknown): Result<ReminderInput> {
 
   let dueDate: string | undefined;
   if (b.dueDate != null && b.dueDate !== "") {
-    if (typeof b.dueDate !== "string" || !ISO_DATE.test(b.dueDate)) return { ok: false, error: "Geçerli bir tarih girin." };
+    if (typeof b.dueDate !== "string" || !isRealDate(b.dueDate)) return { ok: false, error: "Geçerli bir tarih girin." };
     dueDate = b.dueDate;
   }
-  const dueKm = b.dueKm == null ? undefined : positiveNumber(b.dueKm);
+  const dueKm = b.dueKm == null ? undefined : positiveNumber(b.dueKm, 5_000_000);
   if (dueKm === null) return { ok: false, error: "Geçerli bir kilometre girin." };
   if (!dueDate && dueKm == null) return { ok: false, error: "Bir tarih veya kilometre girin." };
 
@@ -178,7 +186,7 @@ export function parseReminderInput(body: unknown): Result<ReminderInput> {
     }
     repeatMonths = b.repeatMonths;
   }
-  const repeatKm = b.repeatKm == null ? undefined : positiveNumber(b.repeatKm);
+  const repeatKm = b.repeatKm == null ? undefined : positiveNumber(b.repeatKm, 1_000_000);
   if (repeatKm === null) return { ok: false, error: "Geçerli bir tekrar kilometresi girin." };
 
   return {

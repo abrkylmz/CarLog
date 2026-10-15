@@ -24,6 +24,7 @@ import {
 import {
   clearAttempts,
   createSession,
+  SESSION_COOKIE,
   currentSessionKey,
   destroySession,
   hashPassword,
@@ -226,6 +227,8 @@ api.post("/auth/setup", async (req, res) => {
 api.post("/auth/register", async (req, res) => {
   const throttleKey = `register:${req.ip ?? "unknown"}`;
   if (await isThrottled(throttleKey, 5)) return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
+  // Every try counts too, taken usernames included, so sign-up can't be used to list accounts.
+  if (await overLimit(`register-try:${req.ip ?? "unknown"}`, 30)) return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
 
   const parsed = parseCredentials(req.body);
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
@@ -1119,18 +1122,11 @@ api.put("/users/:id/password", requireAdmin, async (req, res) => {
 });
 
 /**
- * Vehicles the deleted user owned pass to their longest-standing helper; vehicles without helpers
- * are deleted with their records. Without ?force=1 the API first answers 409 describing that.
+ * What deleting a user does to their vehicles: each passes to its longest-standing helper, and
+ * vehicles without helpers are deleted with their records. Returns the statements (one
+ * transaction) and a description for the confirmation step, or null when they own nothing.
  */
-api.delete("/users/:id", requireAdmin, async (req, res) => {
-  const userId = paramId(req);
-  if (userId === req.user!.id) {
-    return void res.status(400).json({ error: "Kendi hesabınızı silemezsiniz." });
-  }
-  if (!(await queryOne("SELECT 1 FROM users WHERE id = $1", [userId]))) {
-    return void res.status(404).json({ error: "Kullanıcı bulunamadı." });
-  }
-
+async function userDeletion(userId: string): Promise<{ statements: Statement[]; warning: string | null }> {
   const owned = await query(
     `SELECT m.vehicle_id,
        (SELECT COUNT(*) FROM vehicle_members h WHERE h.vehicle_id = m.vehicle_id AND h.role = 'helper') AS helpers
@@ -1139,12 +1135,9 @@ api.delete("/users/:id", requireAdmin, async (req, res) => {
   );
   const orphaned = owned.filter((o) => Number(o.helpers) === 0).length;
   const handedOver = owned.length - orphaned;
-  if (owned.length > 0 && req.query.force !== "1") {
-    const parts = [];
-    if (handedOver) parts.push(`${handedOver} aracı yardımcılarından birine devredilecek`);
-    if (orphaned) parts.push(`yardımcısı olmayan ${orphaned} aracı tüm kayıtlarıyla silinecek`);
-    return void res.status(409).json({ error: `Bu kullanıcı ${owned.length} aracın sahibi: ${parts.join(", ")}.` });
-  }
+  const parts = [];
+  if (handedOver) parts.push(`${handedOver} aracı yardımcılarından birine devredilecek`);
+  if (orphaned) parts.push(`yardımcısı olmayan ${orphaned} aracı tüm kayıtlarıyla silinecek`);
 
   const statements: Statement[] = [];
   for (const o of owned) {
@@ -1165,7 +1158,45 @@ api.delete("/users/:id", requireAdmin, async (req, res) => {
     );
   }
   statements.push({ text: "DELETE FROM users WHERE id = $1", params: [userId] });
+  return { statements, warning: owned.length > 0 ? `${owned.length} aracın sahibi: ${parts.join(", ")}.` : null };
+}
+
+/** Without ?force=1 the API first answers 409 describing what happens to the user's vehicles. */
+api.delete("/users/:id", requireAdmin, async (req, res) => {
+  const userId = paramId(req);
+  if (userId === req.user!.id) {
+    return void res.status(400).json({ error: "Kendi hesabınızı silemezsiniz." });
+  }
+  if (!(await queryOne("SELECT 1 FROM users WHERE id = $1", [userId]))) {
+    return void res.status(404).json({ error: "Kullanıcı bulunamadı." });
+  }
+  const { statements, warning } = await userDeletion(userId);
+  if (warning && req.query.force !== "1") return void res.status(409).json({ error: `Bu kullanıcı ${warning}` });
   await transaction(statements);
+  res.status(204).end();
+});
+
+/**
+ * Users delete their own account (KVKK: the right to have one's data erased), after typing their
+ * password. Like the admin's delete, owned vehicles pass to a helper or go with their records; the
+ * first call without force answers 409 with what will happen. The last admin can't leave.
+ */
+api.post("/account/delete", requireUser, async (req, res) => {
+  const throttleKey = `password:${req.user!.id}`;
+  if (await isThrottled(throttleKey, 5)) return void res.status(429).json({ error: TOO_MANY_ATTEMPTS });
+  const password = typeof req.body?.password === "string" ? req.body.password.slice(0, 200) : "";
+  const row = await queryOne("SELECT password_hash FROM users WHERE id = $1", [req.user!.id]);
+  if (!row || !(await verifyLogin(password, row.password_hash as string))) {
+    await recordAttempt(throttleKey);
+    return void res.status(403).json({ error: "Şifre hatalı." });
+  }
+  if (req.user!.role === "admin" && !(await queryOne("SELECT 1 FROM users WHERE role = 'admin' AND id <> $1", [req.user!.id]))) {
+    return void res.status(400).json({ error: "Son yönetici hesabı silinemez; önce başka bir yönetici ekleyin." });
+  }
+  const { statements, warning } = await userDeletion(req.user!.id);
+  if (warning && req.body?.force !== true) return void res.status(409).json({ error: `Hesabınız ${warning}`, code: "has_vehicles" });
+  await transaction(statements);
+  res.clearCookie(SESSION_COOKIE, { path: "/" });
   res.status(204).end();
 });
 
@@ -1186,11 +1217,17 @@ api.post("/import", requireUser, async (req, res) => {
     (await query("SELECT vehicle_id FROM vehicle_members WHERE user_id = $1", [req.user!.id])).map((r) => r.vehicle_id as string),
   );
 
+  // Imported vehicles count toward the plan like any other; ones over the limit are left out.
+  const ownedRow = await queryOne("SELECT COUNT(*) AS n FROM vehicle_members WHERE user_id = $1 AND role = 'owner'", [req.user!.id]);
+  let room = Math.max(0, planById(req.user!.plan).maxVehicles - Number(ownedRow?.n ?? 0));
+
   const vehicleStatements: Statement[] = [];
   for (const raw of vehicles) {
     const r = raw as Record<string, unknown>;
     const parsed = parseVehicleInput(r);
     if (!parsed.ok || typeof r.id !== "string" || taken.has(r.id)) continue;
+    if (room <= 0) continue;
+    room--;
     vehicleStatements.push(
       insertVehicleStatement(
         { ...parsed.value, id: r.id, createdAt: typeof r.createdAt === "string" ? r.createdAt : now },

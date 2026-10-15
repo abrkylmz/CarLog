@@ -28,7 +28,10 @@ const BOM = "﻿";
 
 function cell(value: string | number | null | undefined): string {
   if (value == null) return "";
-  const text = String(value);
+  let text = String(value);
+  // Text that starts like a formula (=, +, -, @) would run as one when the file is opened in
+  // Excel; notes can come from other people on a shared vehicle. A leading ' keeps it as text.
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return /[";\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

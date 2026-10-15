@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Bell, CalendarDays, Car, ChevronDown, Crown, Fuel, KeyRound, LayoutDashboard, LogOut, Receipt, Search, ShieldCheck } from "lucide-react";
+import { Bell, CalendarDays, Car, ChevronDown, Crown, Trash2, Fuel, KeyRound, LayoutDashboard, LogOut, Receipt, Search, ShieldCheck } from "lucide-react";
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL } from "../lib/format";
 import { usePopover } from "../lib/popover";
 import { planById } from "../lib/plans";
@@ -249,7 +249,17 @@ export function ReminderBell({ vehicles, reminders, latestKmByVehicle }: {
 
 // ---- Account ------------------------------------------------------------------
 
-export function UserMenu({ user, onLogout, onChangePassword }: { user: User; onLogout: () => void; onChangePassword: () => void }) {
+export function UserMenu({
+  user,
+  onLogout,
+  onChangePassword,
+  onDeleteAccount,
+}: {
+  user: User;
+  onLogout: () => void;
+  onChangePassword: () => void;
+  onDeleteAccount: () => void;
+}) {
   const { open, toggle, ref } = usePopover();
   const isAdmin = user.role === "admin";
   return (
@@ -301,6 +311,14 @@ export function UserMenu({ user, onLogout, onChangePassword }: { user: User; onL
           >
             <LogOut size={16} />
             Çıkış Yap
+          </button>
+          <button
+            type="button"
+            onClick={onDeleteAccount}
+            className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-xs text-slate-500 transition hover:bg-red-50 hover:text-red-600 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-red-950/40"
+          >
+            <Trash2 size={14} />
+            Hesabımı Sil
           </button>
         </div>
       ) : null}

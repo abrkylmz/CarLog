@@ -72,6 +72,7 @@ export const api = {
   setBudget: (monthlyBudget: number | null) => request<{ user: User }>("PUT", "/account/budget", { monthlyBudget }),
   choosePlan: (plan: PlanId) => request<{ user: User }>("POST", "/account/plan", { plan }),
   setUserPlan: (id: string, plan: PlanId) => request<void>("PUT", `/users/${encodeURIComponent(id)}/plan`, { plan }),
+  deleteAccount: (password: string, force = false) => request<void>("POST", "/account/delete", { password, force }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<void>("POST", "/auth/password", { currentPassword, newPassword }),
   updateOdometer: (vehicleId: string, odometerKm: number) =>
