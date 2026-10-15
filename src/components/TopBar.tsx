@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Bell, CalendarDays, Car, ChevronDown, Fuel, KeyRound, LayoutDashboard, LogOut, Receipt, Search, ShieldCheck } from "lucide-react";
+import { Bell, CalendarDays, Car, ChevronDown, Crown, Fuel, KeyRound, LayoutDashboard, LogOut, Receipt, Search, ShieldCheck } from "lucide-react";
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL } from "../lib/format";
 import { usePopover } from "../lib/popover";
+import { planById } from "../lib/plans";
 import { reminderStatus } from "../lib/reminders";
 import { navigate, paths } from "../lib/router";
 import { FUEL_ACCENT } from "../lib/theme";
@@ -274,6 +275,11 @@ export function UserMenu({ user, onLogout, onChangePassword }: { user: User; onL
               <span className="font-medium text-slate-800 dark:text-slate-100">{user.username}</span> · {isAdmin ? "Yönetici" : "Kullanıcı"}
             </span>
           </p>
+          <a href={paths.plans} className="flex items-center gap-2 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800">
+            <Crown size={16} className="text-amber-500" />
+            <span className="flex-1">Paketim</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{planById(user.plan).name}</span>
+          </a>
           {isAdmin ? (
             <a href={paths.admin} className="flex items-center gap-2 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800">
               <LayoutDashboard size={16} />

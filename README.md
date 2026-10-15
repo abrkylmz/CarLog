@@ -15,6 +15,7 @@ uygulama gibi çalışır, bilgisayardan da aynı hesapla kullanılır.
 - **Hatırlatmalar:** muayene, sigorta, bakım gibi işler için tarih ya da kilometreye göre bildirim.
 - **Paylaşım:** bir aracı aileniz veya iş arkadaşlarınızla birlikte takip etme.
 - **Telefonda uygulama gibi:** ana ekrana eklenir, internet yokken de açılır, aşağı çekince yenilenir.
+- **Paketler:** 2 araca kadar ücretsiz; daha fazlası için Plus, Pro ve Filo paketleri (önizleme).
 - **Güvenlik:** herkes yalnızca kendi araçlarını görür; yöneticiler hesapları ve kataloğu yönetir.
 
 ## Kullanılan teknolojiler

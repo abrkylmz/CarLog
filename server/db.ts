@@ -1,3 +1,4 @@
+import { planById } from "../src/lib/plans.ts";
 import { join } from "node:path";
 import { CATALOG_SEED, CATALOG_SEED_VERSION } from "./catalogSeed.ts";
 import type {
@@ -148,6 +149,9 @@ const SCHEMA: string[] = [
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ`,
   // Benzin + LPG vehicles: which fuel a fill-up was ('benzin' | 'lpg').
   `ALTER TABLE entries ADD COLUMN IF NOT EXISTS fuel TEXT`,
+  // Subscription plan (src/lib/plans.ts) and when it was chosen.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_since TEXT`,
   // Odometer typed in without a fill-up, so km-based reminders keep up.
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS odometer_km DOUBLE PRECISION`,
   `ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS odometer_at TEXT`,
@@ -347,6 +351,7 @@ export function toUser(row: Row): User {
     id: row.id as string,
     username: row.username as string,
     role: row.role as Role,
+    plan: planById(row.plan as string | null).id,
     createdAt: row.created_at as string,
   };
 }

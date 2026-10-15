@@ -1,3 +1,5 @@
+import type { PlanId } from "./lib/plans.ts";
+
 export type FuelType = "benzin" | "dizel" | "lpg" | "benzin-lpg" | "hibrit";
 
 export type Role = "admin" | "user";
@@ -6,9 +8,13 @@ export interface User {
   id: string;
   username: string;
   role: Role;
+  /** Subscription plan (see lib/plans.ts); "free" until one is chosen. */
+  plan: PlanId;
   createdAt: string;
   /** Last time the user used the app; only in the admin's user list (null: not seen since tracking began). */
   lastSeenAt?: string | null;
+  /** Vehicles the user owns; only in the admin's user list. */
+  ownedVehicles?: number;
 }
 
 /** A user's relation to a vehicle: the owner manages it, helpers add records to it. */

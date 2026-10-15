@@ -67,6 +67,7 @@ import {
   parseVehicleInput,
 } from "./validate.ts";
 import { sendReminderNotifications, sendToUser, vapidKeys } from "./push.ts";
+import { PLAN_PREVIEW, PLANS, planById, type PlanId } from "../src/lib/plans.ts";
 
 export const api = Router();
 
@@ -297,6 +298,24 @@ api.post("/auth/password", requireUser, async (req, res) => {
   res.status(204).end();
 });
 
+/**
+ * Choose a subscription plan. While PLAN_PREVIEW is on there is no payment provider, so the plan
+ * switches on straight away and free of charge; with payments, this is where checkout would start.
+ */
+api.post("/account/plan", requireUser, async (req, res) => {
+  const plan = PLANS.find((p) => p.id === req.body?.plan);
+  if (!plan) return void res.status(400).json({ error: "Geçersiz paket." });
+  if (!PLAN_PREVIEW && plan.monthlyPrice > 0) {
+    return void res.status(402).json({ error: "Ödeme altyapısı henüz hazır değil." });
+  }
+  const row = await queryOne("UPDATE users SET plan = $1, plan_since = $2 WHERE id = $3 RETURNING *", [
+    plan.id,
+    new Date().toISOString(),
+    req.user!.id,
+  ]);
+  res.json({ user: toUser(row!) });
+});
+
 api.post("/auth/logout", async (req, res) => {
   await destroySession(req, res);
   res.status(204).end();
@@ -327,10 +346,21 @@ async function guardVehicle(req: Request, res: Response, needed: "member" | "own
   return true;
 }
 
-/** Whoever adds a vehicle becomes its owner. */
+/** Whoever adds a vehicle becomes its owner, within their plan's vehicle limit. */
 api.post("/vehicles", requireUser, async (req, res) => {
   const parsed = parseVehicleInput(req.body);
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
+
+  // Only vehicles the user owns count; ones shared with them don't. Vehicles already over the
+  // limit (from before plans existed) are kept; only adding more needs a bigger plan.
+  const plan = planById(req.user!.plan);
+  const owned = await queryOne("SELECT COUNT(*) AS n FROM vehicle_members WHERE user_id = $1 AND role = 'owner'", [req.user!.id]);
+  if (Number(owned?.n ?? 0) >= plan.maxVehicles) {
+    return void res.status(403).json({
+      error: `${plan.name} pakette en fazla ${plan.maxVehicles} araç eklenebilir. Daha fazlası için paketinizi yükseltin.`,
+      code: "plan_limit",
+    });
+  }
 
   const vehicle = {
     ...parsed.value,
@@ -1019,8 +1049,14 @@ api.get("/cron/reminders", async (req, res) => {
 
 api.get("/users", requireAdmin, async (_req, res) => {
   res.json(
-    (await query("SELECT * FROM users ORDER BY created_at")).map((r) => ({
+    (
+      await query(
+        `SELECT u.*, (SELECT COUNT(*) FROM vehicle_members m WHERE m.user_id = u.id AND m.role = 'owner') AS owned
+         FROM users u ORDER BY u.created_at`,
+      )
+    ).map((r) => ({
       ...toUser(r),
+      ownedVehicles: Number(r.owned),
       lastSeenAt: r.last_seen_at ? new Date(r.last_seen_at as string | Date).toISOString() : null,
     })),
   );
@@ -1040,6 +1076,19 @@ api.post("/users", requireAdmin, async (req, res) => {
   );
   if (!row) return void res.status(409).json({ error: "Bu kullanıcı adı zaten kullanılıyor." });
   res.status(201).json(toUser(row));
+});
+
+/** Admins set anyone's plan (e.g. a gift, or a correction while payments aren't live). */
+api.put("/users/:id/plan", requireAdmin, async (req, res) => {
+  const plan = PLANS.find((p) => p.id === req.body?.plan);
+  if (!plan) return void res.status(400).json({ error: "Geçersiz paket." });
+  const row = await queryOne("UPDATE users SET plan = $1, plan_since = $2 WHERE id = $3 RETURNING id", [
+    plan.id as PlanId,
+    new Date().toISOString(),
+    paramId(req),
+  ]);
+  if (!row) return void res.status(404).json({ error: "Kullanıcı bulunamadı." });
+  res.status(204).end();
 });
 
 api.put("/users/:id/password", requireAdmin, async (req, res) => {

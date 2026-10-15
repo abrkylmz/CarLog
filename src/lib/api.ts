@@ -1,3 +1,4 @@
+import type { PlanId } from "./plans";
 import type {
   CatalogEntry,
   CatalogEntryInput,
@@ -21,6 +22,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** Machine-readable reason from the server, e.g. "plan_limit". */
+    readonly code?: string,
   ) {
     super(message);
   }
@@ -52,7 +55,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new ApiError(data?.error ?? `İstek başarısız (${res.status}).`, res.status);
+    throw new ApiError(data?.error ?? `İstek başarısız (${res.status}).`, res.status, data?.code);
   }
   return data as T;
 }
@@ -66,6 +69,8 @@ export const api = {
   login: (username: string, password: string, panel: "user" | "admin") =>
     request<{ user: User }>("POST", "/auth/login", { username, password, panel }),
   logout: () => request<void>("POST", "/auth/logout"),
+  choosePlan: (plan: PlanId) => request<{ user: User }>("POST", "/account/plan", { plan }),
+  setUserPlan: (id: string, plan: PlanId) => request<void>("PUT", `/users/${encodeURIComponent(id)}/plan`, { plan }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<void>("POST", "/auth/password", { currentPassword, newPassword }),
   updateOdometer: (vehicleId: string, odometerKm: number) =>

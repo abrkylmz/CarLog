@@ -5,6 +5,7 @@ import CatalogAdmin from "../components/CatalogAdmin";
 import { useDialog } from "../components/DialogProvider";
 import { api, ApiError, errorMessage } from "../lib/api";
 import { formatDate, formatRelative } from "../lib/format";
+import { planById, PLANS, type PlanId } from "../lib/plans";
 import type { Role, User } from "../types";
 
 interface Props {
@@ -29,6 +30,15 @@ export default function UsersPage({ currentUser }: Props) {
       .then(setUsers)
       .catch((err) => setLoadError(errorMessage(err)));
   }, []);
+
+  async function handlePlan(user: User, plan: PlanId) {
+    try {
+      await api.setUserPlan(user.id, plan);
+      setUsers((prev) => prev?.map((u) => (u.id === user.id ? { ...u, plan } : u)) ?? null);
+    } catch (err) {
+      await dialog.alert({ title: "Paket değiştirilemedi", message: errorMessage(err), tone: "danger" });
+    }
+  }
 
   async function handleResetPassword(user: User) {
     const password = await dialog.prompt({
@@ -155,7 +165,8 @@ export default function UsersPage({ currentUser }: Props) {
                         ) : null}
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {user.role === "admin" ? "Admin" : "Kullanıcı"} · {formatDate(user.createdAt)} tarihinde katıldı
+                        {user.role === "admin" ? "Admin" : "Kullanıcı"} · {formatDate(user.createdAt)} tarihinde katıldı ·{" "}
+                        {user.ownedVehicles ?? 0} araç
                       </p>
                       <p
                         className="text-xs text-slate-500 dark:text-slate-400"
@@ -169,6 +180,19 @@ export default function UsersPage({ currentUser }: Props) {
                         )}
                       </p>
                     </div>
+                    <select
+                      value={user.plan}
+                      onChange={(e) => handlePlan(user, e.target.value as PlanId)}
+                      aria-label={`${user.username} paketi`}
+                      title={`${user.ownedVehicles ?? 0} araç · paket sınırı ${planById(user.plan).maxVehicles}`}
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium dark:border-slate-700 dark:bg-slate-900"
+                    >
+                      {PLANS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.maxVehicles} araç)
+                        </option>
+                      ))}
+                    </select>
                     <button
                       type="button"
                       onClick={() => handleResetPassword(user)}

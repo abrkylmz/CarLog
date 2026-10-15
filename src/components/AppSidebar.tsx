@@ -1,6 +1,7 @@
-import { Car, Download, Fuel, Home, LayoutDashboard, Play, Plus } from "lucide-react";
+import { Car, Crown, Download, Fuel, Home, LayoutDashboard, Play, Plus } from "lucide-react";
 import { paths, VEHICLE_TAB_LABELS, VEHICLE_TABS, type Route } from "../lib/router";
 import { FUEL_ACCENT } from "../lib/theme";
+import { planById } from "../lib/plans";
 import type { User, Vehicle } from "../types";
 
 interface Props {
@@ -84,6 +85,13 @@ export default function AppSidebar({ user, route, vehicles, wrappedYear, onExpor
         <p className="mb-1 mt-5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
           Diğer
         </p>
+        <a href={paths.plans} className={`${item} ${route.name === "plans" ? current : idle}`}>
+          <Crown size={19} />
+          <span className="flex-1">Paketler</span>
+          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+            {planById(user.plan).name}
+          </span>
+        </a>
         <button type="button" onClick={onExport} className={`${item} ${idle} text-left`}>
           <Download size={19} />
           Dışa Aktar

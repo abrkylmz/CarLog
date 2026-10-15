@@ -14,7 +14,7 @@ import Toaster, { toast } from "./components/Toaster";
 import QuickAdd from "./components/QuickAdd";
 import ThemeToggle from "./components/ThemeToggle";
 import { nextReminderPreview, reminderTitle } from "./components/Reminders";
-import { api, errorMessage, UNAUTHORIZED_EVENT, type AdminSetupState } from "./lib/api";
+import { api, ApiError, errorMessage, UNAUTHORIZED_EVENT, type AdminSetupState } from "./lib/api";
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL, parseAmount } from "./lib/format";
 import { navigate, paths, useHashRoute, type Route } from "./lib/router";
 import { FUEL_ACCENT, usePageAccent } from "./lib/theme";
@@ -28,6 +28,8 @@ import { AdminAuthPage, UserAuthPage } from "./pages/AuthPage";
 import InvitePage, { InviteNotice } from "./pages/InvitePage";
 import HomePage from "./pages/HomePage";
 import NewVehiclePage from "./pages/NewVehiclePage";
+import PlansPage from "./pages/PlansPage";
+import { planById } from "./lib/plans";
 import UsersPage from "./pages/UsersPage";
 import VehiclePage from "./pages/VehiclePage";
 import type {
@@ -105,6 +107,7 @@ export default function App() {
     <SignedInApp
       user={auth.user}
       route={route}
+      onUserChange={(user) => setAuth({ status: "ready", user })}
       onLogout={async () => {
         await api.logout().catch(() => undefined);
         // Forget this account's saved data in the offline cache.
@@ -117,7 +120,18 @@ export default function App() {
   );
 }
 
-function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLogout: () => void }) {
+function SignedInApp({
+  user,
+  route,
+  onLogout,
+  onUserChange,
+}: {
+  user: User;
+  route: Route;
+  onLogout: () => void;
+  /** After the user's own account changes (e.g. a new plan). */
+  onUserChange: (user: User) => void;
+}) {
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
   const [entries, setEntries] = useState<FuelEntry[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -173,7 +187,18 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
   }, [reload]);
 
   async function addVehicle(input: VehicleInput) {
-    const vehicle = await api.createVehicle(input);
+    let vehicle: Vehicle;
+    try {
+      vehicle = await api.createVehicle(input);
+    } catch (err) {
+      // Over the plan's vehicle limit: show the plans instead of an error.
+      if (err instanceof ApiError && err.code === "plan_limit") {
+        navigate(paths.plans);
+        toast("Daha fazla araç için paketinizi yükseltin");
+        return;
+      }
+      throw err;
+    }
     setVehicles((prev) => [...(prev ?? []), vehicle]);
     navigate(paths.vehicle(vehicle.id, "dolumlar"));
   }
@@ -465,6 +490,9 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
     return km;
   }, [entries, vehicles]);
 
+  /** Vehicles this user owns; the plan's vehicle limit applies to these only. */
+  const ownedCount = (vehicles ?? []).filter((v) => v.myRole === "owner").length;
+
   const currentVehicle = route.name === "vehicle" ? vehicles?.find((v) => v.id === route.id) : undefined;
   // Inside a vehicle the whole app (header included) takes that vehicle's fuel-type color.
   usePageAccent(currentVehicle ? FUEL_ACCENT[currentVehicle.fuelType] : null);
@@ -490,7 +518,18 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
       />
     );
   } else if (route.name === "new-vehicle") {
-    page = <NewVehiclePage catalog={catalog} onCreate={addVehicle} />;
+    page = <NewVehiclePage catalog={catalog} onCreate={addVehicle} plan={planById(user.plan)} ownedCount={ownedCount} />;
+  } else if (route.name === "plans") {
+    page = (
+      <PlansPage
+        user={user}
+        ownedCount={ownedCount}
+        onChoose={async (plan) => {
+          const { user: updated } = await api.choosePlan(plan.id);
+          onUserChange(updated);
+        }}
+      />
+    );
   } else if (route.name === "vehicle") {
     const vehicle = vehicles.find((v) => v.id === route.id);
     page = vehicle ? (
@@ -540,6 +579,7 @@ function SignedInApp({ user, route, onLogout }: { user: User; route: Route; onLo
         reminders={reminders}
         year={year}
         years={years}
+        plan={planById(user.plan)}
         onYearChange={setYear}
         onReload={reload}
         onExport={() => setExportFor("")}

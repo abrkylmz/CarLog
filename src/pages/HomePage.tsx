@@ -7,6 +7,7 @@ import {
   BarChart3,
   Car,
   Check,
+  Crown,
   Download,
   Droplet,
   Fuel,
@@ -29,6 +30,7 @@ import { usePopover } from "../lib/popover";
 import { reminderStatus } from "../lib/reminders";
 import { paths } from "../lib/router";
 import { FUEL_ACCENT } from "../lib/theme";
+import type { Plan } from "../lib/plans";
 import type { Expense, FuelEntry, Reminder, Vehicle } from "../types";
 
 interface Props {
@@ -39,6 +41,8 @@ interface Props {
   year: number;
   years: number[];
   onYearChange: (year: number) => void;
+  /** The user's plan, for the "2 / 2 araç" usage and the add tile at the limit. */
+  plan: Plan;
   onReload: () => void;
   onExport: () => void;
 }
@@ -88,7 +92,7 @@ function useSort(): [SortKey, (key: SortKey) => void] {
   ];
 }
 
-export default function HomePage({ vehicles, entries, expenses, reminders, year, years, onYearChange, onReload, onExport }: Props) {
+export default function HomePage({ vehicles, entries, expenses, reminders, year, years, onYearChange, plan, onReload, onExport }: Props) {
   const wide = useMediaQuery("(min-width: 1024px)");
   const [sort, setSort] = useSort();
 
@@ -171,16 +175,17 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
       spend={spendByVehicle.get(vehicle.id)!}
     />
   );
+  const atLimit = owned.length >= plan.maxVehicles;
   const addTile = (
     <a
       key="new"
-      href={paths.newVehicle}
+      href={atLimit ? paths.plans : paths.newVehicle}
       className="flex min-h-[12rem] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 text-sm font-medium text-slate-500 transition hover:border-brand-400 hover:bg-brand-50/50 hover:text-brand-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-brand-500 dark:hover:bg-brand-900/10 dark:hover:text-brand-300"
     >
       <span className="rounded-full bg-slate-100 p-3 dark:bg-slate-800">
-        <Plus size={22} />
+        {atLimit ? <Crown size={22} className="text-amber-500" /> : <Plus size={22} />}
       </span>
-      Yeni araç ekle
+      {atLimit ? "Daha fazla araç için paketini yükselt" : "Yeni araç ekle"}
     </a>
   );
   const strip = (list: Vehicle[], label: string, withAdd: boolean) =>
@@ -267,8 +272,15 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
           <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight">
             Araçlarım
             <span className="rounded-lg bg-slate-200/70 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              {owned.length} araç
+              {owned.length} / {plan.maxVehicles} araç
             </span>
+            <a
+              href={paths.plans}
+              className="inline-flex items-center gap-1 rounded-lg bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-300"
+            >
+              <Crown size={12} />
+              {plan.name}
+            </a>
           </h2>
           <div className="flex items-center gap-2">
             <button
