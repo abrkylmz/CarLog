@@ -16,6 +16,9 @@ import type {
   VehicleInput,
   VehicleInvite,
   VehicleMember,
+  SupportMessage,
+  SupportStatus,
+  SupportThread,
 } from "../types";
 
 /** Optional server features that need keys (see server/receipt.ts, server/mail.ts). */
@@ -32,6 +35,32 @@ export interface ReceiptReading {
   price_per_liter: number | null;
   fuel: "benzin" | "motorin" | "lpg" | "diger" | null;
   station: string | null;
+}
+
+export interface AdminStats {
+  users: number;
+  moderators: number;
+  admins: number;
+  active7: number;
+  active30: number;
+  new7: number;
+  vehicles: number;
+  entries: number;
+  expenses: number;
+  errors24h: number;
+  supportOpen: number;
+  supportUnread: number;
+  plans: { plan: string; n: number }[];
+  signups: { day: string; n: number }[];
+  fillUps: { day: string; n: number }[];
+}
+
+/** The account behind a support conversation, for the staff's side panel. */
+export interface SupportUserInfo extends User {
+  lastSeenAt: string | null;
+  ownedVehicles: number;
+  fillUps: number;
+  recentErrors: { message: string; url: string | null; at: string }[];
 }
 
 export interface AppErrorReport {
@@ -100,6 +129,23 @@ export const api = {
   scanReceipt: (image: string) => request<ReceiptReading>("POST", "/receipts/scan", { image }),
   expensePhoto: (id: string) => request<{ image: string }>("GET", `/expenses/${encodeURIComponent(id)}/photo`),
   listErrors: () => request<AppErrorReport[]>("GET", "/admin/errors"),
+  adminStats: () => request<AdminStats>("GET", "/admin/stats"),
+  setUserRole: (id: string, role: Role) => request<User>("PUT", `/users/${encodeURIComponent(id)}/role`, { role }),
+  supportThreads: () => request<SupportThread[]>("GET", "/support/threads"),
+  startSupport: (subject: string, body: string, context: string) =>
+    request<SupportThread>("POST", "/support/threads", { subject, body, context }),
+  supportMessages: (threadId: string, after?: string) =>
+    request<{ status: SupportStatus; messages: SupportMessage[] }>(
+      "GET",
+      `/support/threads/${encodeURIComponent(threadId)}/messages${after ? `?after=${encodeURIComponent(after)}` : ""}`,
+    ),
+  sendSupport: (threadId: string, body: string) =>
+    request<SupportMessage>("POST", `/support/threads/${encodeURIComponent(threadId)}/messages`, { body }),
+  supportUnread: () => request<{ mine: number; staff: number }>("GET", "/support/unread"),
+  staffThreads: (status: "open" | "closed" | "all") => request<SupportThread[]>("GET", `/admin/support/threads?status=${status}`),
+  setThreadStatus: (threadId: string, status: SupportStatus) =>
+    request<SupportThread>("PUT", `/admin/support/threads/${encodeURIComponent(threadId)}`, { status }),
+  supportUser: (threadId: string) => request<SupportUserInfo>("GET", `/admin/support/threads/${encodeURIComponent(threadId)}/user`),
   clearErrors: () => request<void>("DELETE", "/admin/errors"),
   login: (username: string, password: string, panel: "user" | "admin") =>
     request<{ user: User }>("POST", "/auth/login", { username, password, panel }),

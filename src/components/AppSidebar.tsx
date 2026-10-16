@@ -1,4 +1,4 @@
-import { Car, Crown, Download, Fuel, Home, LayoutDashboard, Play, Plus } from "lucide-react";
+import { Car, Crown, Download, Fuel, Headset, Home, LayoutDashboard, Play, Plus } from "lucide-react";
 import { paths, VEHICLE_TAB_LABELS, VEHICLE_TABS, type Route } from "../lib/router";
 import { FUEL_ACCENT } from "../lib/theme";
 import { planById } from "../lib/plans";
@@ -11,6 +11,8 @@ interface Props {
   /** Year offered for the year-in-review card, if there is anything to show. */
   wrappedYear: number | null;
   onExport: () => void;
+  /** Support conversations with a reply the user hasn't read. */
+  supportUnread: number;
 }
 
 const item =
@@ -22,7 +24,7 @@ const current = "bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand
  * Desktop navigation: home, each vehicle (the open one unfolds into its tabs), and the
  * year-in-review at the bottom. Hidden on phones, which use the header and the bottom tab bar.
  */
-export default function AppSidebar({ user, route, vehicles, wrappedYear, onExport }: Props) {
+export default function AppSidebar({ user, route, vehicles, wrappedYear, onExport, supportUnread }: Props) {
   const openId = route.name === "vehicle" ? route.id : null;
 
   return (
@@ -96,10 +98,15 @@ export default function AppSidebar({ user, route, vehicles, wrappedYear, onExpor
           <Download size={19} />
           Dışa Aktar
         </button>
-        {user.role === "admin" ? (
-          <a href={paths.admin} className={`${item} ${route.name === "admin" ? current : idle}`}>
+        <a href={paths.support} className={`${item} ${route.name === "support" ? current : idle}`}>
+          <Headset size={19} />
+          <span className="flex-1">Canlı Destek</span>
+          {supportUnread > 0 ? <span className="rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{supportUnread}</span> : null}
+        </a>
+        {user.role !== "user" ? (
+          <a href={paths.admin} className={`${item} ${idle}`}>
             <LayoutDashboard size={19} />
-            Yönetici Paneli
+            Yönetim Paneli
           </a>
         ) : null}
       </nav>

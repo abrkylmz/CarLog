@@ -24,7 +24,7 @@ interface DialogOptions {
 
 type Result = { confirmed: boolean; value: string };
 
-interface DialogApi {
+export interface DialogApi {
   /** Resolves true when the user confirms. */
   confirm: (options: DialogOptions) => Promise<boolean>;
   /** A notice with a single OK button. */

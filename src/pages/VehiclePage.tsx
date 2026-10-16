@@ -285,7 +285,7 @@ export default function VehiclePage({
             />
           </section>
 
-          <CostPerKmCard entries={entries} expenses={expenses} />
+          <CostPerKmCard entries={entries} />
 
           <section className="mb-6 grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
             <RecentEntries vehicles={[vehicle]} entries={entries} single />

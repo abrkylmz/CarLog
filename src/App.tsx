@@ -37,7 +37,8 @@ import type { Services } from "./lib/api";
 const VehiclePage = lazy(() => import("./pages/VehiclePage"));
 const NewVehiclePage = lazy(() => import("./pages/NewVehiclePage"));
 const PlansPage = lazy(() => import("./pages/PlansPage"));
-const UsersPage = lazy(() => import("./pages/UsersPage"));
+const AdminConsole = lazy(() => import("./pages/admin/AdminConsole"));
+const SupportPage = lazy(() => import("./pages/SupportPage"));
 const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const WrappedStories = lazy(() => import("./components/WrappedStories"));
@@ -126,20 +127,34 @@ export default function App() {
     );
   }
 
+  const signedInUser = auth.user;
+  const logout = async () => {
+    await api.logout().catch(() => undefined);
+    // Forget this account's saved data in the offline cache.
+    navigator.serviceWorker?.controller?.postMessage({ type: "clear-data" });
+    // Send each role back to the login panel it came from.
+    navigate(signedInUser.role !== "user" ? paths.admin : paths.home);
+    checkAuth();
+  };
+
+  // The staff's console is its own interface, outside the app's shell.
+  if (route.name === "admin" && signedInUser.role !== "user") {
+    return (
+      <SessionContext.Provider value={{ user: signedInUser, services }}>
+        <Suspense fallback={<CenteredMessage>Yükleniyor…</CenteredMessage>}>
+          <AdminConsole user={signedInUser} section={route.section} onLogout={logout} />
+        </Suspense>
+      </SessionContext.Provider>
+    );
+  }
+
   return (
-    <SessionContext.Provider value={{ user: auth.user, services }}>
+    <SessionContext.Provider value={{ user: signedInUser, services }}>
     <SignedInApp
-      user={auth.user}
+      user={signedInUser}
       route={route}
       onUserChange={(user) => setAuth({ status: "ready", user })}
-      onLogout={async () => {
-        await api.logout().catch(() => undefined);
-        // Forget this account's saved data in the offline cache.
-        navigator.serviceWorker?.controller?.postMessage({ type: "clear-data" });
-        // Send each role back to the login panel it came from.
-        navigate(auth.user.role === "admin" ? paths.admin : paths.home);
-        checkAuth();
-      }}
+      onLogout={logout}
     />
     </SessionContext.Provider>
   );
@@ -167,7 +182,7 @@ function SignedInApp({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [changingPassword, setChangingPassword] = useState(false);
   const [phoneSearch, setPhoneSearch] = useState(false);
-  const isAdmin = user.role === "admin";
+  const [supportUnread, setSupportUnread] = useState(0);
   const dialog = useDialog();
   const showError = (err: unknown) =>
     dialog.alert({ title: "İşlem tamamlanamadı", message: errorMessage(err), tone: "danger" });
@@ -685,6 +700,14 @@ function SignedInApp({
   /** Vehicles this user owns; the plan's vehicle limit applies to these only. */
   const ownedCount = (vehicles ?? []).filter((v) => v.myRole === "owner").length;
 
+  // Replies from support show as a badge on the account menu; checked every minute.
+  useEffect(() => {
+    const check = () => api.supportUnread().then((u) => setSupportUnread(u.mine), () => undefined);
+    void check();
+    const timer = window.setInterval(() => document.visibilityState === "visible" && void check(), 60_000);
+    return () => window.clearInterval(timer);
+  }, [route.name]);
+
   const currentVehicle = route.name === "vehicle" ? vehicles?.find((v) => v.id === route.id) : undefined;
   // Inside a vehicle the whole app (header included) takes that vehicle's fuel-type color.
   usePageAccent(currentVehicle ? FUEL_ACCENT[currentVehicle.fuelType] : null);
@@ -701,7 +724,9 @@ function SignedInApp({
       <LoadingSkeleton />
     );
   } else if (route.name === "admin") {
-    page = isAdmin ? <UsersPage currentUser={user} /> : <NotAllowed />;
+    page = <NotAllowed />;
+  } else if (route.name === "support") {
+    page = <SupportPage />;
   } else if (route.name === "invite") {
     page = (
       <InvitePage
@@ -798,6 +823,7 @@ function SignedInApp({
         vehicles={vehicles ?? []}
         wrappedYear={wrappedYear(entries)}
         onExport={() => setExportFor("")}
+        supportUnread={supportUnread}
       />
       <div
         className={`mx-auto w-full min-w-0 flex-1 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 lg:px-8 lg:pt-6 ${
@@ -837,7 +863,7 @@ function SignedInApp({
             </button>
           ) : null}
           {vehicles ? <ReminderBell vehicles={vehicles} reminders={reminders} latestKmByVehicle={latestKmByVehicle} /> : null}
-          <UserMenu user={user} onLogout={onLogout} onChangePassword={() => setChangingPassword(true)} onDeleteAccount={deleteAccount} onEditEmail={editEmail} />
+          <UserMenu user={user} onLogout={onLogout} onChangePassword={() => setChangingPassword(true)} onDeleteAccount={deleteAccount} onEditEmail={editEmail} supportUnread={supportUnread} />
         </div>
       </header>
       {phoneSearch && vehicles ? (
@@ -866,6 +892,7 @@ function SignedInApp({
           onLogout={onLogout}
           onDeleteAccount={deleteAccount}
           onEditEmail={editEmail}
+          supportUnread={supportUnread}
         />
       ) : null}
       {changingPassword ? <PasswordDialog onClose={() => setChangingPassword(false)} /> : null}

@@ -126,6 +126,19 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   next();
 }
 
+/** Admins and moderators (support desk, error log). */
+export function requireStaff(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({ error: "Oturum açmanız gerekiyor." });
+    return;
+  }
+  if (req.user.role !== "admin" && req.user.role !== "moderator") {
+    res.status(403).json({ error: "Bu işlem için yetkiniz yok." });
+    return;
+  }
+  next();
+}
+
 export async function purgeExpired(): Promise<void> {
   await query("DELETE FROM sessions WHERE expires_at <= now()");
   await query("DELETE FROM login_attempts WHERE reset_at <= now()");

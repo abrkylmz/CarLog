@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BarChart3, Car, ChevronRight, Crown, Download, Home, KeyRound, Mail, LayoutDashboard, LogOut, Play, Plus, UserRound } from "lucide-react";
+import { BarChart3, Car, ChevronRight, Crown, Download, Headset, Home, KeyRound, Mail, LayoutDashboard, LogOut, Play, Plus, UserRound } from "lucide-react";
 import { planById } from "../lib/plans";
 import { paths, type Route } from "../lib/router";
 import { FUEL_ACCENT } from "../lib/theme";
@@ -19,6 +19,7 @@ interface Props {
   onLogout: () => void;
   onDeleteAccount: () => void;
   onEditEmail: () => void;
+  supportUnread: number;
 }
 
 type Sheet = "vehicles" | "reports" | "profile" | null;
@@ -27,7 +28,7 @@ type Sheet = "vehicles" | "reports" | "profile" | null;
  * Phone tab bar for every screen except a vehicle's own pages (which have their tabs): home,
  * vehicles, the add button in the middle under the thumb, reports and the account.
  */
-export default function AppBottomNav({ user, route, vehicles, wrappedYear, onExport, onChangePassword, onLogout, onDeleteAccount, onEditEmail }: Props) {
+export default function AppBottomNav({ user, route, vehicles, wrappedYear, onExport, onChangePassword, onLogout, onDeleteAccount, onEditEmail, supportUnread }: Props) {
   const [sheet, setSheet] = useState<Sheet>(null);
   const close = () => setSheet(null);
   const item = (active: boolean) =>
@@ -75,7 +76,8 @@ export default function AppBottomNav({ user, route, vehicles, wrappedYear, onExp
           <BarChart3 size={20} />
           Raporlar
         </button>
-        <button type="button" onClick={() => setSheet("profile")} className={item(sheet === "profile" || route.name === "admin")} aria-haspopup="dialog">
+        <button type="button" onClick={() => setSheet("profile")} className={`relative ${item(sheet === "profile" || route.name === "support")}`} aria-haspopup="dialog">
+          {supportUnread > 0 ? <span className="absolute right-[calc(50%-14px)] top-1 h-2.5 w-2.5 rounded-full bg-brand-600 ring-2 ring-white dark:ring-slate-900" aria-label="Destekten yeni yanıt" /> : null}
           <UserRound size={20} />
           Profil
         </button>
@@ -186,11 +188,18 @@ export default function AppBottomNav({ user, route, vehicles, wrappedYear, onExp
               Tema
               <ThemeToggle className="[&>span]:inline" />
             </li>
-            {user.role === "admin" ? (
+            <li>
+              <a href={paths.support} onClick={close} className={row}>
+                <Headset size={18} className="text-brand-600" />
+                <span className="flex-1">Canlı Destek</span>
+                {supportUnread > 0 ? <span className="rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{supportUnread}</span> : null}
+              </a>
+            </li>
+            {user.role !== "user" ? (
               <li>
                 <a href={paths.admin} onClick={close} className={row}>
                   <LayoutDashboard size={18} />
-                  Yönetici Paneli
+                  Yönetim Paneli
                 </a>
               </li>
             ) : null}

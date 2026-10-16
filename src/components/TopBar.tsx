@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Bell, CalendarDays, Car, ChevronDown, Crown, Mail, Trash2, Fuel, KeyRound, LayoutDashboard, LogOut, Receipt, Search, ShieldCheck } from "lucide-react";
+import { Bell, CalendarDays, Car, ChevronDown, Crown, Mail, Trash2, Fuel, Headset, KeyRound, LayoutDashboard, LogOut, Receipt, Search, ShieldCheck } from "lucide-react";
 import { EXPENSE_CATEGORY_LABELS, formatDate, formatTL } from "../lib/format";
 import { usePopover } from "../lib/popover";
 import { planById } from "../lib/plans";
@@ -255,15 +255,18 @@ export function UserMenu({
   onChangePassword,
   onDeleteAccount,
   onEditEmail,
+  supportUnread = 0,
 }: {
   user: User;
   onLogout: () => void;
   onChangePassword: () => void;
   onDeleteAccount: () => void;
   onEditEmail: () => void;
+  supportUnread?: number;
 }) {
   const { open, toggle, ref } = usePopover();
   const isAdmin = user.role === "admin";
+  const isStaff = user.role !== "user";
   return (
     <div ref={ref} className="relative">
       <button
@@ -273,8 +276,9 @@ export function UserMenu({
         aria-label="Hesap menüsü"
         className="flex items-center gap-2 rounded-xl py-1 pl-1 pr-2 transition hover:bg-slate-100 dark:hover:bg-slate-800"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold uppercase text-white">
+        <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold uppercase text-white">
           {user.username.slice(0, 1)}
+          {supportUnread > 0 ? <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" aria-label="Destekten yeni yanıt" /> : null}
         </span>
         <span className="hidden max-w-[8rem] truncate text-sm font-medium sm:inline">{user.username}</span>
         <ChevronDown size={15} className="hidden text-slate-400 sm:block" />
@@ -284,7 +288,7 @@ export function UserMenu({
           <p className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5 text-slate-500 dark:border-slate-800 dark:text-slate-400">
             {isAdmin ? <ShieldCheck size={15} /> : null}
             <span className="truncate">
-              <span className="font-medium text-slate-800 dark:text-slate-100">{user.username}</span> · {isAdmin ? "Yönetici" : "Kullanıcı"}
+              <span className="font-medium text-slate-800 dark:text-slate-100">{user.username}</span> · {isAdmin ? "Yönetici" : isStaff ? "Moderatör" : "Kullanıcı"}
             </span>
           </p>
           <a href={paths.plans} className="flex items-center gap-2 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800">
@@ -292,10 +296,15 @@ export function UserMenu({
             <span className="flex-1">Paketim</span>
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{planById(user.plan).name}</span>
           </a>
-          {isAdmin ? (
+          <a href={paths.support} className="flex items-center gap-2 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800">
+            <Headset size={16} className="text-brand-600" />
+            <span className="flex-1">Canlı Destek</span>
+            {supportUnread > 0 ? <span className="rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{supportUnread}</span> : null}
+          </a>
+          {isStaff ? (
             <a href={paths.admin} className="flex items-center gap-2 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800">
               <LayoutDashboard size={16} />
-              Yönetici Paneli
+              Yönetim Paneli
             </a>
           ) : null}
           <button

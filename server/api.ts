@@ -6,6 +6,9 @@ import type {
   FuelEntryInput,
   InvitePreview,
   ReminderKind,
+  SupportMessage,
+  SupportStatus,
+  SupportThread,
   VehicleInput,
   VehicleInvite,
   VehicleMember,
@@ -33,6 +36,7 @@ import {
   purgeExpired,
   recordAttempt,
   requireAdmin,
+  requireStaff,
   requireUser,
   secretsMatch,
   verifyLogin,
@@ -307,7 +311,7 @@ api.post("/auth/login", async (req, res) => {
     await recordAttempt(accountKey);
     return void res.status(401).json({ error: "Kullanıcı adı veya şifre hatalı." });
   }
-  if (panel === "admin" && row.role !== "admin") {
+  if (panel === "admin" && row.role !== "admin" && row.role !== "moderator") {
     return void res.status(403).json({ error: "Bu hesap yönetici değil. Kullanıcı girişini kullanın." });
   }
   if (panel === "user" && row.role === "admin") {
@@ -428,7 +432,7 @@ api.post("/errors", async (req, res) => {
   res.status(204).end();
 });
 
-api.get("/admin/errors", requireAdmin, async (_req, res) => {
+api.get("/admin/errors", requireStaff, async (_req, res) => {
   const rows = await query(
     `SELECT e.*, u.username FROM app_errors e LEFT JOIN users u ON u.id = e.user_id ORDER BY e.created_at DESC LIMIT 200`,
   );
@@ -1263,6 +1267,186 @@ api.get("/cron/reminders", async (req, res) => {
   res.json({ reminders: await sendReminderNotifications(), monthly: await sendMonthlySummaries() });
 });
 
+// ---- Live support ------------------------------------------------------------
+
+const isStaff = (req: Request) => req.user!.role === "admin" || req.user!.role === "moderator";
+
+function toThread(row: Row, staff: boolean): SupportThread {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    username: (row.username as string | null) ?? null,
+    subject: row.subject as string,
+    status: row.status as SupportStatus,
+    createdAt: new Date(row.created_at as string | Date).toISOString(),
+    lastMessageAt: new Date(row.last_message_at as string | Date).toISOString(),
+    lastMessage: (row.last_body as string | null) ?? null,
+    lastFromStaff: Boolean(row.last_from_staff),
+    unread: Boolean(staff ? row.staff_unread : row.user_unread),
+    context: staff ? ((row.context as string | null) ?? null) : null,
+  };
+}
+
+const THREAD_SELECT = `
+  SELECT t.*, u.username,
+    (SELECT body FROM support_messages m WHERE m.thread_id = t.id ORDER BY m.created_at DESC LIMIT 1) AS last_body,
+    (SELECT from_staff FROM support_messages m WHERE m.thread_id = t.id ORDER BY m.created_at DESC LIMIT 1) AS last_from_staff
+  FROM support_threads t LEFT JOIN users u ON u.id = t.user_id`;
+
+function messageBody(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const body = value.trim();
+  // Longer than the box allows: refuse rather than cut the message off unseen.
+  return body && body.length <= 2000 ? body : null;
+}
+
+/** The thread if the caller may see it: their own, or any for staff. */
+async function visibleThread(req: Request, id: string) {
+  const row = await queryOne("SELECT * FROM support_threads WHERE id = $1", [id]);
+  if (!row) return null;
+  return isStaff(req) || row.user_id === req.user!.id ? row : null;
+}
+
+/** Tells the other side about a new message: the user, or every admin and moderator. */
+async function notifySupport(thread: Row, fromStaff: boolean, body: string) {
+  try {
+    if (fromStaff) {
+      await sendToUser(String(thread.user_id), { title: "CarLog Destek yanıtladı", body: body.slice(0, 120), url: "/#/destek", tag: `support-${thread.id}` });
+    } else {
+      const staff = await query("SELECT id FROM users WHERE role IN ('admin', 'moderator')");
+      for (const s of staff) {
+        await sendToUser(String(s.id), { title: `Destek: ${thread.subject}`.slice(0, 80), body: body.slice(0, 120), url: `/#/admin/destek`, tag: `support-${thread.id}` });
+      }
+    }
+  } catch {
+    // A failed notification doesn't undo the message.
+  }
+}
+
+/** The signed-in user's own conversations, newest first. */
+api.get("/support/threads", requireUser, async (req, res) => {
+  res.json((await query(`${THREAD_SELECT} WHERE t.user_id = $1 ORDER BY t.last_message_at DESC LIMIT 50`, [req.user!.id])).map((r) => toThread(r, false)));
+});
+
+/** Opens a conversation with its first message; context is the page and device it came from. */
+api.post("/support/threads", requireUser, async (req, res) => {
+  if (await limited(res, `support:${req.user!.id}`, 40)) return;
+  const body = messageBody(req.body?.body);
+  if (!body) return void res.status(400).json({ error: "Mesajınızı yazın (en fazla 2000 karakter)." });
+  const subject = (typeof req.body?.subject === "string" && req.body.subject.trim().slice(0, 80)) || body.slice(0, 60);
+  const context = typeof req.body?.context === "string" ? req.body.context.slice(0, 300) : null;
+  const id = randomUUID();
+  await transaction([
+    { text: "INSERT INTO support_threads (id, user_id, subject, context) VALUES ($1, $2, $3, $4)", params: [id, req.user!.id, subject, context] },
+    { text: "INSERT INTO support_messages (id, thread_id, sender_id, from_staff, body) VALUES ($1, $2, $3, false, $4)", params: [randomUUID(), id, req.user!.id, body] },
+  ]);
+  const row = (await queryOne(`${THREAD_SELECT} WHERE t.id = $1`, [id]))!;
+  void notifySupport(row, false, body);
+  res.status(201).json(toThread(row, false));
+});
+
+/** A conversation's messages; ?after= returns only newer ones (for polling). Marks it read for the reader. */
+api.get("/support/threads/:id/messages", requireUser, async (req, res) => {
+  const thread = await visibleThread(req, paramId(req));
+  if (!thread) return void res.status(404).json({ error: "Konuşma bulunamadı." });
+  const after = typeof req.query.after === "string" && !Number.isNaN(Date.parse(req.query.after)) ? req.query.after : null;
+  const rows = await query(
+    `SELECT m.*, u.username FROM support_messages m LEFT JOIN users u ON u.id = m.sender_id
+     WHERE m.thread_id = $1 ${after ? "AND m.created_at > $2::timestamptz" : ""} ORDER BY m.created_at`,
+    after ? [paramId(req), after] : [paramId(req)],
+  );
+  const staff = isStaff(req) && thread.user_id !== req.user!.id;
+  await query(`UPDATE support_threads SET ${staff ? "staff_unread" : "user_unread"} = false WHERE id = $1`, [paramId(req)]);
+  res.json({
+    status: thread.status,
+    messages: rows.map(
+      (r): SupportMessage => ({
+        id: r.id as string,
+        threadId: r.thread_id as string,
+        sender: (r.username as string | null) ?? null,
+        fromStaff: Boolean(r.from_staff),
+        body: r.body as string,
+        createdAt: new Date(r.created_at as string | Date).toISOString(),
+      }),
+    ),
+  });
+});
+
+/** Adds a message. A user writing to a closed conversation reopens it. */
+api.post("/support/threads/:id/messages", requireUser, async (req, res) => {
+  const thread = await visibleThread(req, paramId(req));
+  if (!thread) return void res.status(404).json({ error: "Konuşma bulunamadı." });
+  if (await limited(res, `support:${req.user!.id}`, 40)) return;
+  const body = messageBody(req.body?.body);
+  if (!body) return void res.status(400).json({ error: "Mesajınızı yazın (en fazla 2000 karakter)." });
+  const staff = isStaff(req) && thread.user_id !== req.user!.id;
+  const id = randomUUID();
+  await transaction([
+    { text: "INSERT INTO support_messages (id, thread_id, sender_id, from_staff, body) VALUES ($1, $2, $3, $4, $5)", params: [id, thread.id, req.user!.id, staff, body] },
+    {
+      text: `UPDATE support_threads SET last_message_at = now(), ${staff ? "user_unread = true" : "staff_unread = true, status = 'open'"} WHERE id = $1`,
+      params: [thread.id],
+    },
+  ]);
+  void notifySupport(thread, staff, body);
+  const row = await queryOne("SELECT m.*, u.username FROM support_messages m LEFT JOIN users u ON u.id = m.sender_id WHERE m.id = $1", [id]);
+  res.status(201).json({
+    id,
+    threadId: thread.id as string,
+    sender: (row?.username as string | null | undefined) ?? null,
+    fromStaff: staff,
+    body,
+    createdAt: new Date(row!.created_at as string | Date).toISOString(),
+  } satisfies SupportMessage);
+});
+
+/** How many conversations have news for the caller (user: staff replies; staff: user messages). */
+api.get("/support/unread", requireUser, async (req, res) => {
+  const mine = await queryOne("SELECT COUNT(*) AS n FROM support_threads WHERE user_id = $1 AND user_unread", [req.user!.id]);
+  const staff = isStaff(req) ? await queryOne("SELECT COUNT(*) AS n FROM support_threads WHERE staff_unread") : null;
+  res.json({ mine: Number(mine?.n ?? 0), staff: staff ? Number(staff.n) : 0 });
+});
+
+/** Staff inbox: open conversations first, then the rest, newest first. */
+api.get("/admin/support/threads", requireStaff, async (req, res) => {
+  const status = req.query.status === "closed" ? "closed" : req.query.status === "all" ? null : "open";
+  const rows = await query(
+    `${THREAD_SELECT} ${status ? "WHERE t.status = $1" : ""} ORDER BY t.staff_unread DESC, t.last_message_at DESC LIMIT 200`,
+    status ? [status] : [],
+  );
+  res.json(rows.map((r) => toThread(r, true)));
+});
+
+/** Close or reopen a conversation. */
+api.put("/admin/support/threads/:id", requireStaff, async (req, res) => {
+  const status = req.body?.status === "closed" ? "closed" : req.body?.status === "open" ? "open" : null;
+  if (!status) return void res.status(400).json({ error: "Geçersiz durum." });
+  const row = await queryOne("UPDATE support_threads SET status = $1 WHERE id = $2 RETURNING id", [status, paramId(req)]);
+  if (!row) return void res.status(404).json({ error: "Konuşma bulunamadı." });
+  res.json(toThread((await queryOne(`${THREAD_SELECT} WHERE t.id = $1`, [paramId(req)]))!, true));
+});
+
+/** Who the staff is talking to: account, plan, activity and their recent errors (to help debug). */
+api.get("/admin/support/threads/:id/user", requireStaff, async (req, res) => {
+  const thread = await queryOne("SELECT user_id FROM support_threads WHERE id = $1", [paramId(req)]);
+  if (!thread) return void res.status(404).json({ error: "Konuşma bulunamadı." });
+  const u = await queryOne(
+    `SELECT u.*, (SELECT COUNT(*) FROM vehicle_members m WHERE m.user_id = u.id AND m.role = 'owner') AS owned,
+            (SELECT COUNT(*) FROM entries e WHERE e.created_by = u.id) AS fills
+     FROM users u WHERE u.id = $1`,
+    [thread.user_id],
+  );
+  if (!u) return void res.status(404).json({ error: "Kullanıcı silinmiş." });
+  const errors = await query("SELECT message, url, created_at FROM app_errors WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5", [thread.user_id]);
+  res.json({
+    ...toUser(u),
+    lastSeenAt: u.last_seen_at ? new Date(u.last_seen_at as string | Date).toISOString() : null,
+    ownedVehicles: Number(u.owned),
+    fillUps: Number(u.fills),
+    recentErrors: errors.map((e) => ({ message: e.message, url: e.url, at: new Date(e.created_at as string | Date).toISOString() })),
+  });
+});
+
 // ---- Users (admin) ---------------------------------------------------------
 
 api.get("/users", requireAdmin, async (_req, res) => {
@@ -1283,7 +1467,7 @@ api.get("/users", requireAdmin, async (_req, res) => {
 api.post("/users", requireAdmin, async (req, res) => {
   const parsed = parseCredentials(req.body);
   if (!parsed.ok) return void res.status(400).json({ error: parsed.error });
-  const role = req.body?.role === "admin" ? "admin" : "user";
+  const role = req.body?.role === "admin" ? "admin" : req.body?.role === "moderator" ? "moderator" : "user";
 
   const row = await queryOne(
     `INSERT INTO users (id, username, password_hash, role, created_at)
@@ -1307,6 +1491,48 @@ api.put("/users/:id/plan", requireAdmin, async (req, res) => {
   ]);
   if (!row) return void res.status(404).json({ error: "Kullanıcı bulunamadı." });
   res.status(204).end();
+});
+
+/** Admins change someone's role (e.g. make a moderator). Never their own, never the last admin. */
+api.put("/users/:id/role", requireAdmin, async (req, res) => {
+  const role = req.body?.role;
+  if (role !== "admin" && role !== "moderator" && role !== "user") return void res.status(400).json({ error: "Geçersiz rol." });
+  if (paramId(req) === req.user!.id) return void res.status(400).json({ error: "Kendi rolünüzü değiştiremezsiniz." });
+  const row = await queryOne("UPDATE users SET role = $1 WHERE id = $2 RETURNING *", [role, paramId(req)]);
+  if (!row) return void res.status(404).json({ error: "Kullanıcı bulunamadı." });
+  // A changed role takes effect everywhere at once: sign the account out.
+  await query("DELETE FROM sessions WHERE user_id = $1", [paramId(req)]);
+  res.json(toUser(row));
+});
+
+/** Figures for the admin dashboard. */
+api.get("/admin/stats", requireAdmin, async (_req, res) => {
+  const one = async (sql: string) => Number((await queryOne(sql))?.n ?? 0);
+  const series = async (sql: string) =>
+    (await query(sql)).map((r) => ({ day: new Date(r.day as string | Date).toISOString().slice(0, 10), n: Number(r.n) }));
+  res.json({
+    users: await one("SELECT COUNT(*) AS n FROM users"),
+    moderators: await one("SELECT COUNT(*) AS n FROM users WHERE role = 'moderator'"),
+    admins: await one("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'"),
+    active7: await one("SELECT COUNT(*) AS n FROM users WHERE last_seen_at > now() - interval '7 days'"),
+    active30: await one("SELECT COUNT(*) AS n FROM users WHERE last_seen_at > now() - interval '30 days'"),
+    new7: await one("SELECT COUNT(*) AS n FROM users WHERE created_at::timestamptz > now() - interval '7 days'"),
+    vehicles: await one("SELECT COUNT(*) AS n FROM vehicles"),
+    entries: await one("SELECT COUNT(*) AS n FROM entries"),
+    expenses: await one("SELECT COUNT(*) AS n FROM expenses"),
+    errors24h: await one("SELECT COUNT(*) AS n FROM app_errors WHERE created_at > now() - interval '24 hours'"),
+    supportOpen: await one("SELECT COUNT(*) AS n FROM support_threads WHERE status = 'open'"),
+    supportUnread: await one("SELECT COUNT(*) AS n FROM support_threads WHERE staff_unread"),
+    plans: (await query("SELECT plan, COUNT(*) AS n FROM users GROUP BY plan")).map((r) => ({ plan: r.plan, n: Number(r.n) })),
+    signups: await series(
+      `SELECT date_trunc('day', created_at::timestamptz) AS day, COUNT(*) AS n FROM users
+       WHERE created_at::timestamptz > now() - interval '30 days' GROUP BY 1 ORDER BY 1`,
+    ),
+    fillUps: await series(
+      `SELECT date_trunc('day', created_at::timestamptz) AS day, COUNT(*) AS n FROM entries
+       WHERE created_at::timestamptz > now() - interval '30 days' GROUP BY 1 ORDER BY 1`,
+    ),
+  });
 });
 
 api.put("/users/:id/password", requireAdmin, async (req, res) => {

@@ -18,7 +18,8 @@ export const VEHICLE_TAB_LABELS: Record<VehicleTab, string> = {
 export type Route =
   | { name: "home" }
   | { name: "new-vehicle" }
-  | { name: "admin" }
+  | { name: "admin"; section: string }
+  | { name: "support" }
   | { name: "plans" }
   | { name: "privacy" }
   | { name: "reset"; token: string }
@@ -30,6 +31,8 @@ export const paths = {
   home: "#/",
   newVehicle: "#/arac-ekle",
   admin: "#/admin",
+  adminSection: (section: string) => `#/admin/${section}`,
+  support: "#/destek",
   plans: "#/paketler",
   privacy: "#/gizlilik",
   invite: (token: string) => `#/davet/${encodeURIComponent(token)}`,
@@ -40,7 +43,8 @@ export const paths = {
 export function parseHash(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (parts[0] === "arac-ekle") return { name: "new-vehicle" };
-  if (parts[0] === "admin") return { name: "admin" };
+  if (parts[0] === "admin") return { name: "admin", section: parts[1] ?? "" };
+  if (parts[0] === "destek") return { name: "support" };
   if (parts[0] === "paketler") return { name: "plans" };
   if (parts[0] === "gizlilik") return { name: "privacy" };
   if (parts[0] === "sifre-sifirla" && parts[1]) return { name: "reset", token: decodeURIComponent(parts[1]) };

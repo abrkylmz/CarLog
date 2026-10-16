@@ -5,7 +5,7 @@ import { formatRelative } from "../lib/format";
 import { useDialog } from "./DialogProvider";
 
 /** The admin's error log: what failed in users' browsers or on the server, newest first. */
-export default function ErrorsAdmin() {
+export default function ErrorsAdmin({ canClear = true }: { canClear?: boolean }) {
   const dialog = useDialog();
   const [errors, setErrors] = useState<AppErrorReport[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export default function ErrorsAdmin() {
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Kullanıcıların tarayıcısında ve sunucuda oluşan hatalar (son 200 kayıt). Aynı hata bir kez listelenir.
         </p>
-        {errors.length ? (
+        {errors.length && canClear ? (
           <button type="button" onClick={clear} className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-sm text-slate-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40">
             <Trash2 size={15} />
             Temizle

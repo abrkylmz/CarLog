@@ -3,7 +3,38 @@ import type { PlanId } from "./lib/plans.ts";
 
 export type FuelType = "benzin" | "dizel" | "lpg" | "benzin-lpg" | "hibrit";
 
-export type Role = "admin" | "user";
+/** admin: runs the app; moderator: answers support and sees the error log; user: everyone else. */
+export type Role = "admin" | "moderator" | "user";
+
+export type SupportStatus = "open" | "closed";
+
+/** A support conversation between a user and the staff (admins and moderators). */
+export interface SupportThread {
+  id: string;
+  userId: string;
+  username: string | null;
+  subject: string;
+  status: SupportStatus;
+  createdAt: string;
+  lastMessageAt: string;
+  /** Preview of the newest message. */
+  lastMessage: string | null;
+  lastFromStaff: boolean;
+  /** Unread for the side asking (the user, or the staff). */
+  unread: boolean;
+  /** Page and device the user wrote from, to help staff reproduce a problem. */
+  context: string | null;
+}
+
+export interface SupportMessage {
+  id: string;
+  threadId: string;
+  /** Who wrote it; null if that account was deleted. */
+  sender: string | null;
+  fromStaff: boolean;
+  body: string;
+  createdAt: string;
+}
 
 export interface User {
   id: string;

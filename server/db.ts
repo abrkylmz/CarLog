@@ -181,6 +181,35 @@ const SCHEMA: string[] = [
    )`,
   // Maintenance log: service details on an expense, and its invoice photo kept apart from list queries.
   `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS details TEXT`,
+  // Moderators (support and the error log) join admins and users. Done once, whichever instance gets there first.
+  `DO $$ BEGIN
+     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_role_check' AND pg_get_constraintdef(oid) LIKE '%moderator%') THEN
+       ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+       ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'moderator', 'user'));
+     END IF;
+   END $$`,
+  // Live support: one conversation per question, messages between the user and the staff.
+  `CREATE TABLE IF NOT EXISTS support_threads (
+     id              TEXT PRIMARY KEY,
+     user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     subject         TEXT NOT NULL,
+     status          TEXT NOT NULL DEFAULT 'open',
+     context         TEXT,
+     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+     last_message_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     user_unread     BOOLEAN NOT NULL DEFAULT false,
+     staff_unread    BOOLEAN NOT NULL DEFAULT true
+   )`,
+  `CREATE INDEX IF NOT EXISTS support_threads_user ON support_threads (user_id, last_message_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS support_messages (
+     id         TEXT PRIMARY KEY,
+     thread_id  TEXT NOT NULL REFERENCES support_threads(id) ON DELETE CASCADE,
+     sender_id  TEXT,
+     from_staff BOOLEAN NOT NULL,
+     body       TEXT NOT NULL,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS support_messages_thread ON support_messages (thread_id, created_at)`,
   `CREATE TABLE IF NOT EXISTS expense_photos (
      expense_id TEXT PRIMARY KEY REFERENCES expenses(id) ON DELETE CASCADE,
      data       TEXT NOT NULL,
