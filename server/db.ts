@@ -281,6 +281,20 @@ const SCHEMA: string[] = [
      count    INTEGER NOT NULL,
      reset_at TIMESTAMPTZ NOT NULL
    )`,
+  // Pump prices per city from a fuel distributor's public price list (server/fuelPrices.ts).
+  `CREATE TABLE IF NOT EXISTS fuel_prices (
+     code         TEXT PRIMARY KEY,
+     name         TEXT NOT NULL,
+     benzin       DOUBLE PRECISION,
+     motorin      DOUBLE PRECISION,
+     lpg          DOUBLE PRECISION,
+     prev_benzin  DOUBLE PRECISION,
+     prev_motorin DOUBLE PRECISION,
+     prev_lpg     DOUBLE PRECISION,
+     changed_at   TIMESTAMPTZ,
+     updated_at   TIMESTAMPTZ NOT NULL
+   )`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS fuel_city TEXT`,
 ];
 
 let ready: Promise<Db> | null = null;
@@ -458,6 +472,7 @@ export function toUser(row: Row): User {
     plan: planById(row.plan as string | null).id,
     monthlyBudget: row.monthly_budget == null ? null : Number(row.monthly_budget),
     email: (row.email as string | null) ?? null,
+    fuelCity: (row.fuel_city as string | null) ?? null,
     createdAt: row.created_at as string,
   };
 }

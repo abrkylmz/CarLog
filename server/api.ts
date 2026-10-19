@@ -77,6 +77,7 @@ import { sendReminderNotifications, sendToUser, vapidKeys } from "./push.ts";
 import { PLAN_PREVIEW, PLANS, userHasFeature, vehicleLimit, type PlanId } from "../src/lib/plans.ts";
 import { appUrl, mailConfigured, sendMail } from "./mail.ts";
 import { readReceipt, receiptScanConfigured } from "./receipt.ts";
+import { fuelPrices } from "./fuelPrices.ts";
 import { sendMonthlySummaries } from "./push.ts";
 
 export const api = Router();
@@ -1693,3 +1694,7 @@ api.post("/import", requireUser, async (req, res) => {
     entries: inserted(results.slice(vehicleStatements.length + ownerStatements.length)),
   });
 });
+
+// ---- Fuel prices per city (server/fuelPrices.ts) ----
+
+api.use(fuelPrices);

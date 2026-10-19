@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import BudgetStat from "../components/BudgetStat";
 import CarArt from "../components/CarArt";
+import FuelPricesCard from "../components/FuelPricesCard";
 import LegacyImportBanner from "../components/LegacyImportBanner";
 // The chart library is large; the cards and figures show first, the chart follows.
 const MonthlyFuelChart = lazy(() => import("../components/MonthlyFuelChart"));
@@ -266,6 +267,8 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
           hint={`Tüm araçlar · ${year}`}
         />
       </section>
+
+      <FuelPricesCard fuelTypes={[...new Set(vehicles.map((v) => v.fuelType))]} />
 
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

@@ -46,6 +46,8 @@ export interface User {
   monthlyBudget: number | null;
   /** For password reset emails; optional. */
   email: string | null;
+  /** City for the fuel price card (a price source's city code, see FuelPrices); null until chosen. */
+  fuelCity?: string | null;
   createdAt: string;
   /** Last time the user used the app; only in the admin's user list (null: not seen since tracking began). */
   lastSeenAt?: string | null;
@@ -345,4 +347,24 @@ export interface MissingCatalogModel {
   year?: number;
   fuelType: FuelType;
   count: number;
+}
+
+/** Pump prices (VAT included, TL per litre) in one city; null when the source has none. */
+export interface CityFuelPrice {
+  code: string;
+  name: string;
+  benzin: number | null;
+  motorin: number | null;
+  lpg: number | null;
+  /** Prices before the last change, and when it happened (null: no change seen yet). */
+  previous: { benzin: number | null; motorin: number | null; lpg: number | null } | null;
+  changedAt: string | null;
+}
+
+export interface FuelPrices {
+  source: string;
+  sourceUrl: string;
+  /** When the prices were last read from the source; null before the first successful read. */
+  fetchedAt: string | null;
+  cities: CityFuelPrice[];
 }
