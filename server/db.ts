@@ -284,19 +284,11 @@ const SCHEMA: string[] = [
 
 let ready: Promise<Db> | null = null;
 
-/** Any fixed number; only the schema setup takes this advisory lock. */
-const SCHEMA_LOCK = 7342011;
-
 /** Connects and creates tables on first use; later calls reuse the same connection. */
 function getDb(): Promise<Db> {
   ready ??= (async () => {
     const db = await connect();
-    // Several instances start at once after a deploy, and CREATE TABLE IF NOT EXISTS isn't safe
-    // against itself running concurrently ("duplicate key value violates unique constraint
-    // pg_type_typname_nsp_index"). So the schema runs as one transaction behind an advisory lock:
-    // one instance sets it up, the others wait and then find everything in place. One round trip
-    // instead of one per statement, too.
-    await db.transaction([{ text: "SELECT pg_advisory_xact_lock($1)", params: [SCHEMA_LOCK] }, ...SCHEMA.map((text) => ({ text }))]);
+    for (const statement of SCHEMA) await db.query(statement);
     await assignOwnerlessVehicles(db);
     await seedCatalog(db);
     return db;
