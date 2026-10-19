@@ -451,13 +451,23 @@ function Stat({
   );
 }
 
+/** The sort menu's width (w-56). */
+const MENU_WIDTH = 224;
+
 function SortMenu({ value, onChange }: { value: SortKey; onChange: (key: SortKey) => void }) {
   const { open, toggle, setOpen, ref } = usePopover();
+  // The button sits on the right on wide screens but on the left on phones (the toolbar wraps),
+  // so the menu opens towards whichever side has room instead of off the screen.
+  const [alignRight, setAlignRight] = useState(true);
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={toggle}
+        onClick={(e) => {
+          const box = e.currentTarget.getBoundingClientRect();
+          setAlignRight(box.left + MENU_WIDTH > window.innerWidth - 12);
+          toggle();
+        }}
         aria-expanded={open}
         className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700"
       >
@@ -465,7 +475,9 @@ function SortMenu({ value, onChange }: { value: SortKey; onChange: (key: SortKey
         <span className="max-sm:hidden">Sıralama</span>
       </button>
       {open ? (
-        <div className="pop-in absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 text-sm shadow-xl dark:border-slate-700 dark:bg-slate-900">
+        <div
+          className={`pop-in absolute ${alignRight ? "right-0" : "left-0"} z-30 mt-2 w-56 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 text-sm shadow-xl dark:border-slate-700 dark:bg-slate-900`}
+        >
           {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
             <button
               key={key}
