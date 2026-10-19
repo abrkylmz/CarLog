@@ -30,9 +30,18 @@ export function reportError(error: unknown, context?: string): void {
   }
 }
 
+/**
+ * Browser notices that arrive as errors but aren't faults: ResizeObserver reports when a resize
+ * (e.g. a chart fitting its box) takes one more frame; nothing breaks and nothing is lost.
+ */
+const BENIGN = [/^ResizeObserver loop (completed with undelivered notifications|limit exceeded)/];
+
 /** Uncaught errors and unhandled promise rejections anywhere in the app. */
 export function installErrorReporting(): void {
-  window.addEventListener("error", (e) => reportError(e.error ?? e.message));
+  window.addEventListener("error", (e) => {
+    if (!e.error && BENIGN.some((re) => re.test(e.message ?? ""))) return;
+    reportError(e.error ?? e.message);
+  });
   window.addEventListener("unhandledrejection", (e) => {
     const reason = e.reason;
     // Network failures are expected offline and are handled where they happen.
