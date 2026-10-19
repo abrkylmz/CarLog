@@ -103,7 +103,7 @@ export default function UsersAdmin({ currentUser }: { currentUser: User }) {
 
   const actions = (u: User) => (
     <div className="flex shrink-0 justify-end gap-1">
-      <button type="button" onClick={() => void resetPassword(dialog, u)} title="Şifreyi değiştir" aria-label={`${u.username} şifresini değiştir`} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+      <button type="button" onClick={() => void resetPassword(dialog, u)} title="Şifreyi değiştir" aria-label={`${u.username} şifresini değiştir`} className="tap rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
         <KeyRound size={16} />
       </button>
       {u.id !== currentUser.id ? (
@@ -112,7 +112,7 @@ export default function UsersAdmin({ currentUser }: { currentUser: User }) {
           onClick={async () => (await deleteAccount(dialog, u)) && setUsers((prev) => prev?.filter((x) => x.id !== u.id) ?? null)}
           title="Kullanıcıyı sil"
           aria-label={`${u.username} kullanıcısını sil`}
-          className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+          className="tap rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
         >
           <Trash2 size={16} />
         </button>
@@ -152,7 +152,7 @@ export default function UsersAdmin({ currentUser }: { currentUser: User }) {
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="card overflow-hidden">
         {users == null ? (
           <div className="space-y-2 p-4">
             {Array.from({ length: 5 }, (_, i) => (

@@ -288,7 +288,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
             <button
               type="button"
               onClick={onExport}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 lg:hidden dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+              className="tap inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 lg:hidden dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
               aria-label="Dışa Aktar"
             >
               <Download size={16} />
@@ -426,7 +426,7 @@ function Stat({
   const showChange = change != null && change !== 0;
   const good = showChange && (lowerIsBetter ? change! < 0 : change! > 0);
   return (
-    <div className={`flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:gap-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900 ${className}`}>
+    <div className={`card flex items-start gap-3 p-4 sm:gap-4 sm:p-5 ${className}`}>
       <span className={`hidden rounded-xl p-3 sm:block ${TONES[tone]}`}>
         <Icon size={22} />
       </span>
@@ -475,7 +475,7 @@ function SortMenu({ value, onChange }: { value: SortKey; onChange: (key: SortKey
       </button>
       {open ? (
         <div
-          className={`pop-in absolute ${alignRight ? "right-0" : "left-0"} z-30 mt-2 w-56 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 text-sm shadow-xl dark:border-slate-700 dark:bg-slate-900`}
+          className={`surface-raised pop-in absolute ${alignRight ? "right-0" : "left-0"} z-30 mt-2 w-56 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl py-1 text-sm`}
         >
           {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
             <button

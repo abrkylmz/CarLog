@@ -84,7 +84,7 @@ export default function Overview() {
               <p className={`mt-1 text-xs ${k.alert ? "font-semibold text-amber-600 dark:text-amber-400" : "text-slate-500 dark:text-slate-400"}`}>{k.hint}</p>
             </>
           );
-          const cls = "block rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900";
+          const cls = "card block p-4 sm:p-5";
           return k.href ? (
             <a key={k.label} href={k.href} className={`${cls} transition hover:-translate-y-0.5 hover:shadow-md`}>
               {body}
@@ -100,7 +100,7 @@ export default function Overview() {
       <div className="grid gap-4 xl:grid-cols-3">
         <ChartCard title="Yeni kayıtlar" subtitle="Son 30 gün" data={signups} color="#8b5cf6" id="signups" />
         <ChartCard title="Dolum kayıtları" subtitle="Son 30 gün" data={fillUps} color="#f59e0b" id="fills" />
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="card p-5">
           <p className="font-semibold">Paket dağılımı</p>
           <p className="text-xs text-slate-500 dark:text-slate-400">Kullanıcıların seçtiği paketler</p>
           <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
@@ -127,7 +127,7 @@ export default function Overview() {
 function ChartCard({ title, subtitle, data, color, id }: { title: string; subtitle: string; data: { label: string; n: number }[]; color: string; id: string }) {
   const total = data.reduce((s, d) => s + d.n, 0);
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div className="card p-5">
       <div className="flex items-baseline justify-between">
         <div>
           <p className="font-semibold">{title}</p>

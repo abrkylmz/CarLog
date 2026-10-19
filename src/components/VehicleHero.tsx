@@ -176,12 +176,12 @@ function HeroMenu({ vehicleId }: { vehicleId: string }) {
         onClick={toggle}
         aria-label="Araç menüsü"
         aria-expanded={open}
-        className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur transition hover:bg-white/25"
+        className="tap flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur transition hover:bg-white/25"
       >
         <MoreHorizontal size={18} />
       </button>
       {open ? (
-        <div className="pop-in absolute right-0 z-40 mt-2 w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 text-sm text-slate-700 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+        <div className="surface-raised pop-in absolute right-0 z-40 mt-2 w-48 overflow-hidden rounded-2xl py-1 text-sm text-slate-700 dark:text-slate-200">
           {VEHICLE_TABS.map((tab) => (
             <a key={tab} href={paths.vehicle(vehicleId, tab)} className="block px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800">
               {VEHICLE_TAB_LABELS[tab]}

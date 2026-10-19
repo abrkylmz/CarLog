@@ -25,7 +25,7 @@ export default function RecentEntries({ vehicles, entries, single = false }: { v
   const more = entries.length > 5;
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+    <section className="card p-4 sm:p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight">
           {single ? <Fuel size={19} className="text-brand-500" /> : null}

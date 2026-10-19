@@ -73,7 +73,7 @@ export default function FuelPricesCard({ fuelTypes }: { fuelTypes: FuelType[] })
   ) : null;
 
   return (
-    <section aria-label="Akaryakıt fiyatları" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+    <section aria-label="Akaryakıt fiyatları" className="card p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 font-semibold">
           <span className="rounded-xl bg-amber-50 p-2 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">

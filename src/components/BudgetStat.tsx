@@ -29,7 +29,7 @@ export default function BudgetStat({ spent, change, budget, onEditBudget }: Prop
 
   if (!budget) {
     return (
-      <div className="col-span-2 flex items-start gap-3 rounded-2xl border sm:col-span-1 border-slate-200 bg-white p-4 shadow-sm sm:gap-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+      <div className="card col-span-2 flex items-start gap-3 sm:col-span-1 p-4 sm:gap-4 sm:p-5">
         <span className="hidden rounded-xl bg-emerald-50 p-3 text-emerald-600 sm:block dark:bg-emerald-950/50 dark:text-emerald-400">
           <Fuel size={22} />
         </span>
@@ -58,7 +58,7 @@ export default function BudgetStat({ spent, change, budget, onEditBudget }: Prop
   const circumference = 2 * Math.PI * r;
 
   return (
-    <div className="col-span-2 flex items-center gap-3 rounded-2xl border sm:col-span-1 border-slate-200 bg-white p-4 shadow-sm sm:gap-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+    <div className="card col-span-2 flex items-center gap-3 sm:col-span-1 p-4 sm:gap-4 sm:p-5">
       <button
         type="button"
         onClick={onEditBudget}

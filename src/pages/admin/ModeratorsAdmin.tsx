@@ -37,7 +37,7 @@ export default function ModeratorsAdmin({ currentUser }: { currentUser: User }) 
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
-      <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <section className="card overflow-hidden">
         <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
           <div>
             <p className="font-semibold">Destek ekibi</p>
@@ -85,7 +85,7 @@ export default function ModeratorsAdmin({ currentUser }: { currentUser: User }) 
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="card p-5">
           <p className="font-semibold">Mevcut kullanıcıyı moderatör yap</p>
           <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">Kişinin hesabı ve verileri olduğu gibi kalır.</p>
           <div className="flex gap-2">

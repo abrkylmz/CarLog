@@ -76,7 +76,7 @@ export default function Modal({ title, onClose, children, width = "max-w-lg", ac
             data-close
             onClick={onClose}
             aria-label="Kapat"
-            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="tap rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
           >
             <X size={18} />
           </button>

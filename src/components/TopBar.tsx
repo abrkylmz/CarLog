@@ -11,7 +11,7 @@ import { reminderTitle } from "./Reminders";
 import UpcomingReminders from "./UpcomingReminders";
 
 const panel =
-  "pop-in absolute z-40 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900";
+  "surface-raised pop-in absolute z-40 mt-2 overflow-hidden rounded-2xl";
 
 // ---- Search -------------------------------------------------------------------
 
@@ -224,8 +224,9 @@ export function ReminderBell({ vehicles, reminders, latestKmByVehicle }: {
         <Bell size={19} />
         {count ? (
           <span
-            className={`absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-950 ${
-              overdue ? "pulse-alert bg-red-500" : "bg-amber-500"
+            className={`absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ring-2 ring-white dark:ring-slate-950 ${
+              // Small text on a small badge: colours chosen for 4.5:1 (white on red-600, amber-950 on amber-400).
+              overdue ? "pulse-alert bg-red-600 text-white" : "bg-amber-400 text-amber-950"
             }`}
           >
             {count}

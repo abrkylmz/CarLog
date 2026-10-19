@@ -86,7 +86,7 @@ export default function ServiceLog({ vehicleId, expenses, latestKm, onAdd, onEdi
       ) : (
         <ol className="relative flex flex-col gap-3 border-l-2 border-slate-200 pl-5 dark:border-slate-800">
           {visits.map((v) => (
-            <li key={v.id} className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <li key={v.id} className="card relative p-4">
               <span className="absolute -left-[1.72rem] top-5 h-3 w-3 rounded-full bg-brand-500 ring-4 ring-white dark:ring-slate-950" />
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -100,12 +100,12 @@ export default function ServiceLog({ vehicleId, expenses, latestKm, onAdd, onEdi
                 <div className="flex items-center gap-1">
                   <span className="mr-1 font-semibold tabular-nums">{formatTL(v.amount)}</span>
                   {canEdit(v) ? (
-                    <button type="button" onClick={() => onEdit(v)} aria-label="Kaydı düzenle" className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800">
+                    <button type="button" onClick={() => onEdit(v)} aria-label="Kaydı düzenle" className="tap rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800">
                       <Pencil size={16} />
                     </button>
                   ) : null}
                   {onDelete && canEdit(v) ? (
-                    <button type="button" onClick={() => onDelete(v.id)} aria-label="Kaydı sil" className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950">
+                    <button type="button" onClick={() => onDelete(v.id)} aria-label="Kaydı sil" className="tap rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950">
                       <Trash2 size={16} />
                     </button>
                   ) : null}
@@ -147,7 +147,7 @@ export default function ServiceLog({ vehicleId, expenses, latestKm, onAdd, onEdi
 
 function Fact({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div className="card p-4">
       <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
       <p className="mt-1 text-xl font-bold tabular-nums tracking-tight">{value}</p>
       {hint ? <p className="text-xs text-slate-400 dark:text-slate-500">{hint}</p> : null}

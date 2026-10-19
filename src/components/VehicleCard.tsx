@@ -42,7 +42,7 @@ export default function VehicleCard({ vehicle, stats, alerts, spend }: Props) {
   return (
     <article
       data-accent={FUEL_ACCENT[vehicle.fuelType]}
-      className="group/card relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand-300 hover:shadow-lg hover:shadow-brand-900/5 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-brand-700"
+      className="card group/card relative flex flex-col overflow-hidden p-4 transition hover:border-brand-300 hover:shadow-lg hover:shadow-brand-900/5 dark:hover:border-brand-700"
     >
       <CardMenu vehicleId={vehicle.id} />
 
@@ -207,12 +207,12 @@ function CardMenu({ vehicleId }: { vehicleId: string }) {
         onClick={toggle}
         aria-label="Araç menüsü"
         aria-expanded={open}
-        className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-white/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+        className="tap flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-white/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
       >
         <MoreVertical size={18} />
       </button>
       {open ? (
-        <div className="pop-in absolute right-0 mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-xl dark:border-slate-700 dark:bg-slate-900">
+        <div className="surface-raised pop-in absolute right-0 mt-1 w-44 overflow-hidden rounded-xl py-1 text-sm">
           {MENU_TABS.map((tab) => (
             <a
               key={tab}

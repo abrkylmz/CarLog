@@ -53,7 +53,7 @@ export default function SupportDesk({ onUnreadChange }: { onUnreadChange?: (n: n
   }
 
   return (
-    <div className="grid h-[calc(100dvh-11rem)] min-h-[30rem] overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm md:grid-cols-[19rem_1fr] xl:grid-cols-[20rem_1fr_18rem] dark:border-slate-800 dark:bg-slate-900">
+    <div className="card grid h-[calc(100dvh-11rem)] min-h-[30rem] overflow-hidden md:grid-cols-[19rem_1fr] xl:grid-cols-[20rem_1fr_18rem]">
       {/* Inbox */}
       <aside className={`${current ? "hidden md:flex" : "flex"} min-h-0 flex-col border-r border-slate-100 dark:border-slate-800`}>
         <div className="space-y-3 border-b border-slate-100 p-3 dark:border-slate-800">
@@ -133,7 +133,7 @@ export default function SupportDesk({ onUnreadChange }: { onUnreadChange?: (n: n
         {current ? (
           <>
             <header className="flex items-center gap-2 border-b border-slate-100 bg-white px-3 py-3 sm:px-4 dark:border-slate-800 dark:bg-slate-900">
-              <button type="button" onClick={() => setActive(null)} aria-label="Konuşmalara dön" className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 md:hidden dark:hover:bg-slate-800">
+              <button type="button" onClick={() => setActive(null)} aria-label="Konuşmalara dön" className="tap rounded-lg p-1 text-slate-500 hover:bg-slate-100 md:hidden dark:hover:bg-slate-800">
                 <ChevronLeft size={20} />
               </button>
               <div className="min-w-0 flex-1">

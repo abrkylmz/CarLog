@@ -41,7 +41,7 @@ export default function MonthlyFuelChart({ year, values, highlight, years, onYea
   const total = values.reduce((t, v) => t + v, 0);
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+    <section className="card p-4 sm:p-5">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="text-lg font-bold tracking-tight">Aylık Yakıt Gideri</h2>
         {years && onYearChange ? (

@@ -169,7 +169,7 @@ export default function SharePanel({ vehicle, currentUser, onLeft }: Props) {
                     onClick={() => removeMember(m)}
                     aria-label={`${m.username} kişisini çıkar`}
                     title="Araçtan çıkar"
-                    className="rounded p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                    className="tap rounded p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
                   >
                     <UserMinus size={16} />
                   </button>

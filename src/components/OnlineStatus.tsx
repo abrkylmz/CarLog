@@ -22,7 +22,7 @@ export default function OnlineStatus({ pending }: { pending: number }) {
   return (
     // Sits just under where save confirmations drop in, so the two never cover each other.
     <div className="pointer-events-none fixed inset-x-0 top-[calc(max(0.75rem,env(safe-area-inset-top))+3.5rem)] z-[55] flex justify-center">
-      <div role="status" className="toast whitespace-nowrap rounded-full bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white shadow-lg">
+      <div role="status" className="toast whitespace-nowrap rounded-full bg-amber-400 px-3 py-1.5 text-xs font-semibold text-amber-950 shadow-lg">
         {online ? (
           <span className="inline-flex items-center gap-1.5">
             <RefreshCw size={13} className="animate-spin" />

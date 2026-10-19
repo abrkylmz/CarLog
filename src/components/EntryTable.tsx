@@ -90,7 +90,7 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
                       type="button"
                       onClick={() => onEdit(entry)}
                       aria-label="Kaydı düzenle"
-                      className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      className="tap rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     >
                       <Pencil size={16} />
                     </button>
@@ -100,7 +100,7 @@ export default function EntryTable({ entries, onDelete, onEdit, canEdit }: Props
                       type="button"
                       onClick={() => onDelete(entry.id)}
                       aria-label="Kaydı sil"
-                      className="rounded p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                      className="tap rounded p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
                     >
                       <Trash2 size={16} />
                     </button>

@@ -163,7 +163,7 @@ function Dialog({ options, onClose }: { options: DialogOptions; onClose: (result
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={message ? messageId : undefined}
-        className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900"
+        className="card w-full max-w-sm p-5 shadow-xl"
       >
         <form onSubmit={submit}>
           <div className="flex gap-3">

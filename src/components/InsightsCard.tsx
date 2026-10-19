@@ -16,7 +16,7 @@ const ICON: Record<Insight["tone"], string> = {
 export default function InsightsCard({ insights, className = "" }: { insights: Insight[]; className?: string }) {
   if (insights.length === 0) return null;
   return (
-    <section className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 ${className}`}>
+    <section className={`card p-4 ${className}`}>
       <h3 className="mb-3 flex items-center gap-2 font-semibold">
         <Sparkles size={18} className="text-brand-500" />
         Öne Çıkanlar

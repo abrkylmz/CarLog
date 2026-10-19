@@ -123,7 +123,7 @@ export default function WrappedStories({
               type="button"
               onClick={onClose}
               aria-label="Kapat"
-              className="rounded-full p-2 text-white/80 hover:bg-white/10 hover:text-white"
+              className="tap rounded-full p-2 text-white/80 hover:bg-white/10 hover:text-white"
             >
               <X size={20} />
             </button>

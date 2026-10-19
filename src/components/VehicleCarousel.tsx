@@ -279,7 +279,7 @@ function ArrowButton({ side, disabled, onClick }: { side: "left" | "right"; disa
       onClick={onClick}
       disabled={disabled}
       aria-label={side === "left" ? "Önceki araç" : "Sonraki araç"}
-      className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-brand-400 hover:text-brand-600 disabled:opacity-35 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-brand-300"
+      className="tap flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-brand-400 hover:text-brand-600 disabled:opacity-35 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-brand-300"
     >
       <Icon size={18} />
     </button>

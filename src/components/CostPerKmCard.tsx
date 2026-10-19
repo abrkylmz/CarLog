@@ -24,7 +24,7 @@ export default function CostPerKmCard({ entries }: { entries: FuelEntry[] }) {
   const tl = (n: number, digits = 2) => `₺${n.toLocaleString("tr-TR", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 
   return (
-    <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+    <section className="card mb-6 p-4 sm:p-5">
       <div className="flex items-start gap-3">
         <span className="rounded-xl bg-amber-50 p-2.5 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">
           <Gauge size={22} />

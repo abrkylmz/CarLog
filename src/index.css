@@ -79,6 +79,60 @@
   color-scheme: dark;
 }
 
+/* ---- Design tokens ----
+   Secondary text grays (Tailwind slate-400 / slate-500, see tailwind.config.js), chosen for WCAG AA:
+   light #677487 4.75:1 and #56637a 6.07:1 on white; dark #94a3b8 6.96:1 and #8a96aa 5.97:1 on slate-900.
+   Surfaces: page < card < raised (menus, popovers). In the dark theme a higher surface is a shade
+   lighter, with a faint top highlight instead of a hard border.
+   Radius scale: chip lg (8px) · control xl (12px) · card 2xl (16px) · sheet/hero 3xl (24px). */
+:root {
+  --slate-400: 103 116 135;
+  --slate-500: 86 99 122;
+  --surface: 255 255 255;
+  --surface-raised: 255 255 255;
+  --line: 226 232 240;
+  --line-a: 1;
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --shadow-raised: 0 18px 44px -14px rgb(15 23 42 / 0.24), 0 2px 6px 0 rgb(15 23 42 / 0.06);
+}
+:root.dark {
+  --slate-400: 148 163 184;
+  --slate-500: 138 150 170;
+  --surface: 15 23 42;
+  --surface-raised: 24 34 54;
+  --line: 255 255 255;
+  --line-a: 0.07;
+  --shadow-card: inset 0 1px 0 0 rgb(255 255 255 / 0.04), 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-raised: inset 0 1px 0 0 rgb(255 255 255 / 0.06), 0 24px 56px -12px rgb(0 0 0 / 0.75);
+}
+
+@layer components {
+  /* The standard card: every panel on a page. */
+  .card {
+    border-radius: 1rem;
+    border: 1px solid rgb(var(--line) / var(--line-a));
+    background-color: rgb(var(--surface));
+    box-shadow: var(--shadow-card);
+  }
+  /* Menus, popovers and dropdowns: above the cards. */
+  .surface-raised {
+    border: 1px solid rgb(var(--line) / var(--line-a));
+    background-color: rgb(var(--surface-raised));
+    box-shadow: var(--shadow-raised);
+  }
+}
+
+/* Icon-only buttons get a 44×44 tap area on touch screens (Apple's minimum); the icon stays put. */
+@media (pointer: coarse) {
+  .tap {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
 body {
   @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
 }

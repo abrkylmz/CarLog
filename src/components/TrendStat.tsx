@@ -29,7 +29,7 @@ export default function TrendStat({ icon: Icon, tone, label, value, hint, change
   const good = showChange && (lowerIsBetter ? change! < 0 : change! > 0);
 
   return (
-    <div className="relative flex min-h-[8.5rem] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div className="card relative flex min-h-[8.5rem] flex-col overflow-hidden p-4">
       <div className="flex items-start gap-3">
         <span className={`hidden rounded-xl p-2.5 sm:block ${t.box}`}>
           <Icon size={22} />

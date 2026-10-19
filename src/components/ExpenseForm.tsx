@@ -141,7 +141,7 @@ export default function ExpenseForm({ vehicleId, onAdd, initial, submitLabel = "
             {photo ? (
               <span className="relative">
                 <img src={photo} alt="Fatura fotoğrafı" className="h-16 w-16 rounded-lg object-cover ring-1 ring-slate-200 dark:ring-slate-700" />
-                <button type="button" onClick={() => setPhoto(initial?.hasPhoto ? null : undefined)} aria-label="Fotoğrafı kaldır" className="absolute -right-2 -top-2 rounded-full bg-slate-900 p-0.5 text-white">
+                <button type="button" onClick={() => setPhoto(initial?.hasPhoto ? null : undefined)} aria-label="Fotoğrafı kaldır" className="tap absolute -right-2 -top-2 rounded-full bg-slate-900 p-0.5 text-white">
                   <X size={12} />
                 </button>
               </span>

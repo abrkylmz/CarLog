@@ -55,7 +55,7 @@ export default function RemindersTimeline({ reminders, latestKm, kmPerDay }: Pro
   }
 
   return (
-    <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+    <section className="card mb-8 p-4 sm:p-5">
       <h3 className="mb-4 flex items-center gap-2 font-semibold">
         <CalendarClock size={18} className="text-brand-500" />
         Zaman Çizelgesi
