@@ -1,5 +1,8 @@
-import { useState } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useMemo, useState } from "react";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { AXIS, CATEGORY_BG, SERIES } from "../lib/chartColors";
+import { chartNotes } from "../lib/chartNotes";
+import { NoteList, noteMarks } from "./ChartNotes";
 import { EXPENSE_CATEGORY_LABELS, formatNumber, formatTL } from "../lib/format";
 import type { Expense, FuelEntry } from "../types";
 import { prefersReducedMotion } from "../lib/motion";
@@ -23,8 +26,6 @@ interface Props {
 }
 
 const MONTH_NAMES = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-// Fuel first, then up to three expense categories; the rest is folded into "Diğer".
-const SEGMENT_COLORS = ["bg-brand-500", "bg-amber-400", "bg-violet-500", "bg-emerald-500", "bg-slate-400"];
 
 /** The year's fuel spend month by month; the highlighted month (or the hovered one) stands out. */
 export default function MonthlyFuelChart({ year, values, highlight, years, onYearChange, entries, expenses }: Props) {
@@ -39,6 +40,11 @@ export default function MonthlyFuelChart({ year, values, highlight, years, onYea
     if (Number.isInteger(i) && i >= 0 && i < 12) setPicked(i);
   };
   const total = values.reduce((t, v) => t + v, 0);
+  const notes = useMemo(
+    () => chartNotes(MONTHS.map((_, i) => `${year}-${String(i + 1).padStart(2, "0")}`), entries, expenses),
+    [year, entries, expenses],
+  );
+  const marks = useMemo(() => noteMarks(notes), [notes]);
 
   return (
     <section className="card p-4 sm:p-5">
@@ -68,27 +74,27 @@ export default function MonthlyFuelChart({ year, values, highlight, years, onYea
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
-            margin={{ top: 12, right: 4, bottom: 0, left: -12 }}
+            margin={{ top: 22, right: 4, bottom: 0, left: -12 }}
             onMouseMove={(state) => setHover(typeof state?.activeTooltipIndex === "number" ? state.activeTooltipIndex : null)}
             onMouseLeave={() => setHover(null)}
             onClick={(state) => pick(state?.activeTooltipIndex)}
             className="cursor-pointer"
           >
-            <CartesianGrid vertical={false} stroke="currentColor" className="text-slate-100 dark:text-slate-800" />
+            <CartesianGrid vertical={false} stroke="currentColor" className={AXIS.grid} />
             <XAxis
               dataKey="month"
               tickLine={false}
               axisLine={false}
               interval={0}
               tick={{ fontSize: 11, fill: "currentColor" }}
-              className="text-slate-500 dark:text-slate-400"
+              className={AXIS.tick}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
               width={48}
               tick={{ fontSize: 11, fill: "currentColor" }}
-              className="text-slate-400 dark:text-slate-500"
+              className={AXIS.tick}
               tickFormatter={(v: number) => compact.format(v)}
             />
             <Tooltip cursor={false} content={<MonthTooltip year={year} />} />
@@ -105,15 +111,17 @@ export default function MonthlyFuelChart({ year, values, highlight, years, onYea
                   key={d.i}
                   onClick={() => setPicked(d.i)}
                   className={`transition-colors duration-200 ${
-                    d.i === strong ? "fill-brand-600 dark:fill-brand-400" : "fill-brand-200 dark:fill-brand-800"
+                    d.i === strong ? SERIES.fuel.fill : SERIES.fuel.soft
                   }`}
                 />
               ))}
+              <LabelList dataKey="value" content={marks} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
       )}
+      <NoteList notes={notes} />
       {selected != null ? (
         <MonthBreakdown month={`${year}-${String(selected + 1).padStart(2, "0")}`} label={`${MONTH_NAMES[selected]} ${year}`} entries={entries} expenses={expenses} />
       ) : null}
@@ -130,9 +138,13 @@ function MonthBreakdown({ month, label, entries, expenses }: { month: string; la
   const byCategory = new Map<Expense["category"], number>();
   for (const x of costs) byCategory.set(x.category, (byCategory.get(x.category) ?? 0) + x.amount);
   const sorted = [...byCategory].sort((a, b) => b[1] - a[1]);
-  const top = sorted.slice(0, 3).map(([c, v]) => ({ label: EXPENSE_CATEGORY_LABELS[c], value: v }));
+  const top = sorted.slice(0, 3).map(([c, v]) => ({ label: EXPENSE_CATEGORY_LABELS[c], value: v, color: CATEGORY_BG[c] }));
   const rest = sorted.slice(3).reduce((t, [, v]) => t + v, 0);
-  const segments = [{ label: "Yakıt", value: fuel }, ...top, ...(rest > 0 ? [{ label: "Diğer", value: rest }] : [])].filter((s) => s.value > 0);
+  const segments = [
+    { label: "Yakıt", value: fuel, color: SERIES.fuel.bg },
+    ...top,
+    ...(rest > 0 ? [{ label: "Diğer", value: rest, color: CATEGORY_BG.diger }] : []),
+  ].filter((s) => s.value > 0);
   const total = segments.reduce((t, s) => t + s.value, 0);
   const tl = (n: number) => formatTL(n).replace(",00", "");
 
@@ -149,15 +161,15 @@ function MonthBreakdown({ month, label, entries, expenses }: { month: string; la
       ) : (
         <>
           <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-            {segments.map((s, i) => (
-              <span key={s.label} className={SEGMENT_COLORS[i]} style={{ width: `${(s.value / total) * 100}%` }} />
+            {segments.map((s) => (
+              <span key={s.label} className={s.color} style={{ width: `${(s.value / total) * 100}%` }} />
             ))}
           </div>
           <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
-            {segments.map((s, i) => (
+            {segments.map((s) => (
               <li key={s.label} className="flex items-center justify-between gap-2">
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${SEGMENT_COLORS[i]}`} />
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${s.color}`} />
                   <span className="truncate">{s.label}</span>
                 </span>
                 <span className="tabular-nums font-medium">{tl(s.value)}</span>

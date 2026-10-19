@@ -61,6 +61,27 @@ export function navigate(path: string): void {
   window.location.hash = path;
 }
 
+/**
+ * When the last edge swipe ended. iOS Safari animates its own back/forward swipe before the hash
+ * changes; sliding the page again after it would play the motion twice.
+ */
+let edgeSwipeAt = 0;
+if (typeof window !== "undefined") {
+  let start: { x: number; y: number } | null = null;
+  window.addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    start = t && (t.clientX < 24 || t.clientX > window.innerWidth - 24) ? { x: t.clientX, y: t.clientY } : null;
+  }, { passive: true });
+  window.addEventListener("touchend", (e) => {
+    const t = e.changedTouches[0];
+    if (start && t && Math.abs(t.clientX - start.x) > 40 && Math.abs(t.clientX - start.x) > Math.abs(t.clientY - start.y)) edgeSwipeAt = Date.now();
+    start = null;
+  }, { passive: true });
+}
+
+/** Where each page was scrolled to, so going back lands where the user left it. */
+const scrollByHash = new Map<string, number>();
+
 /** How deep a page sits: the garage is 0, pages opened from it are 1. */
 function depth(route: Route): number {
   return route.name === "home" ? 0 : 1;
@@ -75,21 +96,26 @@ function depth(route: Route): number {
 export function useHashRoute(): Route {
   const [route, setRoute] = useState<Route>(() => parseHash(window.location.hash));
   const current = useRef(route);
+  const currentHash = useRef(window.location.hash);
 
   useEffect(() => {
     function onHashChange() {
       const next = parseHash(window.location.hash);
       const prev = current.current;
       current.current = next;
+      scrollByHash.set(currentHash.current, window.scrollY);
+      currentHash.current = window.location.hash;
+      const back = depth(next) < depth(prev);
       const apply = () => {
         setRoute(next);
-        window.scrollTo(0, 0);
+        window.scrollTo(0, back ? (scrollByHash.get(window.location.hash) ?? 0) : 0);
       };
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const overlay = next.name === "wrapped" || prev.name === "wrapped";
       // A hidden page (app sent to the background) can't animate: the browser would abort the
       // transition with "Document hidden". Switch straight away instead.
-      if (!document.startViewTransition || reduce || overlay || document.visibilityState !== "visible") {
+      const swiped = Date.now() - edgeSwipeAt < 1000;
+      if (!document.startViewTransition || reduce || overlay || swiped || document.visibilityState !== "visible") {
         apply();
         return;
       }

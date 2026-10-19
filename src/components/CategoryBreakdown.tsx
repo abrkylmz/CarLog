@@ -1,4 +1,4 @@
-import { SERIES_BG } from "../lib/chartColors";
+import { CATEGORY_BG } from "../lib/chartColors";
 import { totalsByCategory } from "../lib/calc";
 import { EXPENSE_CATEGORY_LABELS, formatTL } from "../lib/format";
 import type { Expense } from "../types";
@@ -11,11 +11,14 @@ export default function CategoryBreakdown({ expenses }: { expenses: Expense[] })
   const max = rows[0].total;
 
   return (
-    <ul className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <ul className="card flex flex-col gap-2.5 p-4">
       {rows.map(({ category, total }, i) => (
         <li key={category} className="text-sm" title={`${EXPENSE_CATEGORY_LABELS[category]}: ${formatTL(total)}`}>
           <div className="mb-1 flex items-baseline justify-between gap-3">
-            <span className="text-slate-600 dark:text-slate-300">{EXPENSE_CATEGORY_LABELS[category]}</span>
+            <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+              <span className={`h-2.5 w-2.5 rounded-sm ${CATEGORY_BG[category]}`} />
+              {EXPENSE_CATEGORY_LABELS[category]}
+            </span>
             <span className="whitespace-nowrap font-medium">
               {formatTL(total)}
               <span className="ml-1.5 text-xs font-normal text-slate-400 dark:text-slate-500">
@@ -25,7 +28,7 @@ export default function CategoryBreakdown({ expenses }: { expenses: Expense[] })
           </div>
           <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
             <div
-              className={`grow-x h-2 rounded-full ${SERIES_BG.other}`}
+              className={`grow-x h-2 rounded-full ${CATEGORY_BG[category]}`}
               style={{ width: `${Math.max((total / max) * 100, 2)}%`, animationDelay: `${i * 70}ms` }}
             />
           </div>

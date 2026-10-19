@@ -3,6 +3,7 @@ import { Car, Download, Fuel, Pause, Play, RotateCcw, Share2, Sparkles, X } from
 import { CountUp } from "./StatCard";
 import { formatNumber, formatTL } from "../lib/format";
 import { EARTH_KM, ISTANBUL_ANKARA_KM, type YearSummary } from "../lib/wrapped";
+import { renderStoryImage } from "../lib/storyImage";
 
 const STORY_MS = 6500;
 const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
@@ -407,7 +408,7 @@ function FinalActions({ summary, userName, onReplay }: { summary: YearSummary; u
   async function share() {
     setBusy(true);
     try {
-      const blob = await renderShareImage(summary, userName);
+      const blob = await renderStoryImage(summary, userName);
       const file = new File([blob], `carlog-${summary.year}.png`, { type: "image/png" });
       const download = () => {
         const url = URL.createObjectURL(blob);
@@ -453,82 +454,4 @@ function FinalActions({ summary, userName, onReplay }: { summary: YearSummary; u
       </button>
     </div>
   );
-}
-
-/** Draws the year summary as a 1080×1920 story image for sharing. */
-async function renderShareImage(s: YearSummary, userName: string): Promise<Blob> {
-  const W = 1080;
-  const H = 1920;
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d")!;
-  const font = (weight: number, size: number) => `${weight} ${size}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif`;
-
-  const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, "#4f46e5");
-  bg.addColorStop(0.55, "#7c3aed");
-  bg.addColorStop(1, "#c026d3");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-  const glow = ctx.createRadialGradient(W * 0.85, H * 0.2, 0, W * 0.85, H * 0.2, 520);
-  glow.addColorStop(0, "rgba(255,255,255,0.28)");
-  glow.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.fillStyle = "rgba(255,255,255,0.8)";
-  ctx.font = font(700, 40);
-  ctx.fillText("CARLOG YIL ÖZETİ", 90, 190);
-  ctx.fillStyle = "#fff";
-  ctx.font = font(900, 300);
-  ctx.fillText(String(s.year), 70, 480);
-  ctx.font = font(500, 46);
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
-  ctx.fillText(`${userName}${s.inProgress ? " · şimdiye kadar" : ""}`, 90, 570);
-
-  const tiles: [string, string][] = [
-    ["YOL", `${formatNumber(s.km, 0)} km`],
-    ["YAKIT", `${formatNumber(s.liters, 0)} L`],
-    ["HARCAMA", formatTL(s.total).replace(/,\d\d$/, "")],
-    ["DOLUM", String(s.fillCount)],
-    ["EN YOĞUN AY", s.busiestMonth ? MONTHS[s.busiestMonth.index] : "—"],
-    ["EN VERİMLİ", s.mostEfficient ? `${formatNumber(s.mostEfficient.per100km, 1)} L/100km` : "—"],
-  ];
-  const tileW = (W - 90 * 2 - 40) / 2;
-  const tileH = 250;
-  tiles.forEach(([label, value], i) => {
-    const x = 90 + (i % 2) * (tileW + 40);
-    const y = 700 + Math.floor(i / 2) * (tileH + 40);
-    ctx.fillStyle = "rgba(255,255,255,0.14)";
-    roundRect(ctx, x, y, tileW, tileH, 40);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.font = font(700, 32);
-    ctx.fillText(label, x + 44, y + 80);
-    ctx.fillStyle = "#fff";
-    let size = 76;
-    ctx.font = font(800, size);
-    while (ctx.measureText(value).width > tileW - 88 && size > 36) {
-      size -= 4;
-      ctx.font = font(800, size);
-    }
-    ctx.fillText(value, x + 44, y + 185);
-  });
-
-  ctx.fillStyle = "rgba(255,255,255,0.75)";
-  ctx.font = font(600, 38);
-  ctx.fillText("Yakıt ve masraflarını CarLog ile takip et", 90, H - 150);
-
-  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob"))), "image/png"));
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
 }

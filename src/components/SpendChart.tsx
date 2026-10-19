@@ -1,25 +1,32 @@
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useMemo } from "react";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { BarChart3 } from "lucide-react";
-import type { MonthlySummary } from "../types";
+import type { Expense, FuelEntry, MonthlySummary } from "../types";
 import EmptyState from "./EmptyState";
-import { SERIES_BG, SERIES_COLORS, usePrefersDark } from "../lib/chartColors";
+import { AXIS, SERIES, SERIES_BG, usePrefersDark } from "../lib/chartColors";
+import { chartNotes } from "../lib/chartNotes";
+import { NoteList, noteMarks } from "./ChartNotes";
 import { formatMonth, formatTL } from "../lib/format";
 import { prefersReducedMotion } from "../lib/motion";
 
 interface Props {
   summaries: MonthlySummary[];
+  /** The records behind the summaries, for the notes (price jumps, a big one-off cost). */
+  entries?: FuelEntry[];
+  expenses?: Expense[];
 }
 
 /** Monthly spend as stacked bars: fuel at the base, other expenses on top. */
-export default function SpendChart({ summaries }: Props) {
+export default function SpendChart({ summaries, entries = [], expenses = [] }: Props) {
   const dark = usePrefersDark();
-  const mode = dark ? "dark" : "light";
   // Surface color doubles as the 2px gap between stacked segments.
   const surface = dark ? "#0f172a" : "#ffffff";
 
   const data = [...summaries]
     .sort((a, b) => (a.month < b.month ? -1 : 1))
-    .map((s) => ({ label: formatMonth(s.month), fuel: s.totalCost, other: s.otherCost, total: s.grandTotal }));
+    .map((s) => ({ month: s.month, label: formatMonth(s.month), fuel: s.totalCost, other: s.otherCost, total: s.grandTotal }));
+  const notes = useMemo(() => chartNotes(data.map((d) => d.month), entries, expenses), [data.map((d) => d.month).join(), entries, expenses]);
+  const marks = useMemo(() => noteMarks(notes), [notes]);
   const hasOther = data.some((d) => d.other > 0);
   // Bars grow up from the axis when the chart appears; other expenses follow the fuel segment.
   const animate = !prefersReducedMotion();
@@ -31,7 +38,7 @@ export default function SpendChart({ summaries }: Props) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <div className="card p-4">
       {hasOther ? (
         <div className="mb-2 flex gap-4 text-xs text-slate-600 dark:text-slate-300">
           <LegendItem className={SERIES_BG.fuel} label="Yakıt" />
@@ -40,20 +47,20 @@ export default function SpendChart({ summaries }: Props) {
       ) : null}
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid vertical={false} stroke="currentColor" className="text-slate-200 dark:text-slate-800" />
+          <BarChart data={data} margin={{ top: 22, right: 8, bottom: 0, left: 0 }}>
+            <CartesianGrid vertical={false} stroke="currentColor" className={AXIS.grid} />
             <XAxis
               dataKey="label"
               tickLine={false}
               axisLine={false}
               tick={{ fontSize: 12, fill: "currentColor" }}
-              className="text-slate-500 dark:text-slate-400"
+              className={AXIS.tick}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
               tick={{ fontSize: 12, fill: "currentColor" }}
-              className="text-slate-500 dark:text-slate-400"
+              className={AXIS.tick}
               width={64}
               tickFormatter={(v: number) => formatTL(v).replace(",00", "")}
             />
@@ -65,7 +72,6 @@ export default function SpendChart({ summaries }: Props) {
               dataKey="fuel"
               name="Yakıt"
               stackId="spend"
-              fill={SERIES_COLORS.fuel[mode]}
               stroke={surface}
               strokeWidth={hasOther ? 1 : 0}
               radius={hasOther ? 0 : [4, 4, 0, 0]}
@@ -73,13 +79,17 @@ export default function SpendChart({ summaries }: Props) {
               isAnimationActive={animate}
               animationDuration={900}
               animationEasing="ease-out"
-            />
+            >
+              {data.map((d) => (
+                <Cell key={d.month} className={SERIES.fuel.fill} />
+              ))}
+              {hasOther ? null : <LabelList dataKey="fuel" content={marks} />}
+            </Bar>
             {hasOther ? (
               <Bar
                 dataKey="other"
                 name="Diğer masraflar"
                 stackId="spend"
-                fill={SERIES_COLORS.other[mode]}
                 stroke={surface}
                 strokeWidth={1}
                 radius={[4, 4, 0, 0]}
@@ -88,11 +98,17 @@ export default function SpendChart({ summaries }: Props) {
                 animationBegin={350}
                 animationDuration={700}
                 animationEasing="ease-out"
-              />
+              >
+                {data.map((d) => (
+                  <Cell key={d.month} className={SERIES.other.fill} />
+                ))}
+                <LabelList dataKey="other" content={marks} />
+              </Bar>
             ) : null}
           </BarChart>
         </ResponsiveContainer>
       </div>
+      <NoteList notes={notes} />
     </div>
   );
 }

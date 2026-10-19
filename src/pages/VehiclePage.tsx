@@ -372,7 +372,7 @@ export default function VehiclePage({
             <ExpenseForm vehicleId={vehicle.id} onAdd={onAddExpense} />
           </section>
 
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <section className="lg:col-span-2">
               <h3 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Masraflar</h3>
               <ExpenseList
@@ -429,7 +429,7 @@ export default function VehiclePage({
       {tab === "aylik" && (
         <section>
           <div className="mb-4">
-            <SpendChart summaries={summaries} />
+            <SpendChart summaries={summaries} entries={entries} expenses={expenses} />
           </div>
           <MonthlyKmCard km={kmByMonth} summaries={summaries} />
           <MonthlySummaryTable summaries={summaries} kmByMonth={kmByMonth} />
