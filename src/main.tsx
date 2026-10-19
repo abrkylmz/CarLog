@@ -29,3 +29,16 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </ErrorBoundary>
   </React.StrictMode>,
 );
+
+// The launch screen from index.html: kept on for a short moment even when the app is quick, so
+// the logo reads as an intro rather than a flash, then faded out once the first frame is drawn.
+const splash = document.getElementById("splash");
+if (splash) {
+  const wait = Math.max(0, 900 - performance.now());
+  setTimeout(() => {
+    requestAnimationFrame(() => {
+      splash.classList.add("out");
+      setTimeout(() => splash.remove(), 400);
+    });
+  }, wait);
+}

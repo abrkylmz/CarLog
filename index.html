@@ -36,8 +36,24 @@
     <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/splash/splash-828x1792-dark.png" />
     <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/splash/splash-750x1334-dark.png" />
     <script src="/theme-init.js"></script>
+    <!-- Launch screen on every load: plain HTML so it shows on the first paint, before any script. -->
+    <style>
+      #splash { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: #f8fafc; pointer-events: none; transition: opacity 0.35s ease, transform 0.35s ease; }
+      html.dark #splash { background: #020617; }
+      #splash .logo { width: 96px; height: 96px; filter: drop-shadow(0 16px 28px rgba(28, 83, 168, 0.3)); animation: splash-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+      #splash .name { font: 800 28px/1 "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: -0.02em; color: #0f172a; animation: splash-up 0.5s 0.15s ease-out both; }
+      html.dark #splash .name { color: #f1f5f9; }
+      #splash .bar { width: 96px; height: 4px; border-radius: 2px; overflow: hidden; background: rgba(47, 135, 245, 0.15); animation: splash-up 0.5s 0.3s ease-out both; }
+      #splash .bar::after { content: ""; display: block; width: 40%; height: 100%; border-radius: 2px; background: #2f87f5; animation: splash-run 1s ease-in-out infinite; }
+      #splash.out { opacity: 0; transform: scale(1.04); }
+      @keyframes splash-in { from { opacity: 0; transform: scale(0.8); } }
+      @keyframes splash-up { from { opacity: 0; transform: translateY(8px); } }
+      @keyframes splash-run { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+      @media (prefers-reduced-motion: reduce) { #splash, #splash * { animation: none !important; } #splash.out { transform: none; } }
+    </style>
   </head>
   <body>
+    <div id="splash" aria-hidden="true"><svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="splash-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f87f5"/><stop offset="1" stop-color="#1c53a8"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#splash-g)"/><g transform="translate(112 112) scale(12)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="15" y1="22" y2="22"/><line x1="4" x2="14" y1="9" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></g></svg><div class="name">CarLog</div><div class="bar"></div></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
