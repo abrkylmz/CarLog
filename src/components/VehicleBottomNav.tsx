@@ -29,7 +29,7 @@ export default function VehicleBottomNav({
   const [moreOpen, setMoreOpen] = useState(false);
   const moreActive = MORE.some((m) => m.tab === tab);
   const itemClass = (active: boolean) =>
-    `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition ${
+    `flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 py-2 text-[11px] font-medium transition ${
       active ? "text-brand-600 dark:text-brand-300" : "text-slate-500 dark:text-slate-400"
     }`;
 
@@ -48,7 +48,7 @@ export default function VehicleBottomNav({
             className={itemClass(t === tab)}
           >
             <Icon size={20} strokeWidth={t === tab ? 2.4 : 2} />
-            {label}
+            <span className="max-w-full truncate">{label}</span>
           </a>
         ))}
         <button type="button" onClick={() => setMoreOpen(true)} className={itemClass(moreActive)} aria-haspopup="dialog">

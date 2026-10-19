@@ -838,7 +838,7 @@ function SignedInApp({
           <div className="rounded-lg bg-brand-600 p-2 text-white">
             <Fuel size={20} />
           </div>
-          <h1 className="text-xl font-semibold tracking-tight">CarLog</h1>
+          <h1 className="text-xl font-semibold tracking-tight max-[340px]:sr-only">CarLog</h1>
         </a>
         <div className="hidden min-w-0 flex-1 md:block">
           {vehicles ? <SearchBox vehicles={vehicles} entries={entries} expenses={expenses} reminders={reminders} /> : null}
