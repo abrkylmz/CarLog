@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ArrowDownRight, ArrowUpRight, Fuel, MapPin, RefreshCw } from "lucide-react";
-import { api, errorMessage } from "../lib/api";
+import { useFuelPrices } from "../lib/fuelPrices";
 import { formatRelative } from "../lib/format";
 import { useSession } from "../lib/session";
-import type { CityFuelPrice, FuelPrices, FuelType } from "../types";
+import type { FuelType } from "../types";
 
 const price = (n: number) => `₺${n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -22,32 +22,15 @@ const KINDS = [
  */
 export default function FuelPricesCard({ fuelTypes }: { fuelTypes: FuelType[] }) {
   const session = useSession();
-  const [data, setData] = useState<FuelPrices | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [city, setCity] = useState<string | null>(session?.user.fuelCity ?? null);
+  const { data, error, city, current, reload: load, choose: save } = useFuelPrices(session?.user);
   const [saving, setSaving] = useState(false);
 
-  const load = () => {
-    setError(null);
-    api.fuelPrices().then(setData, (err) => setError(errorMessage(err)));
-  };
-  useEffect(load, []);
-
   async function choose(code: string) {
-    const before = city;
-    setCity(code || null);
     setSaving(true);
-    try {
-      await api.setFuelCity(code || null);
-    } catch (err) {
-      setCity(before);
-      setError(errorMessage(err));
-    } finally {
-      setSaving(false);
-    }
+    await save(code || null);
+    setSaving(false);
   }
 
-  const current: CityFuelPrice | undefined = data?.cities.find((c) => c.code === city);
   const recent = current?.changedAt && current.previous && Date.now() - Date.parse(current.changedAt) < RECENT_CHANGE_MS;
   const changeDay = current?.changedAt ? new Date(current.changedAt).toLocaleDateString("tr-TR", { day: "numeric", month: "short" }) : "";
 
@@ -73,7 +56,7 @@ export default function FuelPricesCard({ fuelTypes }: { fuelTypes: FuelType[] })
   ) : null;
 
   return (
-    <section aria-label="Akaryakıt fiyatları" className="card p-4 sm:p-5">
+    <section id="akaryakit" aria-label="Akaryakıt fiyatları" className="card scroll-mt-24 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 font-semibold">
           <span className="rounded-xl bg-amber-50 p-2 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">

@@ -53,6 +53,17 @@ export default function MonthlyFuelChart({ year, values, highlight, years, onYea
           {year} toplamı · <b className="font-semibold text-slate-700 tabular-nums dark:text-slate-200">{formatTL(total).replace(",00", "")}</b>
         </span>
       </p>
+      {total === 0 ? (
+        <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+          {/* A faint silhouette of the chart to come, rather than an empty grid. */}
+          <div aria-hidden className="flex h-20 items-end gap-1.5">
+            {[30, 45, 38, 60, 52, 75, 48, 66].map((h, i) => (
+              <span key={i} className="w-3 rounded-t bg-slate-100 dark:bg-slate-800" style={{ height: `${h}%` }} />
+            ))}
+          </div>
+          <p className="max-w-xs text-sm text-slate-500 dark:text-slate-400">{year} yılında dolum yok. Kaydettikçe her ayın yakıt gideri burada çıkar.</p>
+        </div>
+      ) : (
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
@@ -102,6 +113,7 @@ export default function MonthlyFuelChart({ year, values, highlight, years, onYea
           </BarChart>
         </ResponsiveContainer>
       </div>
+      )}
       {selected != null ? (
         <MonthBreakdown month={`${year}-${String(selected + 1).padStart(2, "0")}`} label={`${MONTH_NAMES[selected]} ${year}`} entries={entries} expenses={expenses} />
       ) : null}

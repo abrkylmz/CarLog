@@ -173,6 +173,14 @@ function Sparkline({ values }: { values: number[] }) {
   const line = points.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)} ${py.toFixed(1)}`).join(" ");
   const total = values.reduce((t, v) => t + v, 0);
 
+  if (total === 0) {
+    return (
+      <div className="mt-4 flex h-[3.4rem] items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-500 dark:border-white/10 dark:text-slate-400">
+        İlk dolumla harcama grafiği burada başlar
+      </div>
+    );
+  }
+
   return (
     <div className="mt-4" title={`Son 12 ay: ${formatTL(total)}`}>
       <svg viewBox={`0 0 ${w} ${h}`} className="h-10 w-full" preserveAspectRatio="none" aria-hidden>

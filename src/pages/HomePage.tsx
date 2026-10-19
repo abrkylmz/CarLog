@@ -1,34 +1,24 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import {
-  ArrowDownRight,
-  ArrowRight,
-  ArrowUpDown,
-  ArrowUpRight,
-  BarChart3,
-  Car,
-  Check,
-  Crown,
-  Download,
-  Droplet,
-  Fuel,
-  Plus,
-  Route,
-  Users,
-} from "lucide-react";
-import BudgetStat from "../components/BudgetStat";
+import { ArrowDownRight, ArrowRight, ArrowUpDown, ArrowUpRight, BarChart3, Bell, Check, Crown, Download, Fuel, Plus, Users } from "lucide-react";
 import CarArt from "../components/CarArt";
 import FuelPricesCard from "../components/FuelPricesCard";
+import StartChecklist from "../components/StartChecklist";
+import TodayStrip, { type NextTask } from "../components/TodayStrip";
 import LegacyImportBanner from "../components/LegacyImportBanner";
 // The chart library is large; the cards and figures show first, the chart follows.
 const MonthlyFuelChart = lazy(() => import("../components/MonthlyFuelChart"));
 import RecentEntries from "../components/RecentEntries";
 import { CountUp } from "../components/StatCard";
+import { openQuickAdd } from "../components/QuickAdd";
 import { YearSelect } from "../components/TopBar";
 import VehicleCard from "../components/VehicleCard";
 import VehicleCarousel from "../components/VehicleCarousel";
 import { vehicleStats } from "../lib/calc";
 import { dashboard, recentMonthlySpend } from "../lib/dashboard";
 import { formatConsumption, formatNumber, formatTL } from "../lib/format";
+import { useFuelPrices } from "../lib/fuelPrices";
+import { reminderTitle } from "../components/Reminders";
+import { useSession } from "../lib/session";
 import { usePopover } from "../lib/popover";
 import { reminderStatus } from "../lib/reminders";
 import { paths } from "../lib/router";
@@ -136,6 +126,29 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
     return counts;
   }, [reminders, statsByVehicle]);
   const board = useMemo(() => dashboard(year, vehicles, entries, expenses), [year, vehicles, entries, expenses]);
+  const session = useSession();
+  const prices = useFuelPrices(session?.user);
+
+  // The one reminder to look at today: anything overdue first, then the nearest.
+  const nextTask = useMemo<NextTask | null>(() => {
+    const rank = { overdue: 0, soon: 1, planned: 2, done: 3 } as const;
+    const open = reminders
+      .filter((r) => !r.doneAt)
+      .map((r) => ({ r, st: reminderStatus(r, statsByVehicle.get(r.vehicleId)?.latestOdometerKm ?? null) }))
+      .filter((x) => x.st.level !== "done" && x.st.text)
+      .sort((a, b) => rank[a.st.level] - rank[b.st.level] || (a.r.dueDate ?? "9999").localeCompare(b.r.dueDate ?? "9999"));
+    const top = open[0];
+    if (!top) return null;
+    const v = vehicles.find((x) => x.id === top.r.vehicleId);
+    return { title: reminderTitle(top.r), vehicleName: v?.name ?? "", vehicleId: top.r.vehicleId, when: top.st.text, overdue: top.st.level === "overdue" };
+  }, [reminders, statsByVehicle, vehicles]);
+
+  // The fuel most of the user's vehicles take: whose price "Bugün" shows.
+  const mainFuel = useMemo(() => {
+    const count = new Map<Vehicle["fuelType"], number>();
+    for (const v of vehicles) count.set(v.fuelType, (count.get(v.fuelType) ?? 0) + 1);
+    return [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  }, [vehicles]);
 
   const banner = <LegacyImportBanner onImported={onReload} />;
 
@@ -143,22 +156,7 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
     return (
       <>
         {banner}
-        <div className="flex flex-col items-center rounded-2xl border border-dashed border-slate-300 px-6 py-16 text-center dark:border-slate-700">
-          <div className="mb-4 rounded-full bg-brand-50 p-4 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300">
-            <Car size={32} />
-          </div>
-          <h2 className="text-lg font-semibold">Garajınız boş</h2>
-          <p className="mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-            Yakıt giderlerini takip etmeye başlamak için ilk aracınızı ekleyin.
-          </p>
-          <a
-            href={paths.newVehicle}
-            className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
-          >
-            <Plus size={16} />
-            Araç Ekle
-          </a>
-        </div>
+        <EmptyGarage />
       </>
     );
   }
@@ -222,52 +220,33 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
       <Hero
         year={year}
         thisYear={thisYear}
-        fuelCost={board.fuelCost}
-        otherCost={board.otherCost}
+        board={board}
         vehicleCount={board.vehiclesWithFuel}
-        hasData={board.fuelCost > 0}
         yearPicker={<YearSelect years={years} value={year} onChange={onYearChange} />}
+        firstVehicleId={vehicles[0].id}
       />
 
-      <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <BudgetStat spent={board.thisMonth.total} change={board.thisMonth.change} budget={budget} onEditBudget={onEditBudget} />
-        <Stat
-          icon={BarChart3}
-          tone="brand"
-          label="Genel Toplam"
-          value={<CountUp to={board.fuelCost + board.otherCost} format={tl} />}
-          hint={`Tüm araçlar · ${year}`}
-        />
-        <Stat
-          icon={Droplet}
-          tone="rose"
-          label="Ortalama Tüketim"
-          value={
-            board.consumption.per100km != null ? (
-              <>
-                {formatConsumption(board.consumption.per100km, board.consumption.kind)}
-                <span className="ml-1 text-base font-semibold">L/100km</span>
-              </>
-            ) : (
-              "—"
-            )
-          }
-          change={board.consumption.change}
-          changeHint={`${year - 1} yılına göre`}
-          hint={board.consumption.per100km == null ? "Henüz ölçülmedi" : undefined}
-          lowerIsBetter
-        />
-        <Stat
-          icon={Route}
-          tone="slate"
-          label="Toplam Kilometre"
-          className="max-sm:col-span-2"
-          value={<CountUp to={board.km.total} format={(n) => `${formatNumber(n, 0)} km`} />}
-          hint={`Tüm araçlar · ${year}`}
-        />
-      </section>
+      <TodayStrip
+        spent={board.thisMonth.total}
+        budget={budget}
+        onEditBudget={onEditBudget}
+        task={nextTask}
+        firstVehicleId={owned[0]?.id ?? vehicles[0].id}
+        fuel={mainFuel}
+      />
 
-      <FuelPricesCard fuelTypes={[...new Set(vehicles.map((v) => v.fuelType))]} />
+      {session ? (
+        <StartChecklist
+          userId={session.user.id}
+          firstVehicleId={owned[0]?.id ?? vehicles[0].id}
+          hasEntry={entries.length > 0}
+          hasConsumption={[...statsByVehicle.values()].some((st) => st.avgConsumptionPer100km != null)}
+          hasReminder={reminders.length > 0}
+          hasCity={Boolean(prices.city)}
+          hasBudget={budget != null}
+          onEditBudget={onEditBudget}
+        />
+      ) : null}
 
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -316,6 +295,8 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
         </section>
       ) : null}
 
+      <FuelPricesCard fuelTypes={[...new Set(vehicles.map((v) => v.fuelType))]} />
+
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
         <RecentEntries vehicles={vehicles} entries={entries.filter((e) => e.date.startsWith(`${year}-`))} />
         <Suspense fallback={<div className="skeleton h-80 rounded-2xl" />}>
@@ -335,20 +316,33 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
 function Hero({
   year,
   thisYear,
-  fuelCost,
-  otherCost,
+  board,
   vehicleCount,
-  hasData,
   yearPicker,
+  firstVehicleId,
 }: {
   year: number;
   thisYear: boolean;
-  fuelCost: number;
-  otherCost: number;
+  board: ReturnType<typeof dashboard>;
   vehicleCount: number;
-  hasData: boolean;
   yearPicker: React.ReactNode;
+  firstVehicleId: string;
 }) {
+  const hasData = board.fuelCost + board.otherCost > 0;
+  const c = board.consumption;
+  const figures = [
+    { label: "Yakıt", value: tl(board.fuelCost) },
+    { label: "Diğer masraflar", value: tl(board.otherCost) },
+    {
+      label: "Ortalama tüketim",
+      value: c.per100km != null ? `${formatConsumption(c.per100km, c.kind)} L/100km` : "—",
+      hint: c.per100km == null ? "2. full dolumda" : undefined,
+      change: c.change,
+      lowerIsBetter: true,
+    },
+    { label: "Yol", value: `${formatNumber(board.km.total, 0)} km`, change: board.km.change },
+  ];
+
   return (
     <section className="relative flex flex-col overflow-hidden rounded-3xl bg-gradient-to-br from-brand-900 via-brand-700 to-brand-500 text-white shadow-xl shadow-brand-900/20">
       {/* Evening sky: a warm glow on the horizon behind layered hills. */}
@@ -359,94 +353,117 @@ function Hero({
         <path d="M0 200 L0 185 C200 175 600 175 800 185 L800 200 Z" className="fill-slate-950/30" />
       </svg>
 
-      <div className="relative flex min-h-[11rem] flex-col justify-between gap-4 p-5 sm:p-7">
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-medium text-white/80">{year}</p>
-          <div className="text-slate-900 sm:hidden dark:text-slate-100">{yearPicker}</div>
-        </div>
-        <div className="max-w-[min(34rem,62%)] max-sm:max-w-none">
-          <h2 className="text-2xl font-bold tracking-tight sm:text-4xl">{thisYear ? "Bu yıl şimdiye kadar" : `${year} yılında`}</h2>
-          {hasData ? (
-            <p className="mt-1 text-white/90 sm:text-lg">
-              Toplam {vehicleCount} aracınızla <b className="font-bold text-white">{tl(fuelCost)}</b> yakıt harcadınız.
-              {otherCost > 0 ? <span className="block text-sm text-white/70">Diğer masraflar: {tl(otherCost)}</span> : null}
-            </p>
-          ) : (
-            <p className="mt-1 text-white/85">Bu yıl için henüz dolum kaydı yok.</p>
-          )}
-        </div>
-      </div>
-
-      <div data-accent="dizel" className="pointer-events-none absolute bottom-1 right-6 hidden w-[19rem] drop-shadow-2xl md:block lg:right-48 xl:w-[23rem]">
+      <div data-accent="dizel" className="pointer-events-none absolute right-6 top-8 hidden w-[17rem] drop-shadow-2xl md:block lg:right-10 xl:w-[21rem]">
         <CarArt className="h-auto w-full" />
       </div>
 
-      {hasData ? (
-        <a
-          href={paths.wrapped(year)}
-          className="relative mx-5 mb-5 inline-flex w-fit items-center gap-2 self-start rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 shadow-lg transition hover:bg-brand-50 sm:absolute sm:bottom-7 sm:right-7 sm:m-0"
-        >
-          <BarChart3 size={16} />
-          Yıl Özeti
-          <ArrowRight size={16} />
-        </a>
-      ) : null}
+      <div className="relative flex flex-col gap-5 p-5 sm:p-7">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-medium text-white/85">{thisYear ? `${year} · bu yıl şimdiye kadar` : `${year} yılında`}</p>
+          <div className="text-slate-900 sm:hidden dark:text-slate-100">{yearPicker}</div>
+        </div>
+
+        {hasData ? (
+          <div className="max-w-[min(34rem,60%)] max-sm:max-w-none">
+            <p className="text-4xl font-extrabold tabular-nums tracking-tight sm:text-5xl">
+              <CountUp to={board.fuelCost + board.otherCost} format={tl} />
+            </p>
+            <p className="mt-1 text-sm text-white/85">
+              {vehicleCount} aracın toplam harcaması
+            </p>
+          </div>
+        ) : (
+          <div className="max-w-md">
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{thisYear ? "Yıl yeni başlıyor" : `${year} yılında kayıt yok`}</h2>
+            <p className="mt-1 text-white/85">İlk dolumunu kaydet; harcama, tüketim ve yol burada birikmeye başlasın.</p>
+            {thisYear ? (
+              <button
+                type="button"
+                onClick={() => openQuickAdd("entry", firstVehicleId)}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 shadow-lg transition hover:bg-brand-50"
+              >
+                <Fuel size={16} />
+                İlk dolumu ekle
+              </button>
+            ) : null}
+          </div>
+        )}
+
+        {hasData ? (
+          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 md:max-w-[min(44rem,70%)]">
+            {figures.map((x) => {
+              const showChange = x.change != null && x.change !== 0;
+              const good = showChange && (x.lowerIsBetter ? x.change! < 0 : x.change! > 0);
+              return (
+                <div key={x.label} className="rounded-2xl bg-white/[0.12] px-3 py-2.5 ring-1 ring-inset ring-white/15 backdrop-blur-sm">
+                  <dt className="truncate text-[11px] font-medium text-white/80">{x.label}</dt>
+                  <dd className="mt-0.5 truncate text-base font-bold tabular-nums tracking-tight sm:text-lg">{x.value}</dd>
+                  {showChange ? (
+                    <dd className={`mt-0.5 inline-flex items-center gap-0.5 rounded-md px-1 text-[11px] font-semibold ${good ? "bg-emerald-400/20 text-emerald-100" : "bg-rose-400/20 text-rose-100"}`}>
+                      {x.change! < 0 ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}%{Math.abs(x.change!)} <span className="font-medium text-white/75">{year - 1}'e göre</span>
+                    </dd>
+                  ) : x.hint ? (
+                    <dd className="mt-0.5 text-[11px] text-white/75">{x.hint}</dd>
+                  ) : null}
+                </div>
+              );
+            })}
+          </dl>
+        ) : null}
+
+        {hasData ? (
+          <a
+            href={paths.wrapped(year)}
+            className="inline-flex w-fit items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 shadow-lg transition hover:bg-brand-50"
+          >
+            <BarChart3 size={16} />
+            Yıl Özeti
+            <ArrowRight size={16} />
+          </a>
+        ) : null}
+      </div>
     </section>
   );
 }
 
-const TONES = {
-  emerald: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400",
-  brand: "bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300",
-  rose: "bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400",
-  slate: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-};
-
-function Stat({
-  icon: Icon,
-  tone,
-  label,
-  value,
-  hint,
-  change,
-  changeHint,
-  lowerIsBetter,
-  className = "",
-}: {
-  icon: typeof Fuel;
-  tone: keyof typeof TONES;
-  label: string;
-  value: React.ReactNode;
-  hint?: string;
-  change?: number | null;
-  changeHint?: string;
-  lowerIsBetter?: boolean;
-  className?: string;
-}) {
-  const showChange = change != null && change !== 0;
-  const good = showChange && (lowerIsBetter ? change! < 0 : change! > 0);
+/** First visit: what the app is for, and the one thing to do. */
+function EmptyGarage() {
+  const points = [
+    { icon: Fuel, title: "Gerçek tüketimini öğren", text: "Dolumlarından L/100 km ve km başına maliyet" },
+    { icon: Bell, title: "Muayeneyi, sigortayı unutma", text: "Zamanı gelince bildirim" },
+    { icon: BarChart3, title: "Paranın nereye gittiğini gör", text: "Aylık rapor ve Yıl Özeti" },
+  ];
   return (
-    <div className={`card flex items-start gap-3 p-4 sm:gap-4 sm:p-5 ${className}`}>
-      <span className={`hidden rounded-xl p-3 sm:block ${TONES[tone]}`}>
-        <Icon size={22} />
-      </span>
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-slate-500 sm:text-sm dark:text-slate-400">{label}</p>
-        <p className="mt-1 truncate text-xl font-bold tabular-nums tracking-tight sm:text-2xl">{value}</p>
-        {showChange ? (
-          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs">
-            <span className={`inline-flex items-center font-semibold ${good ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-              {change! < 0 ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}%{Math.abs(change!)}
-            </span>
-            <span className="text-slate-400 dark:text-slate-500">{changeHint}</span>
-          </p>
-        ) : hint ? (
-          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{hint}</p>
-        ) : changeHint ? (
-          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{changeHint}</p>
-        ) : null}
+    <section className="card overflow-hidden">
+      <div className="relative flex h-44 items-end justify-center overflow-hidden bg-gradient-to-b from-brand-100 via-brand-50 to-transparent dark:from-brand-900/50 dark:via-brand-900/20">
+        <div aria-hidden className="absolute -top-16 left-1/2 h-48 w-72 -translate-x-1/2 rounded-full bg-brand-300/40 blur-3xl dark:bg-brand-600/25" />
+        <CarArt className="relative h-28 w-auto drop-shadow-xl" />
       </div>
-    </div>
+      <div className="px-5 pb-6 pt-4 text-center sm:px-8">
+        <h2 className="text-2xl font-extrabold tracking-tight">Garajın seni bekliyor</h2>
+        <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">Aracını ekle; yakıtın, masrafların ve bakımın tek yerde toplansın.</p>
+        <ul className="mx-auto mt-6 grid max-w-2xl gap-3 text-left sm:grid-cols-3">
+          {points.map((p) => (
+            <li key={p.title} className="flex gap-3 rounded-xl bg-slate-50 p-3 dark:bg-white/[0.04]">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-300">
+                <p.icon size={18} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{p.title}</span>
+                <span className="block text-xs text-slate-500 dark:text-slate-400">{p.text}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <a
+          href={paths.newVehicle}
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-900/20 transition hover:bg-brand-700"
+        >
+          <Plus size={18} />
+          İlk aracını ekle
+        </a>
+      </div>
+    </section>
   );
 }
 
