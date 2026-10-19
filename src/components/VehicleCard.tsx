@@ -20,9 +20,23 @@ interface Props {
 const MENU_TABS: VehicleTab[] = ["dolumlar", "masraflar", "hatirlatmalar", "aylik", "bilgiler"];
 
 /** A vehicle on the dashboard: drawing, key figures, a year of spend and the two main actions. */
+/**
+ * The name block: the brand above in small spaced capitals, the vehicle's own name large (without
+ * the brand when the name starts with it, since it's right above), then model and year, leaving
+ * out whatever the name already says.
+ */
+function nameParts(vehicle: Vehicle) {
+  const brand = vehicle.brand?.trim() || null;
+  let title = vehicle.name.trim();
+  if (brand && title.toLocaleLowerCase("tr").startsWith(`${brand.toLocaleLowerCase("tr")} `)) title = title.slice(brand.length + 1);
+  const model = vehicle.model?.trim();
+  const showModel = model && !title.toLocaleLowerCase("tr").includes(model.toLocaleLowerCase("tr"));
+  const subtitle = [showModel ? model : null, vehicle.year ? String(vehicle.year) : null].filter(Boolean).join(" · ");
+  return { brand, title, subtitle };
+}
+
 export default function VehicleCard({ vehicle, stats, alerts, spend }: Props) {
-  const details = [vehicle.plate, vehicle.year ? String(vehicle.year) : null].filter(Boolean).join(" · ");
-  const makeModel = [vehicle.brand, vehicle.model].filter(Boolean).join(" ");
+  const { brand, title, subtitle } = nameParts(vehicle);
   const FuelIcon = vehicle.fuelType === "hibrit" ? Zap : Fuel;
 
   return (
@@ -33,19 +47,27 @@ export default function VehicleCard({ vehicle, stats, alerts, spend }: Props) {
       <CardMenu vehicleId={vehicle.id} />
 
       <a href={paths.vehicle(vehicle.id)} className="block" aria-label={`${vehicle.name} detayları`}>
-        <div className="relative -mx-4 -mt-4 mb-3 flex h-32 items-end justify-center overflow-hidden bg-gradient-to-b from-brand-50 to-white px-6 pb-1 dark:from-brand-900/30 dark:to-slate-900">
-          <div aria-hidden className="absolute -top-10 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full bg-brand-200/50 blur-2xl dark:bg-brand-700/20" />
-          <CarArt body={bodyTypeOf(vehicle)} className="relative h-24 w-auto transition duration-500 group-hover/card:-translate-y-0.5 group-hover/card:scale-[1.03]" />
+        {/* Hero: the name set like a headline at the top left, the drawing parked at the bottom right. */}
+        <div className="relative -mx-4 -mt-4 h-44 overflow-hidden bg-gradient-to-br from-brand-50 via-white to-brand-100/70 dark:from-brand-900/50 dark:via-slate-900 dark:to-slate-900">
+          <div aria-hidden className="absolute -right-12 -top-16 h-52 w-52 rounded-full bg-brand-300/35 blur-3xl dark:bg-brand-500/20" />
+          <div aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-brand-200 to-transparent dark:via-brand-800" />
+          <div className="relative px-4 pr-12 pt-4">
+            {/* Kept even without a brand, so names line up across the cards. */}
+            <p className="h-4 truncate text-[11px] font-bold uppercase leading-4 tracking-[0.2em] text-brand-600 dark:text-brand-300">{brand}</p>
+            <h3 title={vehicle.name} className="mt-1 truncate text-[clamp(1.35rem,6.4vw,1.7rem)] font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white">
+              {title}
+            </h3>
+            {subtitle ? <p className="truncate text-sm font-medium text-slate-500 dark:text-slate-400">{subtitle}</p> : null}
+          </div>
+          <CarArt
+            body={bodyTypeOf(vehicle)}
+            className="absolute -right-5 bottom-1 h-[5.25rem] w-auto drop-shadow-[0_12px_14px_rgb(var(--brand-900)/0.18)] transition duration-500 group-hover/card:-translate-x-1 group-hover/card:scale-[1.03]"
+          />
         </div>
 
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="truncate text-lg font-semibold tracking-tight">{vehicle.name}</h3>
-            <p className="truncate text-sm text-slate-500 dark:text-slate-400">
-              {details || makeModel || FUEL_TYPE_LABELS[vehicle.fuelType]}
-            </p>
-          </div>
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-50 px-2 py-1 text-xs font-semibold text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+        <div className="mt-3 flex min-h-7 flex-wrap items-center gap-2">
+          {vehicle.plate ? <Plate value={vehicle.plate} /> : null}
+          <span className="inline-flex h-7 items-center gap-1 rounded-md bg-brand-50 px-2 text-xs font-semibold text-brand-700 ring-1 ring-inset ring-brand-200/70 dark:bg-brand-900/40 dark:text-brand-300 dark:ring-brand-800">
             <FuelIcon size={13} />
             {FUEL_TYPE_LABELS[vehicle.fuelType]}
           </span>
@@ -113,6 +135,18 @@ export default function VehicleCard({ vehicle, stats, alerts, spend }: Props) {
         </a>
       </div>
     </article>
+  );
+}
+
+/** The plate as it looks on the car: white, a blue "TR" band on the left, bold even letters. */
+function Plate({ value }: { value: string }) {
+  return (
+    <span aria-label={`Plaka ${value}`} className="inline-flex h-7 items-stretch overflow-hidden rounded-md bg-white text-slate-900 shadow-sm ring-1 ring-slate-300 dark:ring-slate-500">
+      <span aria-hidden className="flex w-[18px] items-end justify-center bg-[#1d4fb8] pb-[3px] text-[8px] font-bold leading-none text-white">
+        TR
+      </span>
+      <span className="flex items-center px-2 font-mono text-[13px] font-bold uppercase tracking-[0.08em]">{value}</span>
+    </span>
   );
 }
 

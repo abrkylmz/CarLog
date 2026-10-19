@@ -206,7 +206,6 @@ export default function HomePage({ vehicles, entries, expenses, reminders, year,
       <VehicleCarousel
         label={label}
         accents={[...list.map((v) => FUEL_ACCENT[v.fuelType]), ...(withAdd ? [undefined] : [])]}
-        titles={[...list.map((v) => v.name), ...(withAdd ? ["Yeni araç"] : [])]}
       >
         {list.map(card)}
         {withAdd ? addTile : null}
