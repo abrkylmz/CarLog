@@ -87,7 +87,9 @@ export function useHashRoute(): Route {
       };
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const overlay = next.name === "wrapped" || prev.name === "wrapped";
-      if (!document.startViewTransition || reduce || overlay) {
+      // A hidden page (app sent to the background) can't animate: the browser would abort the
+      // transition with "Document hidden". Switch straight away instead.
+      if (!document.startViewTransition || reduce || overlay || document.visibilityState !== "visible") {
         apply();
         return;
       }
@@ -99,7 +101,11 @@ export function useHashRoute(): Route {
           : depth(next) < depth(prev)
             ? "back"
             : "tab";
-      document.startViewTransition(() => flushSync(apply));
+      const transition = document.startViewTransition(() => flushSync(apply));
+      // Hidden or interrupted half-way, the animation is skipped (the page still switches); its
+      // promises then reject, which is no error worth reporting.
+      transition.ready.catch(() => undefined);
+      transition.finished.catch(() => undefined);
     }
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);

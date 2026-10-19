@@ -1,5 +1,6 @@
 import { planById } from "../src/lib/plans.ts";
 import { BODY_TYPES } from "../src/lib/bodyType.ts";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { CATALOG_SEED, CATALOG_SEED_VERSION } from "./catalogSeed.ts";
 import type {
@@ -25,7 +26,7 @@ export interface Statement {
   params?: unknown[];
 }
 
-interface Db {
+export interface Db {
   query(text: string, params?: unknown[]): Promise<Row[]>;
   /** Runs the statements atomically and returns each one's rows. */
   transaction(statements: Statement[]): Promise<Row[][]>;
@@ -284,11 +285,51 @@ const SCHEMA: string[] = [
 
 let ready: Promise<Db> | null = null;
 
+/** Fingerprint of the schema above: changes whenever a statement is added or edited. */
+export const SCHEMA_VERSION = createHash("sha256").update(SCHEMA.join("\n;\n")).digest("hex").slice(0, 16);
+
+/** Errors from another instance creating the same thing at the same moment; retrying then finds it. */
+const RACE_CODES = new Set(["23505", "42P07", "42710", "42701", "40P01"]);
+
+/**
+ * Brings the database up to SCHEMA. Normally the stored fingerprint matches and nothing is touched:
+ * one SELECT, no locks. After a deploy that changes the schema, the statements run one by one, each
+ * in its own short transaction, so a table is never held locked while live requests use the others
+ * (one long transaction did that, and deadlocked them). Instances starting together can collide on
+ * CREATE … IF NOT EXISTS (e.g. "duplicate key … pg_type_typname_nsp_index"); such a statement is
+ * simply run again.
+ */
+export async function ensureSchema(db: Db): Promise<"current" | "migrated"> {
+  try {
+    const row = (await db.query("SELECT value FROM app_meta WHERE key = 'schema_version'"))[0];
+    if (row?.value === SCHEMA_VERSION) return "current";
+  } catch {
+    // No app_meta yet: a new database.
+  }
+  for (const statement of SCHEMA) {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await db.query(statement);
+        break;
+      } catch (err) {
+        const code = (err as { code?: string }).code;
+        if (!code || !RACE_CODES.has(code) || attempt >= 5) throw err;
+        await new Promise((r) => setTimeout(r, 50 * attempt));
+      }
+    }
+  }
+  await db.query(
+    `INSERT INTO app_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    [SCHEMA_VERSION],
+  );
+  return "migrated";
+}
+
 /** Connects and creates tables on first use; later calls reuse the same connection. */
 function getDb(): Promise<Db> {
   ready ??= (async () => {
     const db = await connect();
-    for (const statement of SCHEMA) await db.query(statement);
+    await ensureSchema(db);
     await assignOwnerlessVehicles(db);
     await seedCatalog(db);
     return db;
